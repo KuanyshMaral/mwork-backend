@@ -1,0 +1,50 @@
+package admin
+
+import (
+	"github.com/go-chi/chi/v5"
+)
+
+// Routes returns admin router
+func (h *Handler) Routes() chi.Router {
+	r := chi.NewRouter()
+
+	// Auth routes (no auth required)
+	r.Post("/auth/login", h.Login)
+
+	// Protected routes
+	r.Group(func(r chi.Router) {
+		r.Use(AuthMiddleware(h.jwtSvc, h.service))
+
+		// Current admin
+		r.Get("/auth/me", h.Me)
+
+		// Admin management (super_admin only)
+		r.Route("/admins", func(r chi.Router) {
+			r.Use(RequirePermission(PermManageAdmins))
+			r.Get("/", h.ListAdmins)
+			r.Post("/", h.CreateAdmin)
+			r.Patch("/{id}", h.UpdateAdmin)
+		})
+
+		// Feature flags
+		r.Route("/features", func(r chi.Router) {
+			r.Use(RequirePermission(PermManageFeatures))
+			r.Get("/", h.ListFeatures)
+			r.Patch("/{key}", h.UpdateFeature)
+		})
+
+		// Analytics
+		r.Route("/analytics", func(r chi.Router) {
+			r.Use(RequirePermission(PermViewAnalytics))
+			r.Get("/dashboard", h.Dashboard)
+		})
+
+		// Audit logs
+		r.Route("/audit", func(r chi.Router) {
+			r.Use(RequirePermission(PermViewAuditLogs))
+			r.Get("/logs", h.AuditLogs)
+		})
+	})
+
+	return r
+}
