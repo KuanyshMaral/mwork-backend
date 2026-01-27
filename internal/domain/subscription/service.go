@@ -3,19 +3,57 @@ package subscription
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 )
 
 // Service handles subscription business logic
 type Service struct {
-	repo Repository
+	repo         Repository
+	photoRepo    PhotoRepository
+	responseRepo ResponseRepository
+	castingRepo  CastingRepository
+	profileRepo  ProfileRepository
+}
+
+// PhotoRepository defines photo operations needed by subscription
+type PhotoRepository interface {
+	CountByProfileID(ctx context.Context, profileID uuid.UUID) (int, error)
+}
+
+// ResponseRepository defines response operations needed by subscription
+type ResponseRepository interface {
+	CountWeeklyByUserID(ctx context.Context, userID uuid.UUID) (int, error)
+}
+
+// CastingRepository defines casting operations needed by subscription
+type CastingRepository interface {
+	CountActiveByCreatorID(ctx context.Context, creatorID uuid.UUID) (int, error)
+}
+
+// ProfileRepository defines profile operations needed by subscription
+type ProfileRepository interface {
+	GetByUserID(ctx context.Context, userID uuid.UUID) (*Profile, error)
+}
+
+// Profile represents a user profile (simplified for interface)
+type Profile struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
 }
 
 // NewService creates subscription service
-func NewService(repo Repository) *Service {
-	return &Service{repo: repo}
+func NewService(repo Repository, photoRepo PhotoRepository, responseRepo ResponseRepository, castingRepo CastingRepository, profileRepo ProfileRepository) *Service {
+	return &Service{
+		repo:         repo,
+		photoRepo:    photoRepo,
+		responseRepo: responseRepo,
+		castingRepo:  castingRepo,
+		profileRepo:  profileRepo,
+	}
 }
 
 // GetPlans returns all available plans
@@ -137,8 +175,8 @@ func (s *Service) Cancel(ctx context.Context, userID uuid.UUID, reason string) e
 	return s.repo.Cancel(ctx, sub.ID, reason)
 }
 
-// GetLimits returns user's current limits based on subscription
-func (s *Service) GetLimits(ctx context.Context, userID uuid.UUID) (*Plan, error) {
+// GetPlanLimits returns user's current plan limits (renamed from GetLimits)
+func (s *Service) GetPlanLimits(ctx context.Context, userID uuid.UUID) (*Plan, error) {
 	sub, plan, err := s.GetCurrentSubscription(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -152,9 +190,122 @@ func (s *Service) GetLimits(ctx context.Context, userID uuid.UUID) (*Plan, error
 	return plan, nil
 }
 
+// LimitsResponseData represents current usage vs plan limits
+type LimitsResponseData struct {
+	PhotosUsed     int `json:"photos_used"`
+	PhotosLimit    int `json:"photos_limit"`
+	ResponsesUsed  int `json:"responses_used"`
+	ResponsesLimit int `json:"responses_limit"`
+	CastingsUsed   int `json:"castings_used"`
+	CastingsLimit  int `json:"castings_limit"`
+}
+
+// GetLimitsWithUsage returns current usage and plan limits for user
+func (s *Service) GetLimitsWithUsage(ctx context.Context, userID uuid.UUID) (*LimitsResponseData, error) {
+	// Get user subscription
+	sub, err := s.repo.GetActiveByUserID(ctx, userID)
+	var plan *Plan
+
+	if err == sql.ErrNoRows || sub == nil {
+		// Free tier defaults
+		plan, err = s.repo.GetPlanByID(ctx, PlanFree)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get free plan: %w", err)
+		}
+	} else if err != nil {
+		return nil, fmt.Errorf("failed to get subscription: %w", err)
+	} else {
+		// Get plan from subscription
+		plan, err = s.repo.GetPlanByID(ctx, sub.PlanID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get plan: %w", err)
+		}
+	}
+
+	// Get user's profile for counting resources
+	profile, err := s.profileRepo.GetByUserID(ctx, userID)
+	if err != nil && err != sql.ErrNoRows {
+		return nil, fmt.Errorf("failed to get profile: %w", err)
+	}
+
+	// Initialize response with plan limits
+	response := &LimitsResponseData{
+		PhotosLimit:    plan.MaxPhotos,
+		ResponsesLimit: plan.MaxResponsesMonth,
+		CastingsLimit:  3, // Default for free plan
+	}
+
+	// If no profile, return zeroed usage
+	if profile == nil || err == sql.ErrNoRows {
+		response.PhotosUsed = 0
+		response.ResponsesUsed = 0
+		response.CastingsUsed = 0
+		return response, nil
+	}
+
+	// Get actual usage counts in parallel for performance
+	type usageResult struct {
+		photos    int
+		responses int
+		castings  int
+		err       error
+	}
+
+	resultChan := make(chan usageResult, 1)
+
+	go func() {
+		var result usageResult
+
+		// Count photos
+		photosUsed, err := s.photoRepo.CountByProfileID(ctx, profile.ID)
+		if err != nil {
+			log.Warn().Err(err).Msg("failed to count photos")
+			photosUsed = 0
+		}
+		result.photos = photosUsed
+
+		// Count weekly responses
+		responsesUsed, err := s.responseRepo.CountWeeklyByUserID(ctx, userID)
+		if err != nil {
+			log.Warn().Err(err).Msg("failed to count responses")
+			responsesUsed = 0
+		}
+		result.responses = responsesUsed
+
+		// Count active castings
+		castingsUsed, err := s.castingRepo.CountActiveByCreatorID(ctx, profile.ID)
+		if err != nil {
+			log.Warn().Err(err).Msg("failed to count castings")
+			castingsUsed = 0
+		}
+		result.castings = castingsUsed
+
+		resultChan <- result
+	}()
+
+	// Wait for results
+	result := <-resultChan
+
+	response.PhotosUsed = result.photos
+	response.ResponsesUsed = result.responses
+	response.CastingsUsed = result.castings
+
+	log.Info().
+		Str("user_id", userID.String()).
+		Int("photos_used", response.PhotosUsed).
+		Int("photos_limit", response.PhotosLimit).
+		Int("responses_used", response.ResponsesUsed).
+		Int("responses_limit", response.ResponsesLimit).
+		Int("castings_used", response.CastingsUsed).
+		Int("castings_limit", response.CastingsLimit).
+		Msg("limits fetched")
+
+	return response, nil
+}
+
 // CheckLimit checks if user is within their plan limits
 func (s *Service) CheckLimit(ctx context.Context, userID uuid.UUID, limitType string, currentUsage int) (bool, *Plan, error) {
-	plan, err := s.GetLimits(ctx, userID)
+	plan, err := s.GetPlanLimits(ctx, userID)
 	if err != nil {
 		return false, nil, err
 	}

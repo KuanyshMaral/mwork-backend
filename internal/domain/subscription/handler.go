@@ -1,10 +1,14 @@
 package subscription
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 
 	"github.com/mwork/mwork-api/internal/middleware"
 	"github.com/mwork/mwork-api/internal/pkg/response"
@@ -13,12 +17,63 @@ import (
 
 // Handler handles subscription HTTP requests
 type Handler struct {
-	service *Service
+	service        *Service
+	paymentService PaymentService
+	kaspiClient    KaspiClient
+	config         *Config
+}
+
+// PaymentService defines payment operations needed by subscription
+type PaymentService interface {
+	CreatePayment(ctx context.Context, userID, subscriptionID uuid.UUID, amount float64, provider string) (*Payment, error)
+}
+
+// KaspiClient defines Kaspi API operations
+type KaspiClient interface {
+	CreatePayment(ctx context.Context, req KaspiPaymentRequest) (*KaspiPaymentResponse, error)
+}
+
+// Payment represents payment entity
+type Payment struct {
+	ID             uuid.UUID
+	UserID         uuid.UUID
+	SubscriptionID uuid.NullUUID
+	Amount         float64
+	KaspiOrderID   string
+	Status         string
+	CreatedAt      time.Time
+}
+
+// KaspiPaymentRequest for creating Kaspi payment
+type KaspiPaymentRequest struct {
+	Amount      float64
+	OrderID     string
+	Description string
+	ReturnURL   string
+	CallbackURL string
+}
+
+// KaspiPaymentResponse from Kaspi API
+type KaspiPaymentResponse struct {
+	PaymentID  string
+	PaymentURL string
+	Status     string
+}
+
+// Config holds application configuration
+type Config struct {
+	FrontendURL string
+	BackendURL  string
 }
 
 // NewHandler creates subscription handler
-func NewHandler(service *Service) *Handler {
-	return &Handler{service: service}
+func NewHandler(service *Service, paymentService PaymentService, kaspiClient KaspiClient, config *Config) *Handler {
+	return &Handler{
+		service:        service,
+		paymentService: paymentService,
+		kaspiClient:    kaspiClient,
+		config:         config,
+	}
 }
 
 // ListPlans handles GET /subscriptions/plans
@@ -54,19 +109,27 @@ func (h *Handler) GetCurrent(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetLimits(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 
-	plan, err := h.service.GetLimits(r.Context(), userID)
+	// Use the new comprehensive GetLimitsWithUsage method
+	limitsData, err := h.service.GetLimitsWithUsage(r.Context(), userID)
 	if err != nil {
 		response.InternalError(w)
 		return
 	}
 
-	// TODO: Get actual usage from photo and response repos
+	// Get plan info for additional fields
+	plan, err := h.service.GetPlanLimits(r.Context(), userID)
+	if err != nil {
+		response.InternalError(w)
+		return
+	}
+
+	// Build response with both usage and plan features
 	limits := &LimitsResponse{
 		Plan:           string(plan.ID),
-		MaxPhotos:      plan.MaxPhotos,
-		PhotosUsed:     0, // TODO: Count from photo repo
-		MaxResponses:   plan.MaxResponsesMonth,
-		ResponsesUsed:  0, // TODO: Count from response repo
+		MaxPhotos:      limitsData.PhotosLimit,
+		PhotosUsed:     limitsData.PhotosUsed,
+		MaxResponses:   limitsData.ResponsesLimit,
+		ResponsesUsed:  limitsData.ResponsesUsed,
 		CanChat:        plan.CanChat,
 		CanSeeViewers:  plan.CanSeeViewers,
 		PrioritySearch: plan.PrioritySearch,
@@ -77,6 +140,9 @@ func (h *Handler) GetLimits(w http.ResponseWriter, r *http.Request) {
 
 // Subscribe handles POST /subscriptions
 func (h *Handler) Subscribe(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Parse and validate request
 	var req SubscribeRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		response.BadRequest(w, "Invalid JSON body")
@@ -88,40 +154,97 @@ func (h *Handler) Subscribe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID := middleware.GetUserID(r.Context())
-	sub, err := h.service.Subscribe(r.Context(), userID, &req)
+	// Extract userID from context
+	userID := middleware.GetUserID(ctx)
+	if userID == uuid.Nil {
+		response.Unauthorized(w, "unauthorized")
+		return
+	}
+
+	// Get plan details first to calculate amount
+	planID := PlanID(req.PlanID)
+	plan, err := h.service.GetPlan(ctx, planID)
+	if err != nil {
+		if err == ErrPlanNotFound {
+			response.NotFound(w, "plan not found")
+			return
+		}
+		response.InternalError(w)
+		return
+	}
+
+	// Calculate amount based on billing period
+	var amount float64
+	switch req.BillingPeriod {
+	case "monthly":
+		amount = plan.PriceMonthly
+	case "yearly":
+		// 15% discount for yearly billing
+		amount = plan.PriceMonthly * 12 * 0.85
+	default:
+		response.BadRequest(w, "invalid billing period")
+		return
+	}
+
+	// Create subscription (status = pending)
+	// The service will check for existing subscriptions
+	sub, err := h.service.Subscribe(ctx, userID, &req)
 	if err != nil {
 		switch err {
 		case ErrPlanNotFound:
-			response.NotFound(w, "Plan not found")
+			response.NotFound(w, "plan not found")
 		case ErrAlreadySubscribed:
-			response.Conflict(w, "Already subscribed to this plan")
+			response.Conflict(w, "already subscribed")
 		case ErrInvalidBillingPeriod:
-			response.BadRequest(w, "Invalid billing period")
+			response.BadRequest(w, "invalid billing period")
 		default:
 			response.InternalError(w)
 		}
 		return
 	}
 
-	plan, _ := h.service.GetPlan(r.Context(), sub.PlanID)
+	// Generate unique Kaspi order ID
+	orderID := uuid.New().String()
 
-	// Return subscription with payment info placeholder
-	resp := SubscriptionResponseFromEntity(sub, plan)
-
-	// TODO: Generate actual payment link here
-	paymentInfo := map[string]interface{}{
-		"subscription": resp,
-		"payment": map[string]interface{}{
-			"amount":      plan.PriceMonthly,
-			"currency":    "KZT",
-			"payment_url": "https://pay.kaspi.kz/mock", // TODO: Real Kaspi integration
-			"qr_code":     nil,                         // TODO: Generate QR
-			"expires_in":  "15m",
-		},
+	// Create pending payment record
+	payment, err := h.paymentService.CreatePayment(ctx, userID, sub.ID, amount, "kaspi")
+	if err != nil {
+		response.Error(w, http.StatusInternalServerError, "PAYMENT_ERROR", "payment initiation failed")
+		return
 	}
 
-	response.Created(w, paymentInfo)
+	// Create Kaspi payment
+	kaspiReq := KaspiPaymentRequest{
+		Amount:      amount,
+		OrderID:     orderID,
+		Description: fmt.Sprintf("MWork %s subscription", req.PlanID),
+		ReturnURL:   h.config.FrontendURL + "/payment/success",
+		CallbackURL: h.config.BackendURL + "/webhooks/kaspi",
+	}
+
+	kaspiResp, err := h.kaspiClient.CreatePayment(ctx, kaspiReq)
+	if err != nil {
+		response.Error(w, http.StatusBadGateway, "GATEWAY_ERROR", "payment gateway error")
+		return
+	}
+
+	// Calculate expiry time (30 minutes from now)
+	expiresAt := time.Now().Add(30 * time.Minute).Format(time.RFC3339)
+
+	// Prepare response
+	subscribeResp := struct {
+		PaymentID  string  `json:"payment_id"`
+		PaymentURL string  `json:"payment_url"`
+		Amount     float64 `json:"amount"`
+		ExpiresAt  string  `json:"expires_at"`
+	}{
+		PaymentID:  payment.ID.String(),
+		PaymentURL: kaspiResp.PaymentURL,
+		Amount:     amount,
+		ExpiresAt:  expiresAt,
+	}
+
+	response.Created(w, subscribeResp)
 }
 
 // Cancel handles POST /subscriptions/cancel
