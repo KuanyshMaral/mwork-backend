@@ -46,6 +46,7 @@ type Repository interface {
 	List(ctx context.Context, filter *Filter, sortBy SortBy, pagination *Pagination) ([]*Casting, int, error)
 	IncrementViewCount(ctx context.Context, id uuid.UUID) error
 	ListByCreator(ctx context.Context, creatorID uuid.UUID, pagination *Pagination) ([]*Casting, int, error)
+	CountActiveByCreatorID(ctx context.Context, creatorID string) (int, error)
 }
 
 type repository struct {
@@ -244,4 +245,17 @@ func (r *repository) ListByCreator(ctx context.Context, creatorID uuid.UUID, pag
 	}
 
 	return castings, total, nil
+}
+
+func (r *repository) CountActiveByCreatorID(ctx context.Context, creatorID string) (int, error) {
+	query := `
+        SELECT COUNT(*) 
+        FROM castings 
+        WHERE creator_id = $1 AND status IN ('active', 'draft')`
+	var count int
+	err := r.db.QueryRowContext(ctx, query, creatorID).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count active castings: %w", err)
+	}
+	return count, nil
 }
