@@ -14,7 +14,7 @@ type Repository interface {
 	// Plans
 	GetPlanByID(ctx context.Context, id PlanID) (*Plan, error)
 	ListPlans(ctx context.Context) ([]*Plan, error)
-
+	ActivateSubscription(ctx context.Context, id uuid.UUID) error
 	// Subscriptions
 	Create(ctx context.Context, sub *Subscription) error
 	GetByID(ctx context.Context, id uuid.UUID) (*Subscription, error)
@@ -140,4 +140,14 @@ func (r *repository) ExpireOldSubscriptions(ctx context.Context) (int, error) {
 	}
 	affected, _ := result.RowsAffected()
 	return int(affected), nil
+}
+
+func (r *repository) ActivateSubscription(ctx context.Context, id uuid.UUID) error {
+	query := `
+		UPDATE subscriptions SET
+			status = 'active', updated_at = NOW()
+		WHERE id = $1 AND status = 'pending'
+	`
+	_, err := r.db.ExecContext(ctx, query, id)
+	return err
 }

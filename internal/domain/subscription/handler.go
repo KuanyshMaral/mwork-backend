@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 
 	"github.com/mwork/mwork-api/internal/middleware"
 	"github.com/mwork/mwork-api/internal/pkg/response"
@@ -76,52 +77,48 @@ func (h *Handler) GetLimits(w http.ResponseWriter, r *http.Request) {
 }
 
 // Subscribe handles POST /subscriptions
+// Subscribe handles POST /subscriptions
 func (h *Handler) Subscribe(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
 	var req SubscribeRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.BadRequest(w, "Invalid JSON body")
+		response.BadRequest(w, "invalid request body")
 		return
 	}
 
-	if errors := validator.Validate(&req); errors != nil {
-		response.ValidationError(w, errors)
+	if err := validator.Validate(req); err != nil {
+		response.ValidationError(w, err)
 		return
 	}
 
-	userID := middleware.GetUserID(r.Context())
-	sub, err := h.service.Subscribe(r.Context(), userID, &req)
+	userID := middleware.GetUserID(ctx)
+	if userID == uuid.Nil {
+		response.Unauthorized(w, "unauthorized")
+		return
+	}
+
+	sub, err := h.service.Subscribe(ctx, userID, &req)
 	if err != nil {
 		switch err {
 		case ErrPlanNotFound:
-			response.NotFound(w, "Plan not found")
+			response.NotFound(w, "plan not found")
 		case ErrAlreadySubscribed:
-			response.Conflict(w, "Already subscribed to this plan")
+			response.Conflict(w, "already subscribed")
 		case ErrInvalidBillingPeriod:
-			response.BadRequest(w, "Invalid billing period")
+			response.BadRequest(w, "invalid billing period")
 		default:
 			response.InternalError(w)
 		}
 		return
 	}
 
-	plan, _ := h.service.GetPlan(r.Context(), sub.PlanID)
+	plan, _ := h.service.repo.GetPlanByID(ctx, sub.PlanID)
 
-	// Return subscription with payment info placeholder
-	resp := SubscriptionResponseFromEntity(sub, plan)
-
-	// TODO: Generate actual payment link here
-	paymentInfo := map[string]interface{}{
-		"subscription": resp,
-		"payment": map[string]interface{}{
-			"amount":      plan.PriceMonthly,
-			"currency":    "KZT",
-			"payment_url": "https://pay.kaspi.kz/mock", // TODO: Real Kaspi integration
-			"qr_code":     nil,                         // TODO: Generate QR
-			"expires_in":  "15m",
-		},
-	}
-
-	response.Created(w, paymentInfo)
+	response.Created(
+		w,
+		SubscriptionResponseFromEntity(sub, plan),
+	)
 }
 
 // Cancel handles POST /subscriptions/cancel

@@ -14,17 +14,14 @@ import (
 	"github.com/mwork/mwork-api/internal/pkg/validator"
 )
 
-// Handler handles casting HTTP requests
 type Handler struct {
 	service *Service
 }
 
-// NewHandler creates casting handler
 func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
 }
 
-// Create handles POST /castings
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	var req CreateCastingRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -52,7 +49,6 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	response.Created(w, CastingResponseFromEntity(casting))
 }
 
-// GetByID handles GET /castings/{id}
 func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -66,23 +62,19 @@ func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check visibility - for drafts, need to verify employer owns this casting
-	// This comparison now needs employer profile ID, not user ID
-	// For now, allow viewing of draft by any authenticated user who is the owner
 	if casting.Status == StatusDraft {
-		// Only the employer who created it can see drafts
-		// TODO: Add proper employer profile lookup
-		response.NotFound(w, "Casting not found")
-		return
+		userID := middleware.GetUserID(r.Context())
+		if casting.CreatorID != userID {
+			response.NotFound(w, "Casting not found")
+			return
+		}
 	}
 
-	// Increment view count (async)
 	go h.service.IncrementViewCount(context.Background(), id)
 
 	response.OK(w, CastingResponseFromEntity(casting))
 }
 
-// Update handles PUT /castings/{id}
 func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -118,7 +110,6 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	response.OK(w, CastingResponseFromEntity(casting))
 }
 
-// UpdateStatus handles PATCH /castings/{id}/status
 func (h *Handler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -154,7 +145,6 @@ func (h *Handler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 	response.OK(w, CastingResponseFromEntity(casting))
 }
 
-// Delete handles DELETE /castings/{id}
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -178,7 +168,6 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	response.NoContent(w)
 }
 
-// List handles GET /castings
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	filter := &Filter{}
 	query := r.URL.Query()
@@ -200,7 +189,6 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Sort
 	sortBy := SortByNewest
 	if s := query.Get("sort"); s != "" {
 		switch s {
@@ -211,9 +199,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Pagination
-	page := 1
-	limit := 20
+	page, limit := 1, 20
 	if p := query.Get("page"); p != "" {
 		if v, err := strconv.Atoi(p); err == nil && v > 0 {
 			page = v
@@ -226,57 +212,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	pagination := &Pagination{Page: page, Limit: limit}
-
 	castings, total, err := h.service.List(r.Context(), filter, sortBy, pagination)
-	if err != nil {
-		response.InternalError(w)
-		return
-	}
-
-	items := make([]*CastingResponse, len(castings))
-	for i, c := range castings {
-		items[i] = CastingResponseFromEntity(c)
-	}
-
-	response.WithMeta(w, items, response.Meta{
-		Total:   total,
-		Page:    page,
-		Limit:   limit,
-		Pages:   (total + limit - 1) / limit,
-		HasNext: page*limit < total,
-		HasPrev: page > 1,
-	})
-}
-
-// ListMy handles GET /castings/my
-func (h *Handler) ListMy(w http.ResponseWriter, r *http.Request) {
-	// For ListMy, we need employer's profile ID, not user ID
-	// This requires looking up the employer profile first
-	// For now, use EmployerID filter with nil (will return empty for non-employers)
-	filter := &Filter{}
-	query := r.URL.Query()
-
-	if status := query.Get("status"); status != "" {
-		s := Status(status)
-		filter.Status = &s
-	}
-
-	page := 1
-	limit := 20
-	if p := query.Get("page"); p != "" {
-		if v, err := strconv.Atoi(p); err == nil && v > 0 {
-			page = v
-		}
-	}
-	if l := query.Get("limit"); l != "" {
-		if v, err := strconv.Atoi(l); err == nil && v > 0 && v <= 100 {
-			limit = v
-		}
-	}
-
-	pagination := &Pagination{Page: page, Limit: limit}
-
-	castings, total, err := h.service.List(r.Context(), filter, SortByNewest, pagination)
 	if err != nil {
 		response.InternalError(w)
 		return
