@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
@@ -24,6 +25,7 @@ type Repository interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 	ListByCasting(ctx context.Context, castingID uuid.UUID, pagination *Pagination) ([]*Response, int, error)
 	ListByModel(ctx context.Context, modelID uuid.UUID, pagination *Pagination) ([]*Response, int, error)
+	CountWeeklyByUserID(ctx context.Context, userID string) (int, error)
 }
 
 type repository struct {
@@ -162,4 +164,17 @@ func (r *repository) Delete(ctx context.Context, id uuid.UUID) error {
 	query := `DELETE FROM casting_responses WHERE id = $1`
 	_, err := r.db.ExecContext(ctx, query, id)
 	return err
+}
+
+func (r *repository) CountWeeklyByUserID(ctx context.Context, userID string) (int, error) {
+	query := `
+        SELECT COUNT(*) 
+        FROM responses 
+        WHERE user_id = $1 AND created_at >= NOW() - INTERVAL '7 days'`
+	var count int
+	err := r.db.QueryRowContext(ctx, query, userID).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count weekly responses: %w", err)
+	}
+	return count, nil
 }

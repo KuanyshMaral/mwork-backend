@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
@@ -16,6 +18,9 @@ type Repository interface {
 	GetByExternalID(ctx context.Context, provider, externalID string) (*Payment, error)
 	UpdateStatus(ctx context.Context, id uuid.UUID, status Status) error
 	ListByUser(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*Payment, error)
+	CreatePendingPayment(ctx context.Context, payment *Payment) error
+	ConfirmPayment(ctx context.Context, kaspiOrderID string) error
+	GetByPromotionID(ctx context.Context, promotionID string) (*Payment, error)
 }
 
 type repository struct {
@@ -100,4 +105,53 @@ func (r *repository) ListByUser(ctx context.Context, userID uuid.UUID, limit, of
 	var payments []*Payment
 	err := r.db.SelectContext(ctx, &payments, query, userID, limit, offset)
 	return payments, err
+}
+
+func (r *repository) CreatePendingPayment(ctx context.Context, payment *Payment) error {
+	query := `
+        INSERT INTO payments (user_id, plan_id, amount, kaspi_order_id, status, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, 'pending', NOW(), NOW())
+        RETURNING id`
+	err := r.db.QueryRowContext(ctx, query, payment.UserID, payment.PlanID, payment.Amount, payment.KaspiOrderID).Scan(&payment.ID)
+	if err != nil {
+		if strings.Contains(err.Error(), "duplicate key value violates unique constraint") {
+			return fmt.Errorf("payment already exists: %w", err)
+		}
+		return fmt.Errorf("database error: %w", err)
+	}
+	return nil
+}
+
+func (r *repository) ConfirmPayment(ctx context.Context, kaspiOrderID string) error {
+	query := `
+        UPDATE payments
+        SET status = 'completed', updated_at = NOW()
+        WHERE kaspi_order_id = $1 AND status = 'pending'`
+	result, err := r.db.ExecContext(ctx, query, kaspiOrderID)
+	if err != nil {
+		return fmt.Errorf("database error: %w", err)
+	}
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
+func (r *repository) GetByPromotionID(ctx context.Context, promotionID string) (*Payment, error) {
+	query := `
+        SELECT id, user_id, plan_id, amount, kaspi_order_id, status, created_at, updated_at, promotion_id
+        FROM payments
+        WHERE promotion_id = $1
+        ORDER BY created_at DESC
+        LIMIT 1`
+	var p Payment
+	err := r.db.QueryRowContext(ctx, query, promotionID).Scan(&p.ID, &p.UserID, &p.PlanID, &p.Amount, &p.KaspiOrderID, &p.Status, &p.CreatedAt, &p.UpdatedAt, &p.PromotionID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, err
+		}
+		return nil, fmt.Errorf("failed to scan payment: %w", err)
+	}
+	return &p, nil
 }
