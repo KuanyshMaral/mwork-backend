@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
@@ -20,6 +21,7 @@ type Repository interface {
 	SetAvatar(ctx context.Context, profileID, photoID uuid.UUID) error
 	ClearAvatar(ctx context.Context, profileID uuid.UUID) error
 	UpdateSortOrder(ctx context.Context, photoID uuid.UUID, order int) error
+	CountByProfileID(ctx context.Context, profileID string) (int, error)
 }
 
 type repository struct {
@@ -121,4 +123,14 @@ func (r *repository) UpdateSortOrder(ctx context.Context, photoID uuid.UUID, ord
 	query := `UPDATE photos SET sort_order = $2 WHERE id = $1`
 	_, err := r.db.ExecContext(ctx, query, photoID, order)
 	return err
+}
+
+func (r *repository) CountByProfileID(ctx context.Context, profileID string) (int, error) {
+	query := `SELECT COUNT(*) FROM photos WHERE profile_id = $1`
+	var count int
+	err := r.db.QueryRowContext(ctx, query, profileID).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count photos: %w", err)
+	}
+	return count, nil
 }

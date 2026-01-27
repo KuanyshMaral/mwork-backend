@@ -5,7 +5,8 @@ CREATE TABLE responses (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     casting_id UUID NOT NULL REFERENCES castings(id) ON DELETE CASCADE,
     profile_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-    
+    user_id UUID NOT NULL,
+
     status VARCHAR(20) DEFAULT 'pending' 
         CHECK (status IN ('pending', 'viewed', 'accepted', 'rejected')),
     cover_letter TEXT,
