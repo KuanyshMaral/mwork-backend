@@ -102,58 +102,6 @@ func (s *Service) GetPaymentHistory(ctx context.Context, userID uuid.UUID, limit
 	return s.repo.ListByUser(ctx, userID, limit, offset)
 }
 
-// UpdatePaymentByKaspiOrderID updates payment status by Kaspi order ID
-func (s *Service) UpdatePaymentByKaspiOrderID(ctx context.Context, kaspiOrderID string, status string) error {
-	payment, err := s.repo.GetByKaspiOrderID(ctx, kaspiOrderID)
-	if err != nil || payment == nil {
-		log.Warn().Str("kaspi_order_id", kaspiOrderID).Msg("Payment not found")
-		return ErrPaymentNotFound
-	}
-
-	// Map string status to Status type
-	var paymentStatus Status
-	switch status {
-	case "completed":
-		paymentStatus = StatusCompleted
-	case "failed":
-		paymentStatus = StatusFailed
-	case "pending":
-		paymentStatus = StatusPending
-	default:
-		log.Warn().Str("status", status).Msg("Unknown status")
-		return nil
-	}
-
-	// Check idempotency
-	if payment.Status == paymentStatus {
-		log.Info().
-			Str("kaspi_order_id", kaspiOrderID).
-			Str("status", string(paymentStatus)).
-			Msg("Payment already in target status")
-		return nil
-	}
-
-	// Update status
-	if err := s.repo.UpdateStatus(ctx, payment.ID, paymentStatus); err != nil {
-		log.Error().Err(err).Str("payment_id", payment.ID.String()).Msg("Failed to update payment")
-		return err
-	}
-
-	// Activate subscription if payment completed
-	if paymentStatus == StatusCompleted && payment.SubscriptionID.Valid {
-		if err := s.subSvc.ActivateSubscription(ctx, payment.SubscriptionID.UUID); err != nil {
-			log.Error().Err(err).Msg("Failed to activate subscription")
-		}
-	}
-
-	log.Info().
-		Str("kaspi_order_id", kaspiOrderID).
-		Str("status", string(paymentStatus)).
-		Msg("Payment updated successfully")
-
-	return nil
-}
-
 // Errors
 var (
 	ErrPaymentNotFound = subscription.ErrPaymentFailed

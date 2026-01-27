@@ -37,7 +37,6 @@ type Payment struct {
 	Status         Status          `db:"status" json:"status"`
 	Provider       sql.NullString  `db:"provider" json:"provider,omitempty"`
 	ExternalID     sql.NullString  `db:"external_id" json:"external_id,omitempty"`
-	KaspiOrderID   sql.NullString  `db:"kaspi_order_id" json:"kaspi_order_id,omitempty"`
 	Description    sql.NullString  `db:"description" json:"description,omitempty"`
 	Metadata       json.RawMessage `db:"metadata" json:"metadata,omitempty"`
 	PaidAt         sql.NullTime    `db:"paid_at" json:"paid_at,omitempty"`

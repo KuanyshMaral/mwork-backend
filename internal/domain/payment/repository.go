@@ -14,7 +14,6 @@ type Repository interface {
 	Create(ctx context.Context, p *Payment) error
 	GetByID(ctx context.Context, id uuid.UUID) (*Payment, error)
 	GetByExternalID(ctx context.Context, provider, externalID string) (*Payment, error)
-	GetByKaspiOrderID(ctx context.Context, kaspiOrderID string) (*Payment, error)
 	UpdateStatus(ctx context.Context, id uuid.UUID, status Status) error
 	ListByUser(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*Payment, error)
 }
@@ -66,19 +65,6 @@ func (r *repository) GetByExternalID(ctx context.Context, provider, externalID s
 	query := `SELECT * FROM payments WHERE provider = $1 AND external_id = $2`
 	var p Payment
 	err := r.db.GetContext(ctx, &p, query, provider, externalID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	return &p, nil
-}
-
-func (r *repository) GetByKaspiOrderID(ctx context.Context, kaspiOrderID string) (*Payment, error) {
-	query := `SELECT * FROM payments WHERE kaspi_order_id = $1`
-	var p Payment
-	err := r.db.GetContext(ctx, &p, query, kaspiOrderID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil

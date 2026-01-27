@@ -1,23 +1,15 @@
 package subscription
 
 import (
-	"context"
-	"github.com/google/uuid"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // SubscribeRequest for POST /subscriptions
 type SubscribeRequest struct {
 	PlanID        string `json:"plan_id" validate:"required,oneof=pro agency"`
 	BillingPeriod string `json:"billing_period" validate:"required,oneof=monthly yearly"`
-}
-
-// SubscribeResponse contains payment URL for redirect
-type SubscribeResponse struct {
-	PaymentID  string  `json:"payment_id"`
-	PaymentURL string  `json:"payment_url"`
-	Amount     float64 `json:"amount"`
-	ExpiresAt  string  `json:"expires_at"`
 }
 
 // CancelRequest for POST /subscriptions/cancel
