@@ -102,6 +102,35 @@ func (s *Service) GetPaymentHistory(ctx context.Context, userID uuid.UUID, limit
 	return s.repo.ListByUser(ctx, userID, limit, offset)
 }
 
+// UpdatePaymentByKaspiOrderID updates payment status by Kaspi order ID
+func (s *Service) UpdatePaymentByKaspiOrderID(ctx context.Context, kaspiOrderID string, status string) error {
+	// For completed payments, use the specialized ConfirmPayment method
+	if status == "completed" {
+		err := s.repo.ConfirmPayment(ctx, kaspiOrderID)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				log.Warn().Str("kaspi_order_id", kaspiOrderID).Msg("Payment not found or already processed")
+				return ErrPaymentNotFound
+			}
+			return err
+		}
+
+		// Get the payment to activate subscription
+		// Note: We need to get by Kaspi order ID - using HandleWebhook logic
+		payment, err := s.repo.GetByExternalID(ctx, "kaspi", kaspiOrderID)
+		if err == nil && payment != nil && payment.SubscriptionID.Valid {
+			if err := s.subSvc.ActivateSubscription(ctx, payment.SubscriptionID.UUID); err != nil {
+				log.Error().Err(err).Msg("Failed to activate subscription after payment")
+			}
+		}
+
+		return nil
+	}
+
+	// For other statuses, use the generic HandleWebhook
+	return s.HandleWebhook(ctx, "kaspi", kaspiOrderID, status)
+}
+
 // Errors
 var (
 	ErrPaymentNotFound = subscription.ErrPaymentFailed
