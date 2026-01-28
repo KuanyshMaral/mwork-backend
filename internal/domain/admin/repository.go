@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -32,6 +33,34 @@ type Repository interface {
 
 	// Analytics
 	GetDashboardStats(ctx context.Context) (*DashboardStats, error)
+
+	// Stats count methods
+	CountUsers(ctx context.Context) (int, error)
+	CountActiveCastings(ctx context.Context) (int, error)
+	CountActiveSubscriptions(ctx context.Context) (int, error)
+	CountPendingPayments(ctx context.Context) (int, error)
+	CountPendingReports(ctx context.Context) (int, error)
+
+	// Reports
+	ListReports(ctx context.Context, page, limit int, statusFilter *string) ([]*Report, int, error)
+	GetReportByID(ctx context.Context, id uuid.UUID) (*Report, error)
+	UpdateReportStatus(ctx context.Context, id uuid.UUID, status string, adminNotes string, resolvedBy uuid.UUID) error
+	GetReportedUserByID(ctx context.Context, userID uuid.UUID) (*ReportedUser, error)
+	UpdateUserStatus(ctx context.Context, userID uuid.UUID, status string) error
+	SoftDeleteEntity(ctx context.Context, entityType string, entityID uuid.UUID) error
+
+	// Transaction-based report resolution
+	BeginTx(ctx context.Context) (*sqlx.Tx, error)
+	UpdateReportStatusTx(ctx context.Context, tx *sqlx.Tx, id uuid.UUID, status string, adminNotes string, resolvedBy uuid.UUID) error
+	UpdateUserStatusTx(ctx context.Context, tx *sqlx.Tx, userID uuid.UUID, status string) error
+	SoftDeleteEntityTx(ctx context.Context, tx *sqlx.Tx, entityType string, entityID uuid.UUID) error
+}
+
+// ReportedUser simplified struct for moderation actions
+type ReportedUser struct {
+	ID     uuid.UUID
+	Email  string
+	Status string
 }
 
 // AuditFilter for filtering audit logs
@@ -274,4 +303,196 @@ func (r *repository) GetDashboardStats(ctx context.Context) (*DashboardStats, er
 	r.db.GetContext(ctx, &stats.Moderation.BannedUsers, `SELECT COUNT(*) FROM users WHERE is_banned = true`)
 
 	return stats, nil
+}
+
+// Stats count methods
+
+func (r *repository) CountUsers(ctx context.Context) (int, error) {
+	var count int
+	query := `SELECT COUNT(*) FROM users`
+	err := r.db.GetContext(ctx, &count, query)
+	return count, err
+}
+
+func (r *repository) CountActiveCastings(ctx context.Context) (int, error) {
+	var count int
+	query := `SELECT COUNT(*) FROM castings WHERE status IN ('active', 'draft')`
+	err := r.db.GetContext(ctx, &count, query)
+	return count, err
+}
+
+func (r *repository) CountActiveSubscriptions(ctx context.Context) (int, error) {
+	var count int
+	query := `SELECT COUNT(*) FROM subscriptions WHERE status = 'active'`
+	err := r.db.GetContext(ctx, &count, query)
+	return count, err
+}
+
+func (r *repository) CountPendingPayments(ctx context.Context) (int, error) {
+	var count int
+	query := `SELECT COUNT(*) FROM payments WHERE status = 'pending'`
+	err := r.db.GetContext(ctx, &count, query)
+	return count, err
+}
+
+func (r *repository) CountPendingReports(ctx context.Context) (int, error) {
+	var count int
+	// If reports table doesn't exist, return 0
+	query := `SELECT COUNT(*) FROM reports WHERE status = 'pending'`
+	err := r.db.GetContext(ctx, &count, query)
+	if err != nil {
+		// Table might not exist, return 0
+		return 0, nil
+	}
+	return count, err
+}
+
+// Reports
+
+func (r *repository) ListReports(ctx context.Context, page, limit int, statusFilter *string) ([]*Report, int, error) {
+	// Calculate offset
+	offset := (page - 1) * limit
+
+	// Build query
+	query := `SELECT * FROM reports WHERE 1=1`
+	countQuery := `SELECT COUNT(*) FROM reports WHERE 1=1`
+	args := []interface{}{}
+	argNum := 1
+
+	// Apply status filter
+	if statusFilter != nil && *statusFilter != "" {
+		query += ` AND status = $` + strconv.Itoa(argNum)
+		countQuery += ` AND status = $` + strconv.Itoa(argNum)
+		args = append(args, *statusFilter)
+		argNum++
+	}
+
+	// Order by created_at DESC
+	query += ` ORDER BY created_at DESC`
+
+	// Add pagination
+	query += ` LIMIT $` + strconv.Itoa(argNum) + ` OFFSET $` + strconv.Itoa(argNum+1)
+	paginationArgs := append(args, limit, offset)
+
+	// Get reports
+	var reports []*Report
+	err := r.db.SelectContext(ctx, &reports, query, paginationArgs...)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Get total count
+	var total int
+	err = r.db.GetContext(ctx, &total, countQuery, args...)
+	if err != nil {
+		return reports, 0, err
+	}
+
+	return reports, total, nil
+}
+
+func (r *repository) GetReportByID(ctx context.Context, id uuid.UUID) (*Report, error) {
+	query := `SELECT * FROM reports WHERE id = $1`
+	var report Report
+	err := r.db.GetContext(ctx, &report, query, id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &report, nil
+}
+
+func (r *repository) UpdateReportStatus(ctx context.Context, id uuid.UUID, status string, adminNotes string, resolvedBy uuid.UUID) error {
+	query := `
+		UPDATE reports 
+		SET status = $2, 
+		    admin_notes = $3, 
+		    resolved_by = $4, 
+		    resolved_at = NOW(), 
+		    updated_at = NOW()
+		WHERE id = $1
+	`
+	_, err := r.db.ExecContext(ctx, query, id, status, adminNotes, resolvedBy)
+	return err
+}
+
+func (r *repository) GetReportedUserByID(ctx context.Context, userID uuid.UUID) (*ReportedUser, error) {
+	query := `SELECT id, email, status FROM users WHERE id = $1`
+	var user ReportedUser
+	err := r.db.GetContext(ctx, &user, query, userID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &user, nil
+}
+
+func (r *repository) UpdateUserStatus(ctx context.Context, userID uuid.UUID, status string) error {
+	query := `UPDATE users SET status = $2, updated_at = NOW() WHERE id = $1`
+	_, err := r.db.ExecContext(ctx, query, userID, status)
+	return err
+}
+
+func (r *repository) SoftDeleteEntity(ctx context.Context, entityType string, entityID uuid.UUID) error {
+	var query string
+	switch entityType {
+	case "user":
+		query = `UPDATE users SET deleted_at = NOW() WHERE id = $1`
+	case "casting":
+		query = `UPDATE castings SET deleted_at = NOW() WHERE id = $1`
+	case "profile":
+		query = `UPDATE profiles SET deleted_at = NOW() WHERE id = $1`
+	default:
+		return errors.New("unsupported entity type")
+	}
+
+	_, err := r.db.ExecContext(ctx, query, entityID)
+	return err
+}
+
+// Transaction methods
+
+func (r *repository) BeginTx(ctx context.Context) (*sqlx.Tx, error) {
+	return r.db.BeginTxx(ctx, nil)
+}
+
+func (r *repository) UpdateReportStatusTx(ctx context.Context, tx *sqlx.Tx, id uuid.UUID, status string, adminNotes string, resolvedBy uuid.UUID) error {
+	query := `
+		UPDATE reports 
+		SET status = $2, 
+		    admin_notes = $3, 
+		    resolved_by = $4, 
+		    resolved_at = NOW(), 
+		    updated_at = NOW()
+		WHERE id = $1
+	`
+	_, err := tx.ExecContext(ctx, query, id, status, adminNotes, resolvedBy)
+	return err
+}
+
+func (r *repository) UpdateUserStatusTx(ctx context.Context, tx *sqlx.Tx, userID uuid.UUID, status string) error {
+	query := `UPDATE users SET status = $2, updated_at = NOW() WHERE id = $1`
+	_, err := tx.ExecContext(ctx, query, userID, status)
+	return err
+}
+
+func (r *repository) SoftDeleteEntityTx(ctx context.Context, tx *sqlx.Tx, entityType string, entityID uuid.UUID) error {
+	var query string
+	switch entityType {
+	case "user":
+		query = `UPDATE users SET deleted_at = NOW() WHERE id = $1`
+	case "casting":
+		query = `UPDATE castings SET deleted_at = NOW() WHERE id = $1`
+	case "profile":
+		query = `UPDATE profiles SET deleted_at = NOW() WHERE id = $1`
+	default:
+		return errors.New("unsupported entity type")
+	}
+
+	_, err := tx.ExecContext(ctx, query, entityID)
+	return err
 }

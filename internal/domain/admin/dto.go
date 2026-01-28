@@ -121,6 +121,15 @@ type DashboardStats struct {
 	Moderation ModerationStats `json:"moderation"`
 }
 
+// StatsResponse represents admin dashboard statistics
+type StatsResponse struct {
+	TotalUsers          int `json:"total_users"`
+	TotalCastings       int `json:"total_castings"`
+	ActiveSubscriptions int `json:"active_subscriptions"`
+	PendingPayments     int `json:"pending_payments"`
+	PendingReports      int `json:"pending_reports"`
+}
+
 type UserStats struct {
 	Total        int `json:"total"`
 	Models       int `json:"models"`
@@ -156,4 +165,49 @@ type ModerationStats struct {
 	PendingPhotos   int `json:"pending_photos"`
 	PendingCastings int `json:"pending_castings"`
 	BannedUsers     int `json:"banned_users"`
+}
+
+// ListReportsResponse represents paginated reports list
+type ListReportsResponse struct {
+	Reports []ReportResponse `json:"reports"`
+	Total   int              `json:"total"`
+}
+
+// ReportResponse represents a report in API
+type ReportResponse struct {
+	ID             string  `json:"id"`
+	ReporterID     string  `json:"reporter_id"`
+	ReportedUserID string  `json:"reported_user_id"`
+	EntityType     string  `json:"entity_type"` // user, casting, profile
+	EntityID       string  `json:"entity_id"`
+	Reason         string  `json:"reason"`
+	Status         string  `json:"status"` // pending, resolved, dismissed
+	AdminNotes     *string `json:"admin_notes,omitempty"`
+	CreatedAt      string  `json:"created_at"`
+}
+
+// ReportResponseFromEntity converts Report entity to response
+func ReportResponseFromEntity(r *Report) ReportResponse {
+	resp := ReportResponse{
+		ID:             r.ID.String(),
+		ReporterID:     r.ReporterID.String(),
+		ReportedUserID: r.ReportedUserID.String(),
+		EntityType:     r.EntityType,
+		EntityID:       r.EntityID.String(),
+		Reason:         r.Reason,
+		Status:         r.Status,
+		CreatedAt:      r.CreatedAt.Format(time.RFC3339),
+	}
+
+	if r.AdminNotes.Valid {
+		resp.AdminNotes = &r.AdminNotes.String
+	}
+
+	return resp
+}
+
+// ResolveRequest represents report resolution action
+type ResolveRequest struct {
+	Action string `json:"action" validate:"required,oneof=warn suspend delete dismiss"`
+	Notes  string `json:"notes" validate:"omitempty,max=500"`
 }
