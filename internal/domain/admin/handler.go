@@ -202,6 +202,17 @@ func (h *Handler) UpdateFeature(w http.ResponseWriter, r *http.Request) {
 
 // --- Analytics ---
 
+// GetStats returns admin dashboard statistics
+func (h *Handler) GetStats(w http.ResponseWriter, r *http.Request) {
+	stats, err := h.service.GetStats(r.Context())
+	if err != nil {
+		response.InternalError(w)
+		return
+	}
+
+	response.OK(w, stats)
+}
+
 // Dashboard handles GET /admin/analytics/dashboard
 func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 	stats, err := h.service.GetDashboardStats(r.Context())

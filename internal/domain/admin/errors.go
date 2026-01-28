@@ -11,4 +11,5 @@ var (
 	ErrCannotDeleteSelf    = errors.New("cannot delete your own account")
 	ErrEmailTaken          = errors.New("email already in use")
 	ErrFeatureFlagNotFound = errors.New("feature flag not found")
+	ErrReportNotFound      = errors.New("report not found")
 )

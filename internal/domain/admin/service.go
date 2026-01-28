@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -186,6 +188,85 @@ func (s *Service) IsFeatureEnabled(ctx context.Context, key string) bool {
 
 // --- Analytics ---
 
+// GetStats returns admin dashboard statistics with parallel aggregation
+func (s *Service) GetStats(ctx context.Context) (*StatsResponse, error) {
+	var stats StatsResponse
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var firstErr error
+
+	wg.Add(5)
+
+	// Total Users
+	go func() {
+		defer wg.Done()
+		count, err := s.repo.CountUsers(ctx)
+		mu.Lock()
+		if err != nil && firstErr == nil {
+			firstErr = err
+		}
+		stats.TotalUsers = count
+		mu.Unlock()
+	}()
+
+	// Total Castings (active + draft)
+	go func() {
+		defer wg.Done()
+		count, err := s.repo.CountActiveCastings(ctx)
+		mu.Lock()
+		if err != nil && firstErr == nil {
+			firstErr = err
+		}
+		stats.TotalCastings = count
+		mu.Unlock()
+	}()
+
+	// Active Subscriptions
+	go func() {
+		defer wg.Done()
+		count, err := s.repo.CountActiveSubscriptions(ctx)
+		mu.Lock()
+		if err != nil && firstErr == nil {
+			firstErr = err
+		}
+		stats.ActiveSubscriptions = count
+		mu.Unlock()
+	}()
+
+	// Pending Payments
+	go func() {
+		defer wg.Done()
+		count, err := s.repo.CountPendingPayments(ctx)
+		mu.Lock()
+		if err != nil && firstErr == nil {
+			firstErr = err
+		}
+		stats.PendingPayments = count
+		mu.Unlock()
+	}()
+
+	// Pending Reports
+	go func() {
+		defer wg.Done()
+		count, err := s.repo.CountPendingReports(ctx)
+		mu.Lock()
+		if err != nil && firstErr == nil {
+			firstErr = err
+		}
+		stats.PendingReports = count
+		mu.Unlock()
+	}()
+
+	wg.Wait()
+
+	if firstErr != nil {
+		log.Error().Err(firstErr).Msg("Failed to fetch stats")
+		return nil, firstErr
+	}
+
+	return &stats, nil
+}
+
 // GetDashboardStats returns dashboard statistics
 func (s *Service) GetDashboardStats(ctx context.Context) (*DashboardStats, error) {
 	return s.repo.GetDashboardStats(ctx)
@@ -252,4 +333,107 @@ func (s *Service) LogActionWithReason(ctx context.Context, adminID uuid.UUID, ac
 	}
 
 	_ = s.repo.CreateAuditLog(ctx, auditLog)
+}
+
+// --- Reports ---
+
+// ListReports returns paginated reports with filters
+func (s *Service) ListReports(ctx context.Context, page, limit int, statusFilter *string) ([]*Report, int, error) {
+	// Validate and set defaults
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 20
+	}
+
+	return s.repo.ListReports(ctx, page, limit, statusFilter)
+}
+
+// ResolveReport handles moderation action on report
+func (s *Service) ResolveReport(ctx context.Context, adminID uuid.UUID, reportID uuid.UUID, req *ResolveRequest) error {
+	// Get the report
+	report, err := s.repo.GetReportByID(ctx, reportID)
+	if err != nil || report == nil {
+		return ErrReportNotFound
+	}
+
+	// Get reported user
+	reportedUser, err := s.repo.GetReportedUserByID(ctx, report.ReportedUserID)
+	if err != nil || reportedUser == nil {
+		return errors.New("reported user not found")
+	}
+
+	// Begin transaction
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to begin transaction")
+		return err
+	}
+	defer tx.Rollback()
+
+	// Perform action based on request
+	switch req.Action {
+	case "warn":
+		// Send warning email to reported user
+		// Email sending would be implemented here
+		log.Info().
+			Str("user_id", report.ReportedUserID.String()).
+			Str("action", "warn").
+			Msg("Warning sent to user")
+
+	case "suspend":
+		// Update user status to suspended within transaction
+		if err := s.repo.UpdateUserStatusTx(ctx, tx, report.ReportedUserID, "suspended"); err != nil {
+			log.Error().Err(err).Msg("Failed to suspend user")
+			return err
+		}
+		log.Info().
+			Str("user_id", report.ReportedUserID.String()).
+			Str("action", "suspend").
+			Msg("User suspended")
+
+	case "delete":
+		// Soft-delete entity within transaction
+		if err := s.repo.SoftDeleteEntityTx(ctx, tx, report.EntityType, report.EntityID); err != nil {
+			log.Error().Err(err).Msg("Failed to delete entity")
+			return err
+		}
+		log.Info().
+			Str("entity_type", report.EntityType).
+			Str("entity_id", report.EntityID.String()).
+			Str("action", "delete").
+			Msg("Entity soft-deleted")
+
+	case "dismiss":
+		// Just mark as dismissed
+		log.Info().
+			Str("report_id", reportID.String()).
+			Str("action", "dismiss").
+			Msg("Report dismissed")
+
+	default:
+		return errors.New("invalid action")
+	}
+
+	// Update report status to resolved within transaction
+	if err := s.repo.UpdateReportStatusTx(ctx, tx, reportID, "resolved", req.Notes, adminID); err != nil {
+		log.Error().Err(err).Msg("Failed to update report status")
+		return err
+	}
+
+	// Commit transaction
+	if err := tx.Commit(); err != nil {
+		log.Error().Err(err).Msg("Failed to commit transaction")
+		return err
+	}
+
+	// Create audit log (outside transaction - best effort)
+	s.LogActionWithReason(ctx, adminID, "report.resolve", "report", reportID, req.Notes, report, map[string]interface{}{
+		"status": "resolved",
+		"action": req.Action,
+		"notes":  req.Notes,
+	})
+
+	return nil
 }

@@ -101,3 +101,19 @@ const (
 	ModerationApproved ModerationStatus = "approved"
 	ModerationRejected ModerationStatus = "rejected"
 )
+
+// Report represents a moderation report
+type Report struct {
+	ID             uuid.UUID      `db:"id" json:"id"`
+	ReporterID     uuid.UUID      `db:"reporter_id" json:"reporter_id"`
+	ReportedUserID uuid.UUID      `db:"reported_user_id" json:"reported_user_id"`
+	EntityType     string         `db:"entity_type" json:"entity_type"` // user, casting, profile
+	EntityID       uuid.UUID      `db:"entity_id" json:"entity_id"`
+	Reason         string         `db:"reason" json:"reason"`
+	Status         string         `db:"status" json:"status"` // pending, resolved, dismissed
+	AdminNotes     sql.NullString `db:"admin_notes" json:"admin_notes,omitempty"`
+	ResolvedBy     uuid.NullUUID  `db:"resolved_by" json:"resolved_by,omitempty"`
+	ResolvedAt     sql.NullTime   `db:"resolved_at" json:"resolved_at,omitempty"`
+	CreatedAt      time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time      `db:"updated_at" json:"updated_at"`
+}
