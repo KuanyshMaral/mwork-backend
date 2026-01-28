@@ -44,10 +44,11 @@ type ModelProfile struct {
 	AcceptRemoteWork bool `db:"accept_remote_work"`
 
 	// Stats
-	ProfileViews int     `db:"profile_views"`
-	Rating       float64 `db:"rating"`
-	TotalReviews int     `db:"total_reviews"`
-	IsPublic     bool    `db:"is_public"`
+	ProfileViews int            `db:"profile_views"`
+	Rating       float64        `db:"rating"`
+	TotalReviews int            `db:"total_reviews"`
+	IsPublic     bool           `db:"is_public"`
+	Visibility   sql.NullString `db:"visibility"`
 }
 
 // EmployerProfile represents an employer's profile (matches employer_profiles table)

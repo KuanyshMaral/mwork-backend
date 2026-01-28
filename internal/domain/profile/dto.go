@@ -35,6 +35,7 @@ type UpdateModelProfileRequest struct {
 	Languages  []string `json:"languages"`
 	Categories []string `json:"categories"`
 	IsPublic   *bool    `json:"is_public"`
+	Visibility string   `json:"visibility" validate:"omitempty,oneof=public link_only hidden"`
 }
 
 // CreateEmployerProfileRequest for POST /profiles/employer
@@ -76,6 +77,7 @@ type ModelProfileResponse struct {
 	Categories   []string  `json:"categories,omitempty"`
 	Skills       []string  `json:"skills,omitempty"`
 	IsPublic     bool      `json:"is_public"`
+	Visibility   *string   `json:"visibility,omitempty"`
 	ProfileViews int       `json:"profile_views"`
 	Rating       float64   `json:"rating"`
 	TotalReviews int       `json:"total_reviews"`
@@ -165,6 +167,9 @@ func ModelProfileResponseFromEntity(p *ModelProfile) *ModelProfileResponse {
 	if p.Experience.Valid {
 		v := int(p.Experience.Int32)
 		resp.Experience = &v
+	}
+	if p.Visibility.Valid {
+		resp.Visibility = &p.Visibility.String
 	}
 
 	return resp

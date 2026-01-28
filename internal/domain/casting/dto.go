@@ -8,15 +8,16 @@ import (
 
 // CreateCastingRequest for POST /castings
 type CreateCastingRequest struct {
-	Title       string   `json:"title" validate:"required,min=5,max=200"`
-	Description string   `json:"description" validate:"required,min=20,max=5000"`
-	City        string   `json:"city" validate:"required,min=2,max=100"`
-	Address     string   `json:"address" validate:"omitempty,max=500"`
-	PayMin      *float64 `json:"pay_min" validate:"omitempty,gte=0"`
-	PayMax      *float64 `json:"pay_max" validate:"omitempty,gte=0"`
-	PayType     string   `json:"pay_type" validate:"omitempty,oneof=fixed hourly negotiable free"`
-	DateFrom    *string  `json:"date_from" validate:"omitempty"`
-	DateTo      *string  `json:"date_to" validate:"omitempty"`
+	Title         string   `json:"title" validate:"required,min=5,max=200"`
+	Description   string   `json:"description" validate:"required,min=20,max=5000"`
+	City          string   `json:"city" validate:"required,min=2,max=100"`
+	Address       string   `json:"address" validate:"omitempty,max=500"`
+	PayMin        *float64 `json:"pay_min" validate:"omitempty,gte=0"`
+	PayMax        *float64 `json:"pay_max" validate:"omitempty,gte=0"`
+	PayType       string   `json:"pay_type" validate:"omitempty,oneof=fixed hourly negotiable free"`
+	DateFrom      *string  `json:"date_from" validate:"omitempty"`
+	DateTo        *string  `json:"date_to" validate:"omitempty"`
+	CoverImageURL string   `json:"cover_image_url" validate:"omitempty,url,startswith=https://"`
 
 	// Requirements (stored as JSONB)
 	Requirements *RequirementsRequest `json:"requirements"`
@@ -74,6 +75,8 @@ type CastingResponse struct {
 	DateFrom *string `json:"date_from,omitempty"`
 	DateTo   *string `json:"date_to,omitempty"`
 
+	CoverImageURL *string `json:"cover_image_url,omitempty"`
+
 	// Requirements (from JSONB)
 	Requirements *Requirements `json:"requirements,omitempty"`
 
@@ -120,6 +123,9 @@ func CastingResponseFromEntity(c *Casting) *CastingResponse {
 	if c.DateTo.Valid {
 		s := c.DateTo.Time.Format(time.RFC3339)
 		resp.DateTo = &s
+	}
+	if c.CoverImageURL.Valid {
+		resp.CoverImageURL = &c.CoverImageURL.String
 	}
 
 	// Parse requirements from JSONB

@@ -55,6 +55,9 @@ type Casting struct {
 	DateFrom sql.NullTime `db:"date_from"`
 	DateTo   sql.NullTime `db:"date_to"`
 
+	// Cover image
+	CoverImageURL sql.NullString `db:"cover_image_url"`
+
 	// Requirements (JSONB)
 	Requirements json.RawMessage `db:"requirements"`
 
