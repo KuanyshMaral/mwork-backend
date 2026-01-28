@@ -25,6 +25,10 @@ type PresignResponse struct {
 type ConfirmUploadRequest struct {
 	Key          string `json:"key" validate:"required"`
 	OriginalName string `json:"original_name" validate:"required,max=255"`
+	Caption      string `json:"caption" validate:"omitempty,max=2000"`
+	ProjectName  string `json:"project_name" validate:"omitempty,max=200"`
+	Brand        string `json:"brand" validate:"omitempty,max=200"`
+	Year         int    `json:"year" validate:"omitempty,gte=1900,lte=2100"`
 }
 
 // SetAvatarRequest for PATCH /photos/{id}/avatar
@@ -48,6 +52,10 @@ type PhotoResponse struct {
 	SizeBytes    int64     `json:"size_bytes"`
 	IsAvatar     bool      `json:"is_avatar"`
 	SortOrder    int       `json:"sort_order"`
+	Caption      string    `json:"caption,omitempty"`
+	ProjectName  string    `json:"project_name,omitempty"`
+	Brand        string    `json:"brand,omitempty"`
+	Year         int       `json:"year,omitempty"`
 	CreatedAt    string    `json:"created_at"`
 }
 
@@ -63,6 +71,10 @@ func PhotoResponseFromEntity(p *Photo) *PhotoResponse {
 		SizeBytes:    p.SizeBytes,
 		IsAvatar:     p.IsAvatar,
 		SortOrder:    p.SortOrder,
+		Caption:      p.Caption,
+		ProjectName:  p.ProjectName,
+		Brand:        p.Brand,
+		Year:         p.Year,
 		CreatedAt:    p.CreatedAt.Format(time.RFC3339),
 	}
 }

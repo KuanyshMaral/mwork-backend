@@ -13,6 +13,16 @@ type RegisterRequest struct {
 	Role     string `json:"role" validate:"required,oneof=model employer"`
 }
 
+// AgencyRegisterRequest represents agency registration data
+type AgencyRegisterRequest struct {
+	Email         string `json:"email" validate:"required,email"`
+	Password      string `json:"password" validate:"required,min=8"`
+	CompanyName   string `json:"company_name" validate:"required,min=2,max=200"`
+	Website       string `json:"website" validate:"omitempty,url"`
+	ContactPerson string `json:"contact_person" validate:"required,min=2,max=100"`
+	Instagram     string `json:"instagram" validate:"omitempty"`
+}
+
 // LoginRequest for POST /auth/login
 type LoginRequest struct {
 	Email    string `json:"email" validate:"required,email"`

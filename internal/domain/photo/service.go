@@ -95,6 +95,10 @@ func (s *Service) ConfirmUpload(ctx context.Context, userID uuid.UUID, req *Conf
 		SizeBytes:    metadata.Size,
 		IsAvatar:     isAvatar,
 		SortOrder:    sortOrder,
+		Caption:      req.Caption,
+		ProjectName:  req.ProjectName,
+		Brand:        req.Brand,
+		Year:         req.Year,
 		CreatedAt:    time.Now(),
 	}
 

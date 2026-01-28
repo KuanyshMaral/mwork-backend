@@ -80,6 +80,11 @@ func (s *Service) Create(ctx context.Context, userID uuid.UUID, req *CreateCasti
 		}
 	}
 
+	// Cover image URL
+	if req.CoverImageURL != "" {
+		casting.CoverImageURL = sql.NullString{String: req.CoverImageURL, Valid: true}
+	}
+
 	// Requirements (JSONB)
 	if req.Requirements != nil {
 		reqData := Requirements{

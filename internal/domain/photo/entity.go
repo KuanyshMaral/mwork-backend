@@ -17,6 +17,10 @@ type Photo struct {
 	SizeBytes    int64     `db:"size_bytes" json:"size_bytes"`
 	IsAvatar     bool      `db:"is_avatar" json:"is_avatar"`
 	SortOrder    int       `db:"sort_order" json:"sort_order"`
+	Caption      string    `db:"caption" json:"caption"`
+	ProjectName  string    `db:"project_name" json:"project_name"`
+	Brand        string    `db:"brand" json:"brand"`
+	Year         int       `db:"year" json:"year"`
 	CreatedAt    time.Time `db:"created_at" json:"created_at"`
 }
 

@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,17 +15,36 @@ import (
 
 // Service handles authentication business logic
 type Service struct {
-	userRepo   user.Repository
-	jwtService *jwt.Service
-	redis      *redis.Client // nil if Redis disabled
+	userRepo         user.Repository
+	jwtService       *jwt.Service
+	redis            *redis.Client // nil if Redis disabled
+	employerProfRepo EmployerProfileRepository
+}
+
+// EmployerProfileRepository defines employer profile operations needed by auth
+type EmployerProfileRepository interface {
+	Create(ctx context.Context, profile *EmployerProfile) error
+}
+
+// EmployerProfile represents an employer profile entity
+type EmployerProfile struct {
+	ID            uuid.UUID
+	UserID        uuid.UUID
+	CompanyName   string
+	Description   string
+	Website       string
+	ContactPerson string
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 // NewService creates auth service
-func NewService(userRepo user.Repository, jwtService *jwt.Service, redis *redis.Client) *Service {
+func NewService(userRepo user.Repository, jwtService *jwt.Service, redis *redis.Client, employerProfRepo EmployerProfileRepository) *Service {
 	return &Service{
-		userRepo:   userRepo,
-		jwtService: jwtService,
-		redis:      redis,
+		userRepo:         userRepo,
+		jwtService:       jwtService,
+		redis:            redis,
+		employerProfRepo: employerProfRepo,
 	}
 }
 
@@ -60,6 +80,59 @@ func (s *Service) Register(ctx context.Context, req *RegisterRequest) (*AuthResp
 	}
 
 	if err := s.userRepo.Create(ctx, u); err != nil {
+		return nil, err
+	}
+
+	// 5. Generate tokens
+	return s.generateTokens(ctx, u)
+}
+
+// RegisterAgency creates new agency user account with employer profile
+func (s *Service) RegisterAgency(ctx context.Context, req *AgencyRegisterRequest) (*AuthResponse, error) {
+	// 1. Check if email exists
+	existing, _ := s.userRepo.GetByEmail(ctx, req.Email)
+	if existing != nil {
+		return nil, ErrEmailAlreadyExists
+	}
+
+	// 2. Hash password
+	hash, err := password.Hash(req.Password)
+	if err != nil {
+		return nil, err
+	}
+
+	// 3. Create user with role='agency'
+	now := time.Now()
+	u := &user.User{
+		ID:            uuid.New(),
+		Email:         req.Email,
+		PasswordHash:  hash,
+		Role:          "agency", // Agency role
+		EmailVerified: false,
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}
+
+	if err := s.userRepo.Create(ctx, u); err != nil {
+		return nil, err
+	}
+
+	// 4. Create employer profile for agency
+	bio := fmt.Sprintf("Managed by: %s", req.ContactPerson)
+	profile := &EmployerProfile{
+		ID:            uuid.New(),
+		UserID:        u.ID,
+		CompanyName:   req.CompanyName,
+		Website:       req.Website,
+		Description:   bio,
+		ContactPerson: req.ContactPerson,
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}
+
+	if err := s.employerProfRepo.Create(ctx, profile); err != nil {
+		// Rollback: delete user if profile creation fails
+		_ = s.userRepo.Delete(ctx, u.ID)
 		return nil, err
 	}
 

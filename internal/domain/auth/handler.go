@@ -2,6 +2,7 @@ package auth
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 
 	"github.com/mwork/mwork-api/internal/middleware"
@@ -21,33 +22,85 @@ func NewHandler(service *Service) *Handler {
 
 // Register handles POST /auth/register
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
-	var req RegisterRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	// First, parse role to determine request type
+	var roleCheck struct {
+		Role string `json:"role"`
+	}
+
+	// Read body into buffer to parse twice
+	bodyBytes, err := io.ReadAll(r.Body)
+	if err != nil {
 		response.BadRequest(w, "Invalid JSON body")
 		return
 	}
 
-	// Validate request
-	if errors := validator.Validate(&req); errors != nil {
-		response.ValidationError(w, errors)
+	// Parse role first
+	if err := json.Unmarshal(bodyBytes, &roleCheck); err != nil {
+		response.BadRequest(w, "Invalid JSON body")
 		return
 	}
 
-	// Register user
-	result, err := h.service.Register(r.Context(), &req)
-	if err != nil {
-		switch err {
-		case ErrEmailAlreadyExists:
-			response.Conflict(w, "Email already registered")
-		case ErrInvalidRole:
-			response.BadRequest(w, "Role must be 'model' or 'employer'")
-		default:
-			response.InternalError(w)
+	// Role-based parsing and registration
+	switch roleCheck.Role {
+	case "agency":
+		var req AgencyRegisterRequest
+		if err := json.Unmarshal(bodyBytes, &req); err != nil {
+			response.BadRequest(w, "Invalid JSON body")
+			return
 		}
-		return
-	}
 
-	response.Created(w, result)
+		// Validate agency fields
+		if errors := validator.Validate(&req); errors != nil {
+			response.ValidationError(w, errors)
+			return
+		}
+
+		// Register agency user
+		result, err := h.service.RegisterAgency(r.Context(), &req)
+		if err != nil {
+			switch err {
+			case ErrEmailAlreadyExists:
+				response.Conflict(w, "Email already registered")
+			default:
+				response.InternalError(w)
+			}
+			return
+		}
+
+		response.Created(w, result)
+
+	case "model", "employer":
+		var req RegisterRequest
+		if err := json.Unmarshal(bodyBytes, &req); err != nil {
+			response.BadRequest(w, "Invalid JSON body")
+			return
+		}
+
+		// Validate request
+		if errors := validator.Validate(&req); errors != nil {
+			response.ValidationError(w, errors)
+			return
+		}
+
+		// Register user
+		result, err := h.service.Register(r.Context(), &req)
+		if err != nil {
+			switch err {
+			case ErrEmailAlreadyExists:
+				response.Conflict(w, "Email already registered")
+			case ErrInvalidRole:
+				response.BadRequest(w, "Role must be 'model' or 'employer'")
+			default:
+				response.InternalError(w)
+			}
+			return
+		}
+
+		response.Created(w, result)
+
+	default:
+		response.BadRequest(w, "invalid role")
+	}
 }
 
 // Login handles POST /auth/login

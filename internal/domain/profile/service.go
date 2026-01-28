@@ -231,6 +231,9 @@ func (s *Service) UpdateModelProfile(ctx context.Context, id uuid.UUID, userID u
 	if req.IsPublic != nil {
 		profile.IsPublic = *req.IsPublic
 	}
+	if req.Visibility != "" {
+		profile.Visibility = sql.NullString{String: req.Visibility, Valid: true}
+	}
 	if req.Languages != nil {
 		profile.SetLanguages(req.Languages)
 	}
