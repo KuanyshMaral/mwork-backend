@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"net/http"
 	"os"
 	"os/signal"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
@@ -35,6 +37,7 @@ import (
 	"github.com/mwork/mwork-api/internal/middleware"
 	"github.com/mwork/mwork-api/internal/pkg/database"
 	"github.com/mwork/mwork-api/internal/pkg/jwt"
+	"github.com/mwork/mwork-api/internal/pkg/kaspi"
 	pkgresponse "github.com/mwork/mwork-api/internal/pkg/response"
 	"github.com/mwork/mwork-api/internal/pkg/storage"
 	"github.com/mwork/mwork-api/internal/pkg/upload"
@@ -113,15 +116,45 @@ func main() {
 	go chatHub.Run()
 
 	// ---------- Services ----------
-	authService := auth.NewService(userRepo, jwtService, redis)
+	authService := auth.NewService(userRepo, jwtService, redis, nil)
 	profileService := profile.NewService(modelRepo, employerRepo, userRepo)
 	castingService := casting.NewService(castingRepo, userRepo)
 	responseService := response.NewService(responseRepo, castingRepo, modelRepo, employerRepo)
 	photoService := photo.NewService(photoRepo, modelRepo, uploadSvc)
 	chatService := chat.NewService(chatRepo, userRepo, chatHub)
 	notificationService := notification.NewService(notificationRepo)
-	subscriptionService := subscription.NewService(subscriptionRepo)
-	paymentService := payment.NewService(paymentRepo, subscriptionService)
+	subscriptionService := subscription.NewService(subscriptionRepo, nil, nil, nil, nil)
+	paymentService := payment.NewService(paymentRepo, nil)
+
+	// ---------- Adapters ----------
+	// Adapter for auth employer profile repository
+	authEmployerRepo := &authEmployerProfileAdapter{repo: employerRepo}
+
+	// Stub adapters for subscription service
+	subscriptionPhotoRepo := &subscriptionPhotoAdapter{repo: photoRepo}
+	subscriptionResponseRepo := &subscriptionResponseAdapter{repo: responseRepo}
+	subscriptionCastingRepo := &subscriptionCastingAdapter{repo: castingRepo}
+	subscriptionProfileRepo := &subscriptionProfileAdapter{repo: modelRepo}
+
+	// Adapter for casting profile service
+	castingProfileService := &castingProfileServiceAdapter{service: profileService}
+
+	// Adapter for subscription payment service
+	subscriptionPaymentService := &subscriptionPaymentAdapter{service: paymentService}
+
+	// Adapter for subscription kaspi client
+	subscriptionKaspiClient := &subscriptionKaspiAdapter{client: kaspi.NewClient(kaspi.Config{
+		BaseURL:    cfg.KaspiBaseURL,
+		MerchantID: cfg.KaspiMerchantID,
+		SecretKey:  cfg.KaspiSecretKey,
+	})}
+
+	// Update authService with authEmployerRepo
+	authService = auth.NewService(userRepo, jwtService, redis, authEmployerRepo)
+
+	// Update services with proper dependencies
+	subscriptionService = subscription.NewService(subscriptionRepo, subscriptionPhotoRepo, subscriptionResponseRepo, subscriptionCastingRepo, subscriptionProfileRepo)
+	paymentService = payment.NewService(paymentRepo, subscriptionService)
 
 	adminRepo := admin.NewRepository(db)
 	adminService := admin.NewService(adminRepo)
@@ -134,7 +167,7 @@ func main() {
 	// ---------- Handlers ----------
 	authHandler := auth.NewHandler(authService)
 	profileHandler := profile.NewHandler(profileService)
-	castingHandler := casting.NewHandler(castingService)
+	castingHandler := casting.NewHandler(castingService, castingProfileService)
 	responseHandler := response.NewHandler(responseService)
 	photoHandler := photo.NewHandler(photoService)
 	chatHandler := chat.NewHandler(chatService, chatHub, redis, cfg.AllowedOrigins)
@@ -144,8 +177,11 @@ func main() {
 	deviceRepo := notification.NewDeviceTokenRepository(db)
 	preferencesHandler := notification.NewPreferencesHandler(prefsRepo, deviceRepo)
 
-	subscriptionHandler := subscription.NewHandler(subscriptionService)
-	paymentHandler := payment.NewHandler(paymentService)
+	subscriptionHandler := subscription.NewHandler(subscriptionService, subscriptionPaymentService, subscriptionKaspiClient, &subscription.Config{
+		FrontendURL: "http://localhost:3000",
+		BackendURL:  "http://localhost:8080",
+	})
+	paymentHandler := payment.NewHandler(paymentService, cfg.KaspiSecretKey)
 
 	dashboardHandler := dashboard.NewHandler(dashboardRepo)
 	promotionHandler := promotion.NewHandler(promotionRepo)
@@ -325,4 +361,132 @@ func setupLogger(cfg *config.Config) {
 			TimeFormat: "15:04:05",
 		})
 	}
+}
+
+// Adapter implementations to bridge interface mismatches
+
+// authEmployerProfileAdapter adapts profile.EmployerRepository to auth.EmployerProfileRepository
+type authEmployerProfileAdapter struct {
+	repo profile.EmployerRepository
+}
+
+func (a *authEmployerProfileAdapter) Create(ctx context.Context, authProfile *auth.EmployerProfile) error {
+	// Convert auth.EmployerProfile to profile.EmployerProfile
+	employerProfile := &profile.EmployerProfile{
+		ID:            authProfile.ID,
+		UserID:        authProfile.UserID,
+		CompanyName:   authProfile.CompanyName,
+		Description:   sql.NullString{String: authProfile.Description, Valid: authProfile.Description != ""},
+		Website:       sql.NullString{String: authProfile.Website, Valid: authProfile.Website != ""},
+		ContactPerson: sql.NullString{String: authProfile.ContactPerson, Valid: authProfile.ContactPerson != ""},
+		CreatedAt:     authProfile.CreatedAt,
+		UpdatedAt:     authProfile.UpdatedAt,
+	}
+	return a.repo.Create(ctx, employerProfile)
+}
+
+// Additional adapters for interface mismatches
+
+type castingProfileServiceAdapter struct {
+	service *profile.Service
+}
+
+func (a *castingProfileServiceAdapter) GetEmployerProfileByUserID(ctx context.Context, userID uuid.UUID) (*casting.EmployerProfile, error) {
+	profile, err := a.service.GetEmployerProfileByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &casting.EmployerProfile{
+		ID:     profile.ID,
+		UserID: profile.UserID,
+	}, nil
+}
+
+type subscriptionPaymentAdapter struct {
+	service *payment.Service
+}
+
+func (a *subscriptionPaymentAdapter) CreatePayment(ctx context.Context, userID, subscriptionID uuid.UUID, amount float64, provider string) (*subscription.Payment, error) {
+	payment, err := a.service.CreatePayment(ctx, userID, subscriptionID, amount, payment.Provider(provider))
+	if err != nil {
+		return nil, err
+	}
+
+	return &subscription.Payment{
+		ID:             payment.ID,
+		UserID:         payment.UserID,
+		SubscriptionID: payment.SubscriptionID,
+		Amount:         payment.Amount,
+		KaspiOrderID:   payment.KaspiOrderID,
+		Status:         string(payment.Status),
+		CreatedAt:      payment.CreatedAt,
+	}, nil
+}
+
+type subscriptionKaspiAdapter struct {
+	client *kaspi.Client
+}
+
+func (a *subscriptionKaspiAdapter) CreatePayment(ctx context.Context, req subscription.KaspiPaymentRequest) (*subscription.KaspiPaymentResponse, error) {
+	kaspiReq := kaspi.CreatePaymentRequest{
+		Amount:      req.Amount,
+		OrderID:     req.OrderID,
+		Description: req.Description,
+		ReturnURL:   req.ReturnURL,
+		CallbackURL: req.CallbackURL,
+	}
+
+	resp, err := a.client.CreatePayment(ctx, kaspiReq)
+	if err != nil {
+		return nil, err
+	}
+
+	return &subscription.KaspiPaymentResponse{
+		PaymentID:  resp.PaymentID,
+		PaymentURL: resp.PaymentURL,
+		Status:     resp.Status,
+	}, nil
+}
+
+// Subscription adapters
+
+type subscriptionPhotoAdapter struct {
+	repo photo.Repository
+}
+
+func (a *subscriptionPhotoAdapter) CountByProfileID(ctx context.Context, profileID uuid.UUID) (int, error) {
+	return a.repo.CountByProfileID(ctx, profileID.String())
+}
+
+type subscriptionResponseAdapter struct {
+	repo response.Repository
+}
+
+func (a *subscriptionResponseAdapter) CountWeeklyByUserID(ctx context.Context, userID uuid.UUID) (int, error) {
+	return a.repo.CountWeeklyByUserID(ctx, userID.String())
+}
+
+type subscriptionCastingAdapter struct {
+	repo casting.Repository
+}
+
+func (a *subscriptionCastingAdapter) CountActiveByCreatorID(ctx context.Context, creatorID uuid.UUID) (int, error) {
+	return a.repo.CountActiveByCreatorID(ctx, creatorID.String())
+}
+
+type subscriptionProfileAdapter struct {
+	repo profile.ModelRepository
+}
+
+func (a *subscriptionProfileAdapter) GetByUserID(ctx context.Context, userID uuid.UUID) (*subscription.Profile, error) {
+	modelProfile, err := a.repo.GetByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &subscription.Profile{
+		ID:     modelProfile.ID,
+		UserID: modelProfile.UserID,
+	}, nil
 }
