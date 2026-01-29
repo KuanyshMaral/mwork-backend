@@ -37,6 +37,11 @@ type Config struct {
 	// Email
 	ResendAPIKey string
 
+	// Kaspi Payment
+	KaspiBaseURL    string
+	KaspiMerchantID string
+	KaspiSecretKey  string
+
 	// Logging
 	LogLevel string
 }
@@ -75,6 +80,11 @@ func Load() *Config {
 
 		// Email
 		ResendAPIKey: getEnv("RESEND_API_KEY", ""),
+
+		// Kaspi Payment
+		KaspiBaseURL:    getEnv("KASPI_BASE_URL", "https://api.kaspi.kz"),
+		KaspiMerchantID: getEnv("KASPI_MERCHANT_ID", ""),
+		KaspiSecretKey:  getEnv("KASPI_SECRET_KEY", ""),
 
 		// Logging
 		LogLevel: getEnv("LOG_LEVEL", "debug"),
