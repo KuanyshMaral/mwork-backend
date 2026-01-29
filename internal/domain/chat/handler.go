@@ -123,6 +123,8 @@ func (h *Handler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 			response.BadRequest(w, "Cannot start chat with yourself")
 		case ErrUserNotFound:
 			response.NotFound(w, "User not found")
+		case ErrUserBlocked:
+			response.Forbidden(w, "Cannot create chat - user is blocked")
 		default:
 			response.InternalError(w)
 		}
@@ -228,6 +230,10 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 			response.NotFound(w, "Room not found")
 		case ErrNotRoomMember:
 			response.Forbidden(w, "You are not a member of this chat")
+		case ErrUserBlocked:
+			response.Forbidden(w, "Cannot send message - user is blocked")
+		case ErrInvalidImageURL:
+			response.BadRequest(w, "Invalid image URL - must be a valid HTTP(S) URL")
 		default:
 			response.InternalError(w)
 		}
