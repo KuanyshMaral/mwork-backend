@@ -41,10 +41,7 @@ import (
 )
 
 func main() {
-	// Load configuration
 	cfg := config.Load()
-
-	// Setup logging
 	setupLogger(cfg)
 
 	log.Info().
@@ -52,24 +49,21 @@ func main() {
 		Str("port", cfg.Port).
 		Msg("Starting MWork API")
 
-	// Connect to PostgreSQL
 	db, err := database.NewPostgres(cfg.DatabaseURL)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to connect to PostgreSQL")
 	}
 	defer database.ClosePostgres(db)
 
-	// Connect to Redis (optional)
 	redis, err := database.NewRedis(cfg.RedisURL)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to connect to Redis")
 	}
 	defer database.CloseRedis(redis)
 
-	// Initialize JWT service
 	jwtService := jwt.NewService(cfg.JWTSecret, cfg.JWTAccessTTL, cfg.JWTRefreshTTL)
 
-	// Initialize R2 upload service (optional)
+	// Legacy upload service used by photo module (as in your current main)
 	uploadSvc := upload.NewService(&upload.Config{
 		AccountID:       cfg.R2AccountID,
 		AccessKeyID:     cfg.R2AccessKeyID,
@@ -78,7 +72,7 @@ func main() {
 		PublicURL:       cfg.R2PublicURL,
 	})
 
-	// Initialize repositories
+	// ---------- Repositories ----------
 	userRepo := user.NewRepository(db)
 	modelRepo := profile.NewModelRepository(db)
 	employerRepo := profile.NewEmployerRepository(db)
@@ -89,29 +83,36 @@ func main() {
 	notificationRepo := notification.NewRepository(db)
 	subscriptionRepo := subscription.NewRepository(db)
 	paymentRepo := payment.NewRepository(db)
-
-	// NEW: Dashboard and Promotion repositories
 	dashboardRepo := dashboard.NewRepository(db)
 	promotionRepo := promotion.NewRepository(db)
 
-	// NEW: Upload domain with 2-phase staging
-	stagingDir := os.Getenv("STAGING_DIR")
-	if stagingDir == "" {
-		stagingDir = "./tmp/uploads"
-	}
-	stagingStorage, err := storage.NewLocalStorage(stagingDir, "/api/v1/files")
+	// ---------- Upload domain (2-phase) ----------
+	// R2 storage client (presign/move/exists)
+	r2Storage, err := storage.NewR2Storage(storage.R2Config{
+		AccountID:       cfg.R2AccountID,
+		AccessKeyID:     cfg.R2AccessKeyID,
+		AccessKeySecret: cfg.R2AccessKeySecret,
+		BucketName:      cfg.R2BucketName,
+		PublicURL:       cfg.R2PublicURL,
+	})
 	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to create staging storage")
+		log.Fatal().Err(err).Msg("Failed to create R2 storage")
 	}
-	uploadRepo := uploadDomain.NewRepository(db)
-	uploadService := uploadDomain.NewService(uploadRepo, stagingStorage, nil, "/api/v1/files")
-	uploadHandler := uploadDomain.NewHandler(uploadService, "/api/v1/files")
 
-	// Initialize WebSocket hub with Redis for scalability
+	uploadRepo := uploadDomain.NewRepository(db)
+
+	// NOTE: This matches your current call style:
+	// NewService(uploadRepo, storage, imageProcessor, baseURL)
+	uploadService := uploadDomain.NewService(uploadRepo, r2Storage, nil, "/api/v1/files")
+
+	// IMPORTANT: NewHandler MUST accept (service, baseURL, storage, repo)
+	uploadHandler := uploadDomain.NewHandler(uploadService, "/api/v1/files", r2Storage, uploadRepo)
+
+	// ---------- WebSocket hub ----------
 	chatHub := chat.NewHub(redis)
 	go chatHub.Run()
 
-	// Initialize services
+	// ---------- Services ----------
 	authService := auth.NewService(userRepo, jwtService, redis)
 	profileService := profile.NewService(modelRepo, employerRepo, userRepo)
 	castingService := casting.NewService(castingRepo, userRepo)
@@ -122,17 +123,15 @@ func main() {
 	subscriptionService := subscription.NewService(subscriptionRepo)
 	paymentService := payment.NewService(paymentRepo, subscriptionService)
 
-	// Initialize admin module
 	adminRepo := admin.NewRepository(db)
 	adminService := admin.NewService(adminRepo)
-	adminJWTService := admin.NewJWTService(cfg.JWTSecret, 24*time.Hour) // 24h admin sessions
+	adminJWTService := admin.NewJWTService(cfg.JWTSecret, 24*time.Hour)
 
-	// Initialize organization and lead modules
 	orgRepo := organization.NewRepository(db)
 	leadRepo := lead.NewRepository(db)
 	leadService := lead.NewService(leadRepo, orgRepo, userRepo)
 
-	// Initialize handlers
+	// ---------- Handlers ----------
 	authHandler := auth.NewHandler(authService)
 	profileHandler := profile.NewHandler(profileService)
 	castingHandler := casting.NewHandler(castingService)
@@ -141,7 +140,6 @@ func main() {
 	chatHandler := chat.NewHandler(chatService, chatHub, redis, cfg.AllowedOrigins)
 	notificationHandler := notification.NewHandler(notificationService)
 
-	// NEW: Notification preferences handler
 	prefsRepo := notification.NewPreferencesRepository(db)
 	deviceRepo := notification.NewDeviceTokenRepository(db)
 	preferencesHandler := notification.NewPreferencesHandler(prefsRepo, deviceRepo)
@@ -149,37 +147,32 @@ func main() {
 	subscriptionHandler := subscription.NewHandler(subscriptionService)
 	paymentHandler := payment.NewHandler(paymentService)
 
-	// NEW: Dashboard and Promotion handlers
 	dashboardHandler := dashboard.NewHandler(dashboardRepo)
 	promotionHandler := promotion.NewHandler(promotionRepo)
 
-	// NEW: Saved castings, social links, reviews, FAQ handlers
 	savedCastingsHandler := casting.NewSavedCastingsHandler(db)
 	socialLinksHandler := profile.NewSocialLinksHandler(db, modelRepo)
 	reviewRepo := review.NewRepository(db)
 	reviewHandler := review.NewHandler(reviewRepo)
 	faqHandler := content.NewFAQHandler(db)
 
-	// Admin handlers
 	adminHandler := admin.NewHandler(adminService, adminJWTService)
 	moderationHandler := admin.NewModerationHandler(db, adminService)
 	leadHandler := lead.NewHandler(leadService)
 	userAdminHandler := admin.NewUserHandler(db, adminService)
 
-	// Auth middleware
 	authMiddleware := middleware.Auth(jwtService)
 
-	// Create router
+	// ---------- Router ----------
 	r := chi.NewRouter()
 
-	// Global middleware (no Compress for WebSocket compatibility)
 	r.Use(chimw.RealIP)
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recover)
 	r.Use(middleware.CORSHandler(cfg.AllowedOrigins))
 
-	// WebSocket endpoint BEFORE Compress (to avoid http.Hijacker issue)
+	// WebSocket endpoint (before Compress)
 	r.Get("/ws", func(w http.ResponseWriter, r *http.Request) {
 		token := r.URL.Query().Get("token")
 		if token != "" {
@@ -188,12 +181,11 @@ func main() {
 		authMiddleware(http.HandlerFunc(chatHandler.WebSocket)).ServeHTTP(w, r)
 	})
 
-	// Enable compression for all other routes
+	// Compress for everything else
 	r.Group(func(r chi.Router) {
 		r.Use(chimw.Compress(5))
 	})
 
-	// Health check endpoints
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		pkgresponse.OK(w, map[string]string{
 			"status":  "ok",
@@ -201,25 +193,15 @@ func main() {
 		})
 	})
 
-	// API routes
 	r.Route("/api/v1", func(r chi.Router) {
-		// Ping endpoint
 		r.Get("/ping", func(w http.ResponseWriter, r *http.Request) {
-			pkgresponse.OK(w, map[string]string{
-				"message": "pong",
-			})
+			pkgresponse.OK(w, map[string]string{"message": "pong"})
 		})
 
-		// Auth routes
 		r.Mount("/auth", authHandler.Routes(authMiddleware))
-
-		// Profile routes
 		r.Mount("/profiles", profileHandler.Routes(authMiddleware))
-
-		// Casting routes
 		r.Mount("/castings", castingHandler.Routes(authMiddleware))
 
-		// Saved castings routes
 		r.Route("/castings/saved", func(r chi.Router) {
 			r.Use(authMiddleware)
 			r.Get("/", savedCastingsHandler.ListSaved)
@@ -231,23 +213,26 @@ func main() {
 			r.Get("/", savedCastingsHandler.CheckSaved)
 		})
 
-		// Casting responses (nested under castings)
 		r.Route("/castings/{id}/responses", func(r chi.Router) {
 			r.Use(authMiddleware)
 			r.Post("/", responseHandler.Apply)
 			r.Get("/", responseHandler.ListByCasting)
 		})
-
-		// Response routes
 		r.Mount("/responses", responseHandler.Routes(authMiddleware))
 
-		// Photo routes (legacy presigned URL system)
+		// legacy uploads/photos
 		r.Mount("/uploads", photoHandler.UploadRoutes(authMiddleware))
 		r.Mount("/photos", photoHandler.Routes(authMiddleware))
 
-		// NEW: File upload routes (2-phase staging system)
+		// NEW: 2-phase file uploads
 		r.Route("/files", func(r chi.Router) {
 			r.Use(authMiddleware)
+
+			// New 2-phase endpoints
+			r.Post("/init", uploadHandler.Init)
+			r.Post("/confirm", uploadHandler.Confirm)
+
+			// Existing staging system endpoints
 			r.Post("/stage", uploadHandler.Stage)
 			r.Post("/{id}/commit", uploadHandler.Commit)
 			r.Get("/{id}", uploadHandler.GetByID)
@@ -255,10 +240,8 @@ func main() {
 			r.Get("/", uploadHandler.ListMy)
 		})
 
-		// Profile photos route
 		r.Get("/profiles/{id}/photos", photoHandler.ListByProfile)
 
-		// Profile social links routes
 		r.Route("/profiles/{id}/social-links", func(r chi.Router) {
 			r.Get("/", socialLinksHandler.List)
 			r.Group(func(r chi.Router) {
@@ -268,48 +251,27 @@ func main() {
 			})
 		})
 
-		// Profile completeness route
 		r.Get("/profiles/{id}/completeness", socialLinksHandler.GetCompleteness)
 
-		// Profile reviews routes
 		r.Get("/profiles/{id}/reviews", reviewHandler.ListByProfile)
 		r.Get("/profiles/{id}/reviews/summary", reviewHandler.GetSummary)
 
-		// Chat routes
 		r.Mount("/chat", chatHandler.Routes(authMiddleware))
-
-		// Notification routes
 		r.Mount("/notifications", notificationHandler.Routes(authMiddleware))
-
-		// Notification preferences routes
 		r.Mount("/notifications/preferences", preferencesHandler.Routes(authMiddleware))
 
-		// Subscription routes
 		r.Mount("/subscriptions", subscriptionHandler.Routes(authMiddleware))
-
-		// Payment routes
 		r.Mount("/payments", paymentHandler.Routes(authMiddleware))
 
-		// NEW: Dashboard routes
 		r.Mount("/dashboard", dashboard.Routes(dashboardHandler, authMiddleware))
-
-		// NEW: Promotion routes
 		r.Mount("/promotions", promotion.Routes(promotionHandler, authMiddleware))
-
-		// NEW: Reviews routes (create/delete)
 		r.Mount("/reviews", review.Routes(reviewHandler, authMiddleware))
-
-		// NEW: FAQ routes (public)
 		r.Mount("/faq", faqHandler.Routes())
 	})
 
-	// Webhooks (no auth, signature verification inside)
 	r.Mount("/webhooks", paymentHandler.WebhookRoutes())
-
-	// Public lead capture endpoint (no auth)
 	r.Mount("/api/v1/leads", leadHandler.PublicRoutes())
 
-	// Admin panel routes (separate from API)
 	r.Route("/api/admin", func(r chi.Router) {
 		r.Mount("/", adminHandler.Routes())
 		r.Mount("/moderation", moderationHandler.Routes(adminJWTService, adminService))
@@ -317,7 +279,6 @@ func main() {
 		r.Mount("/users", userAdminHandler.Routes(adminJWTService, adminService))
 	})
 
-	// Create HTTP server
 	server := &http.Server{
 		Addr:         ":" + cfg.Port,
 		Handler:      r,
@@ -326,7 +287,6 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	// Start server in goroutine
 	go func() {
 		log.Info().Str("addr", server.Addr).Msg("HTTP server listening")
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -334,7 +294,6 @@ func main() {
 		}
 	}()
 
-	// Graceful shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
@@ -352,17 +311,14 @@ func main() {
 }
 
 func setupLogger(cfg *config.Config) {
-	// Set time format
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 
-	// Set log level
 	level, err := zerolog.ParseLevel(cfg.LogLevel)
 	if err != nil {
 		level = zerolog.DebugLevel
 	}
 	zerolog.SetGlobalLevel(level)
 
-	// Pretty logging for development
 	if cfg.IsDevelopment() {
 		log.Logger = log.Output(zerolog.ConsoleWriter{
 			Out:        os.Stdout,
