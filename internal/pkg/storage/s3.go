@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/smithy-go"
 )
 
 // S3Storage implements Storage interface for AWS S3 or MinIO
@@ -104,8 +106,14 @@ func (s *S3Storage) Exists(ctx context.Context, key string) (bool, error) {
 		Key:    aws.String(key),
 	})
 	if err != nil {
-		// TODO: Check for specific "not found" error
-		return false, nil
+		var apiErr smithy.APIError
+		if errors.As(err, &apiErr) {
+			code := apiErr.ErrorCode()
+			if code == "NotFound" || code == "NoSuchKey" {
+				return false, nil
+			}
+		}
+		return false, fmt.Errorf("failed to head object in S3: %w", err)
 	}
 	return true, nil
 }
@@ -141,4 +149,39 @@ func (s *S3Storage) CleanupExpired(ctx context.Context, maxAge time.Duration) (i
 	// For S3, recommend using bucket lifecycle policies instead
 	// This is a stub for interface compatibility
 	return 0, nil
+}
+func (s *S3Storage) GeneratePresignedPutURL(ctx context.Context, key string, expires time.Duration, contentType string) (string, error) {
+	p := s3.NewPresignClient(s.client)
+
+	out, err := p.PresignPutObject(ctx, &s3.PutObjectInput{
+		Bucket:      aws.String(s.bucket),
+		Key:         aws.String(key),
+		ContentType: aws.String(contentType),
+	}, func(opts *s3.PresignOptions) {
+		opts.Expires = expires
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to presign put object: %w", err)
+	}
+
+	return out.URL, nil
+}
+
+func (s *S3Storage) Copy(ctx context.Context, srcKey, dstKey string) error {
+	_, err := s.client.CopyObject(ctx, &s3.CopyObjectInput{
+		Bucket:     aws.String(s.bucket),
+		Key:        aws.String(dstKey),
+		CopySource: aws.String(fmt.Sprintf("%s/%s", s.bucket, srcKey)),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to copy object in S3: %w", err)
+	}
+	return nil
+}
+
+func (s *S3Storage) Move(ctx context.Context, srcKey, dstKey string) error {
+	if err := s.Copy(ctx, srcKey, dstKey); err != nil {
+		return err
+	}
+	return s.Delete(ctx, srcKey)
 }
