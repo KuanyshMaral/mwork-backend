@@ -2,8 +2,15 @@ package response
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 )
+
+// DecodeJSON decodes JSON from request body into the provided struct
+func DecodeJSON(body io.ReadCloser, v interface{}) error {
+	defer body.Close()
+	return json.NewDecoder(body).Decode(v)
+}
 
 // Response represents a standard API response
 type Response struct {

@@ -9,19 +9,26 @@ import (
 	"github.com/mwork/mwork-api/internal/domain/user"
 )
 
+// BlockChecker defines interface for checking if users are blocked
+type BlockChecker interface {
+	IsBlocked(ctx context.Context, user1, user2 uuid.UUID) (bool, error)
+}
+
 // Service handles chat business logic
 type Service struct {
-	repo     Repository
-	userRepo user.Repository
-	hub      *Hub // WebSocket hub
+	repo         Repository
+	userRepo     user.Repository
+	hub          *Hub // WebSocket hub
+	blockChecker BlockChecker
 }
 
 // NewService creates chat service
-func NewService(repo Repository, userRepo user.Repository, hub *Hub) *Service {
+func NewService(repo Repository, userRepo user.Repository, hub *Hub, blockChecker BlockChecker) *Service {
 	return &Service{
-		repo:     repo,
-		userRepo: userRepo,
-		hub:      hub,
+		repo:         repo,
+		userRepo:     userRepo,
+		hub:          hub,
+		blockChecker: blockChecker,
 	}
 }
 
@@ -36,6 +43,17 @@ func (s *Service) CreateOrGetRoom(ctx context.Context, userID uuid.UUID, req *Cr
 	recipient, err := s.userRepo.GetByID(ctx, req.RecipientID)
 	if err != nil || recipient == nil {
 		return nil, ErrUserNotFound
+	}
+
+	// Check if either user has blocked the other
+	if s.blockChecker != nil {
+		blocked, err := s.blockChecker.IsBlocked(ctx, userID, req.RecipientID)
+		if err != nil {
+			return nil, err
+		}
+		if blocked {
+			return nil, ErrUserBlocked
+		}
 	}
 
 	// Check if room already exists
@@ -130,9 +148,25 @@ func (s *Service) SendMessage(ctx context.Context, userID, roomID uuid.UUID, req
 		return nil, ErrNotRoomMember
 	}
 
+	// Check if either user has blocked the other
+	otherUserID := room.GetOtherParticipant(userID)
+	if s.blockChecker != nil {
+		blocked, err := s.blockChecker.IsBlocked(ctx, userID, otherUserID)
+		if err != nil {
+			return nil, err
+		}
+		if blocked {
+			return nil, ErrUserBlocked
+		}
+	}
+
 	msgType := MessageTypeText
 	if req.MessageType == "image" {
 		msgType = MessageTypeImage
+		// Validate image URL - must start with http
+		if len(req.Content) < 7 || (req.Content[:7] != "http://" && req.Content[:8] != "https://") {
+			return nil, ErrInvalidImageURL
+		}
 	}
 
 	msg := &Message{
@@ -191,7 +225,21 @@ func (s *Service) MarkAsRead(ctx context.Context, userID, roomID uuid.UUID) erro
 		return ErrNotRoomMember
 	}
 
-	return s.repo.MarkMessagesAsRead(ctx, roomID, userID)
+	if err := s.repo.MarkMessagesAsRead(ctx, roomID, userID); err != nil {
+		return err
+	}
+
+	// Broadcast read event to other participant via WebSocket
+	if s.hub != nil {
+		otherUserID := room.GetOtherParticipant(userID)
+		s.hub.BroadcastToRoom(roomID, &WSEvent{
+			Type:     EventRead,
+			RoomID:   roomID,
+			SenderID: otherUserID, // Notify the other user
+		})
+	}
+
+	return nil
 }
 
 // GetUnreadCount returns total unread count for user

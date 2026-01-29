@@ -161,7 +161,10 @@ func (r *repository) MarkMessagesAsRead(ctx context.Context, roomID, userID uuid
 	query := `
 		UPDATE messages 
 		SET is_read = true, read_at = NOW()
-		WHERE room_id = $1 AND sender_id != $2 AND NOT is_read
+		WHERE room_id = $1 
+		  AND sender_id != $2 
+		  AND NOT is_read 
+		  AND deleted_at IS NULL
 	`
 	_, err := r.db.ExecContext(ctx, query, roomID, userID)
 	return err

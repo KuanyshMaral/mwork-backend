@@ -23,6 +23,7 @@ import (
 	"github.com/mwork/mwork-api/internal/domain/content"
 	"github.com/mwork/mwork-api/internal/domain/dashboard"
 	"github.com/mwork/mwork-api/internal/domain/lead"
+	"github.com/mwork/mwork-api/internal/domain/moderation"
 	"github.com/mwork/mwork-api/internal/domain/notification"
 	"github.com/mwork/mwork-api/internal/domain/organization"
 	"github.com/mwork/mwork-api/internal/domain/payment"
@@ -83,6 +84,7 @@ func main() {
 	responseRepo := response.NewRepository(db)
 	photoRepo := photo.NewRepository(db)
 	chatRepo := chat.NewRepository(db)
+	moderationRepo := moderation.NewRepository(db)
 	notificationRepo := notification.NewRepository(db)
 	subscriptionRepo := subscription.NewRepository(db)
 	paymentRepo := payment.NewRepository(db)
@@ -121,7 +123,8 @@ func main() {
 	castingService := casting.NewService(castingRepo, userRepo)
 	responseService := response.NewService(responseRepo, castingRepo, modelRepo, employerRepo)
 	photoService := photo.NewService(photoRepo, modelRepo, uploadSvc)
-	chatService := chat.NewService(chatRepo, userRepo, chatHub)
+	moderationService := moderation.NewService(moderationRepo, userRepo)
+	chatService := chat.NewService(chatRepo, userRepo, chatHub, moderationService)
 	notificationService := notification.NewService(notificationRepo)
 	subscriptionService := subscription.NewService(subscriptionRepo, nil, nil, nil, nil)
 	paymentService := payment.NewService(paymentRepo, nil)
@@ -171,6 +174,7 @@ func main() {
 	responseHandler := response.NewHandler(responseService)
 	photoHandler := photo.NewHandler(photoService)
 	chatHandler := chat.NewHandler(chatService, chatHub, redis, cfg.AllowedOrigins)
+	moderationHandler := moderation.NewHandler(moderationService)
 	notificationHandler := notification.NewHandler(notificationService)
 
 	prefsRepo := notification.NewPreferencesRepository(db)
@@ -193,7 +197,7 @@ func main() {
 	faqHandler := content.NewFAQHandler(db)
 
 	adminHandler := admin.NewHandler(adminService, adminJWTService)
-	moderationHandler := admin.NewModerationHandler(db, adminService)
+	adminModerationHandler := admin.NewModerationHandler(db, adminService)
 	leadHandler := lead.NewHandler(leadService)
 	userAdminHandler := admin.NewUserHandler(db, adminService)
 
@@ -293,6 +297,7 @@ func main() {
 		r.Get("/profiles/{id}/reviews/summary", reviewHandler.GetSummary)
 
 		r.Mount("/chat", chatHandler.Routes(authMiddleware))
+		r.Mount("/moderation", moderationHandler.Routes(authMiddleware))
 		r.Mount("/notifications", notificationHandler.Routes(authMiddleware))
 		r.Mount("/notifications/preferences", preferencesHandler.Routes(authMiddleware))
 
@@ -310,7 +315,13 @@ func main() {
 
 	r.Route("/api/admin", func(r chi.Router) {
 		r.Mount("/", adminHandler.Routes())
-		r.Mount("/moderation", moderationHandler.Routes(adminJWTService, adminService))
+		r.Mount("/moderation", adminModerationHandler.Routes(adminJWTService, adminService))
+
+		// User-facing moderation admin routes (reports)
+		adminAuthMiddleware := admin.AuthMiddleware(adminJWTService, adminService)
+		adminOnlyMiddleware := admin.RequirePermission(admin.PermModerateContent) // Using content moderation permission
+		r.Mount("/reports", moderationHandler.AdminRoutes(adminAuthMiddleware, adminOnlyMiddleware))
+
 		r.Mount("/leads", leadHandler.AdminRoutes(adminJWTService, adminService))
 		r.Mount("/users", userAdminHandler.Routes(adminJWTService, adminService))
 	})

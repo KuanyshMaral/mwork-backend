@@ -9,4 +9,6 @@ var (
 	ErrMessageNotFound  = errors.New("message not found")
 	ErrChatNotAvailable = errors.New("chat is available only for Pro users")
 	ErrUserNotFound     = errors.New("user not found")
+	ErrUserBlocked      = errors.New("cannot send message - user is blocked")
+	ErrInvalidImageURL  = errors.New("invalid image URL - must be a valid HTTP(S) URL")
 )
