@@ -1,6 +1,10 @@
+// internal/pkg/jwt/jwt.go
 package jwt
 
 import (
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"time"
 
@@ -44,7 +48,7 @@ func (s *Service) GenerateAccessToken(userID uuid.UUID, role string) (string, er
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(s.accessTTL)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			ID:        uuid.New().String(),
+			ID:        uuid.New().String(), // jti
 		},
 	}
 
@@ -52,9 +56,19 @@ func (s *Service) GenerateAccessToken(userID uuid.UUID, role string) (string, er
 	return token.SignedString(s.secret)
 }
 
-// GenerateRefreshToken generates refresh token (opaque UUID)
-func (s *Service) GenerateRefreshToken() string {
-	return uuid.New().String()
+// GenerateRefreshToken generates refresh token (32 bytes -> 64 hex chars)
+func (s *Service) GenerateRefreshToken() (string, error) {
+	b := make([]byte, 32) // 32 bytes = 256-bit
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
+}
+
+// HashRefreshToken hashes refresh token for storage (so raw token isn't stored)
+func HashRefreshToken(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:])
 }
 
 // ValidateAccessToken validates and parses access token

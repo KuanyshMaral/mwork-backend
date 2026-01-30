@@ -1,4 +1,19 @@
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: mwork-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
   postgres:
     image: postgres:16-alpine
     container_name: mwork-postgres
@@ -11,41 +26,56 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U mwork -d mwork_dev" ]
+      test: ["CMD-SHELL", "pg_isready -U mwork -d mwork_dev"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
     restart: unless-stopped
 
-  redis:
-    image: redis:7-alpine
-    container_name: mwork-redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    command: redis-server --appendonly yes
-    healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-
-  # Optional: Adminer for database management
   adminer:
     image: adminer:latest
     container_name: mwork-adminer
     ports:
       - "8081:8080"
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  migrate:
+    image: migrate/migrate:4
+    container_name: mwork-migrate
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ../migrations:/migrations
+    env_file:
+      - ../.env.docker
+    command: ["-path=/migrations", "-database", "${DATABASE_URL}", "up"]
+    restart: "no"
+
+  api:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: mwork-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    env_file:
+      - ../.env.docker
+    ports:
+      - "8080:8080"
     restart: unless-stopped
 
 volumes:
   postgres_data:
   redis_data:
-
 
 networks:
   default:
