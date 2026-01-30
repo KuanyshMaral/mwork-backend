@@ -1,3 +1,4 @@
+// internal/domain/auth/service.go
 package auth
 
 import (
@@ -168,8 +169,9 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (*AuthRespon
 		return nil, ErrRefreshTokenRequired
 	}
 
-	// 1. Validate refresh token in Redis
-	userID, err := s.getRefreshToken(ctx, refreshToken)
+	// 1. Validate refresh token in Redis (we store hash(refresh))
+	refreshHash := jwt.HashRefreshToken(refreshToken)
+	userID, err := s.getRefreshToken(ctx, refreshHash)
 	if err != nil {
 		return nil, ErrInvalidRefreshToken
 	}
@@ -181,7 +183,7 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (*AuthRespon
 	}
 
 	// 3. Delete old refresh token (token rotation)
-	_ = s.deleteRefreshToken(ctx, refreshToken)
+	_ = s.deleteRefreshToken(ctx, refreshHash)
 
 	// 4. Generate new tokens
 	return s.generateTokens(ctx, u)
@@ -192,7 +194,10 @@ func (s *Service) Logout(ctx context.Context, refreshToken string) error {
 	if refreshToken == "" {
 		return nil // Nothing to logout
 	}
-	return s.deleteRefreshToken(ctx, refreshToken)
+
+	// delete by hash(refresh)
+	refreshHash := jwt.HashRefreshToken(refreshToken)
+	return s.deleteRefreshToken(ctx, refreshHash)
 }
 
 // GetCurrentUser returns current user by ID
@@ -214,11 +219,15 @@ func (s *Service) generateTokens(ctx context.Context, u *user.User) (*AuthRespon
 		return nil, err
 	}
 
-	// Generate refresh token
-	refreshToken := s.jwtService.GenerateRefreshToken()
+	// Generate refresh token (32 bytes hex)
+	refreshToken, err := s.jwtService.GenerateRefreshToken()
+	if err != nil {
+		return nil, err
+	}
 
-	// Store refresh token in Redis (if available)
-	if err := s.storeRefreshToken(ctx, refreshToken, u.ID); err != nil {
+	// Store hash(refresh) in Redis
+	refreshHash := jwt.HashRefreshToken(refreshToken)
+	if err := s.storeRefreshToken(ctx, refreshHash, u.ID); err != nil {
 		return nil, err
 	}
 
@@ -226,7 +235,7 @@ func (s *Service) generateTokens(ctx context.Context, u *user.User) (*AuthRespon
 		User: NewUserResponse(u.ID, u.Email, string(u.Role), u.EmailVerified, u.CreatedAt),
 		Tokens: TokensResponse{
 			AccessToken:  accessToken,
-			RefreshToken: refreshToken,
+			RefreshToken: refreshToken, // return raw refresh to client
 			ExpiresIn:    int(s.jwtService.GetAccessTTL().Seconds()),
 		},
 	}, nil

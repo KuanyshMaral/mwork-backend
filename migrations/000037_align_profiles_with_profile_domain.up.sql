@@ -1,5 +1,4 @@
 -- 000037_align_profiles_with_profile_domain.up.sql
-
 -- Add missing columns used by profile domain code (safe: only add/default/backfill)
 
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS description TEXT NULL;
@@ -33,48 +32,73 @@ UPDATE profiles SET categories = '[]'::jsonb WHERE categories IS NULL;
 UPDATE profiles SET skills = '[]'::jsonb WHERE skills IS NULL;
 
 -- travel_cities:
--- repo expects JSON-like arrays per Stage2; but 000032 created TEXT[] in your repo.
--- Convert TEXT[] -> JSONB when needed; otherwise ensure JSONB default/backfill.
+-- repo expects JSON-like arrays per Stage2; but earlier migration may have created TEXT[].
+-- Convert TEXT[] -> JSONB safely; otherwise ensure JSONB default/backfill.
 DO $$
-    BEGIN
-        IF EXISTS (
-            SELECT 1
-            FROM information_schema.columns
-            WHERE table_schema = 'public'
-              AND table_name = 'profiles'
-              AND column_name = 'travel_cities'
-        ) THEN
+DECLARE
+travel_type text;
+BEGIN
+    -- column exists?
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'profiles'
+          AND column_name = 'travel_cities'
+    ) THEN
 
-            -- If it is an array type (TEXT[]), convert to JSONB
-            IF EXISTS (
-                SELECT 1
-                FROM information_schema.columns
-                WHERE table_schema = 'public'
-                  AND table_name = 'profiles'
-                  AND column_name = 'travel_cities'
-                  AND data_type = 'ARRAY'
-            ) THEN
-                ALTER TABLE profiles
-                    ALTER COLUMN travel_cities TYPE JSONB
-                        USING to_jsonb(travel_cities);
+        -- detect actual type (works for arrays/jsonb/etc.)
+SELECT pg_catalog.format_type(a.atttypid, a.atttypmod)
+INTO travel_type
+FROM pg_catalog.pg_attribute a
+         JOIN pg_catalog.pg_class c ON c.oid = a.attrelid
+         JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'public'
+  AND c.relname = 'profiles'
+  AND a.attname = 'travel_cities'
+  AND a.attnum > 0
+  AND NOT a.attisdropped;
 
-                ALTER TABLE profiles
-                    ALTER COLUMN travel_cities SET DEFAULT '[]'::jsonb;
+-- If it is text[] (or any array), convert to jsonb
+IF travel_type LIKE '%[]' THEN
+            -- IMPORTANT: drop old default (e.g. '{}'::text[]) before type change
+BEGIN
+ALTER TABLE profiles ALTER COLUMN travel_cities DROP DEFAULT;
+EXCEPTION WHEN others THEN
+                -- ignore if no default
+END;
 
-                UPDATE profiles SET travel_cities = '[]'::jsonb WHERE travel_cities IS NULL;
+ALTER TABLE profiles
+ALTER COLUMN travel_cities TYPE JSONB
+                USING COALESCE(to_jsonb(travel_cities), '[]'::jsonb);
 
-            ELSE
-                -- If it already is JSONB (or anything else), just ensure default/backfill if possible
-                BEGIN
-                    ALTER TABLE profiles ALTER COLUMN travel_cities SET DEFAULT '[]'::jsonb;
-                    UPDATE profiles SET travel_cities = '[]'::jsonb WHERE travel_cities IS NULL;
-                EXCEPTION WHEN others THEN
-                -- do nothing
-                END;
-            END IF;
+ALTER TABLE profiles
+    ALTER COLUMN travel_cities SET DEFAULT '[]'::jsonb;
 
-        ELSE
-            ALTER TABLE profiles
-                ADD COLUMN travel_cities JSONB NOT NULL DEFAULT '[]'::jsonb;
-        END IF;
-    END $$;
+UPDATE profiles
+SET travel_cities = '[]'::jsonb
+WHERE travel_cities IS NULL;
+
+ELSE
+            -- If already JSONB (or other), just try to set default/backfill
+BEGIN
+ALTER TABLE profiles ALTER COLUMN travel_cities SET DEFAULT '[]'::jsonb;
+EXCEPTION WHEN others THEN
+                -- ignore if incompatible
+END;
+
+BEGIN
+UPDATE profiles
+SET travel_cities = '[]'::jsonb
+WHERE travel_cities IS NULL;
+EXCEPTION WHEN others THEN
+                -- ignore if incompatible
+END;
+END IF;
+
+ELSE
+        -- Column doesn't exist: create it as JSONB
+ALTER TABLE profiles
+    ADD COLUMN travel_cities JSONB NOT NULL DEFAULT '[]'::jsonb;
+END IF;
+END $$;
