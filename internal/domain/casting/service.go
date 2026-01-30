@@ -168,6 +168,9 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, re
 			casting.DateTo = sql.NullTime{Time: t, Valid: true}
 		}
 	}
+	if req.CoverImageURL != "" {
+		casting.CoverImageURL = sql.NullString{String: req.CoverImageURL, Valid: true}
+	}
 
 	// Update requirements
 	if req.Requirements != nil {

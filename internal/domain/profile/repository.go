@@ -66,14 +66,17 @@ func (r *modelRepository) Create(ctx context.Context, profile *ModelProfile) err
 			id, user_id, type, first_name, bio, description, age, height_cm, weight_kg, gender,
 			clothing_size, shoe_size, experience_years, hourly_rate, city, country,
 			languages, categories, skills, barter_accepted, accept_remote_work,
+			travel_cities, visibility,
 			view_count, rating, total_reviews, is_public
 		) VALUES (
 			$1, $2, 'model', $3, $4, $5, $6, $7, $8, $9,
 			$10, $11, $12, $13, $14, $15,
 			$16, $17, $18, $19, $20,
-			$21, $22, $23, $24
+			$21, $22,
+			$23, $24, $25, $26
 		)
 	`
+
 	// Note: Mapping Name -> first_name, we assume Name holds fullname for now or just first name
 	// In the split, we used 'Name' but DB has first_name, last_name. We'll map Name -> first_name
 
@@ -84,6 +87,7 @@ func (r *modelRepository) Create(ctx context.Context, profile *ModelProfile) err
 		profile.City, profile.Country,
 		profile.Languages, profile.Categories, profile.Skills,
 		profile.BarterAccepted, profile.AcceptRemoteWork,
+		profile.TravelCities, profile.Visibility,
 		profile.ProfileViews, profile.Rating, profile.TotalReviews, profile.IsPublic,
 	)
 
@@ -97,7 +101,9 @@ func (r *modelRepository) GetByID(ctx context.Context, id uuid.UUID) (*ModelProf
 			id, user_id, first_name as name, bio, description, age, height_cm as height, weight_kg as weight, gender,
 			clothing_size, shoe_size, experience_years as experience, hourly_rate, city, country,
 			languages, categories, skills, barter_accepted, accept_remote_work,
+			travel_cities, visibility,
 			view_count as profile_views, rating, total_reviews, is_public, created_at, updated_at
+
 		FROM profiles 
 		WHERE id = $1 AND type = 'model'
 	`
@@ -120,6 +126,7 @@ func (r *modelRepository) GetByUserID(ctx context.Context, userID uuid.UUID) (*M
 			id, user_id, first_name as name, bio, description, age, height_cm as height, weight_kg as weight, gender,
 			clothing_size, shoe_size, experience_years as experience, hourly_rate, city, country,
 			languages, categories, skills, barter_accepted, accept_remote_work,
+			travel_cities, visibility,
 			view_count as profile_views, rating, total_reviews, is_public, created_at, updated_at
 		FROM profiles 
 		WHERE user_id = $1 AND type = 'model'
@@ -143,7 +150,7 @@ func (r *modelRepository) Update(ctx context.Context, profile *ModelProfile) err
 			first_name = $2, bio = $3, description = $4, age = $5, height_cm = $6, weight_kg = $7, gender = $8,
 			clothing_size = $9, shoe_size = $10, experience_years = $11, hourly_rate = $12,
 			city = $13, country = $14, languages = $15, categories = $16, skills = $17,
-			barter_accepted = $18, accept_remote_work = $19, is_public = $20,
+			barter_accepted = $18, accept_remote_work = $19, is_public = $20, travel_cities = $21, visibility = $22,
 			updated_at = NOW()
 		WHERE id = $1 AND type = 'model'
 	`
@@ -222,6 +229,7 @@ func (r *modelRepository) List(ctx context.Context, filter *Filter, pagination *
 			id, user_id, first_name as name, bio, description, age, height_cm as height, weight_kg as weight, gender,
 			clothing_size, shoe_size, experience_years as experience, hourly_rate, city, country,
 			languages, categories, skills, barter_accepted, accept_remote_work,
+			travel_cities, visibility,
 			view_count as profile_views, rating, total_reviews, is_public, created_at, updated_at
 		FROM profiles %s 
 		ORDER BY rating DESC, created_at DESC 

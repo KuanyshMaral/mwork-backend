@@ -5,6 +5,8 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
+	"github.com/mwork/mwork-api/internal/domain/profile"
 
 	"github.com/mwork/mwork-api/internal/middleware"
 	"github.com/mwork/mwork-api/internal/pkg/response"
@@ -13,12 +15,13 @@ import (
 
 // Handler handles work experience HTTP requests
 type Handler struct {
-	repo Repository
+	repo        Repository
+	profileRepo profile.ModelRepository
 }
 
 // NewHandler creates new work experience handler
-func NewHandler(repo Repository) *Handler {
-	return &Handler{repo: repo}
+func NewHandler(repo Repository, profileRepo profile.ModelRepository) *Handler {
+	return &Handler{repo: repo, profileRepo: profileRepo}
 }
 
 // Create adds new work experience
@@ -42,13 +45,35 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	profileIDStr := chi.URLParam(r, "id")
+	if profileIDStr == "" {
+		response.BadRequest(w, "Missing profile ID")
+		return
+	}
+
+	profileID, err := uuid.Parse(profileIDStr)
+	if err != nil {
+		response.BadRequest(w, "Invalid profile ID")
+		return
+	}
+
+	p, err := h.profileRepo.GetByID(r.Context(), profileID)
+	if err != nil || p == nil {
+		response.NotFound(w, "Profile not found")
+		return
+	}
+	if p.UserID != userID {
+		response.Forbidden(w, "Forbidden")
+		return
+	}
+
 	// TODO: Verify profile ownership
 	// For now, we assume the profile belongs to the user
 	// In production, you should verify: profileRepo.GetByID(profileID).UserID == userID
 
 	// Create entity from request
 	exp := &Entity{
-		ProfileID:   req.ProfileID,
+		ProfileID:   profileIDStr,
 		Title:       req.Title,
 		Company:     req.Company,
 		Role:        req.Role,
@@ -95,6 +120,28 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 	if userID.String() == "" {
 		response.Unauthorized(w, "unauthorized")
+		return
+	}
+
+	exp, err := h.repo.GetByID(r.Context(), expID)
+	if err != nil || exp == nil {
+		response.NotFound(w, "Experience not found")
+		return
+	}
+
+	profileID, err := uuid.Parse(exp.ProfileID)
+	if err != nil {
+		response.InternalError(w)
+		return
+	}
+
+	p, err := h.profileRepo.GetByID(r.Context(), profileID)
+	if err != nil || p == nil {
+		response.NotFound(w, "Profile not found")
+		return
+	}
+	if p.UserID != userID {
+		response.Forbidden(w, "Forbidden")
 		return
 	}
 

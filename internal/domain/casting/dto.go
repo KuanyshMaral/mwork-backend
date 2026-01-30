@@ -38,15 +38,16 @@ type RequirementsRequest struct {
 
 // UpdateCastingRequest for PUT /castings/{id}
 type UpdateCastingRequest struct {
-	Title       string   `json:"title" validate:"omitempty,min=5,max=200"`
-	Description string   `json:"description" validate:"omitempty,min=20,max=5000"`
-	City        string   `json:"city" validate:"omitempty,min=2,max=100"`
-	Address     string   `json:"address" validate:"omitempty,max=500"`
-	PayMin      *float64 `json:"pay_min" validate:"omitempty,gte=0"`
-	PayMax      *float64 `json:"pay_max" validate:"omitempty,gte=0"`
-	PayType     string   `json:"pay_type" validate:"omitempty,oneof=fixed hourly negotiable free"`
-	DateFrom    *string  `json:"date_from"`
-	DateTo      *string  `json:"date_to"`
+	Title         string   `json:"title" validate:"omitempty,min=5,max=200"`
+	Description   string   `json:"description" validate:"omitempty,min=20,max=5000"`
+	City          string   `json:"city" validate:"omitempty,min=2,max=100"`
+	Address       string   `json:"address" validate:"omitempty,max=500"`
+	PayMin        *float64 `json:"pay_min" validate:"omitempty,gte=0"`
+	PayMax        *float64 `json:"pay_max" validate:"omitempty,gte=0"`
+	PayType       string   `json:"pay_type" validate:"omitempty,oneof=fixed hourly negotiable free"`
+	DateFrom      *string  `json:"date_from"`
+	DateTo        *string  `json:"date_to"`
+	CoverImageURL string   `json:"cover_image_url" validate:"omitempty,url,startswith=https://"`
 
 	Requirements *RequirementsRequest `json:"requirements"`
 }

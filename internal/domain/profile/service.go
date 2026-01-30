@@ -86,6 +86,18 @@ func (s *Service) CreateModelProfile(ctx context.Context, userID uuid.UUID, req 
 
 	profile.SetLanguages(req.Languages)
 	profile.SetCategories(req.Categories)
+	profile.SetSkills(req.Skills)
+	profile.SetTravelCities(req.TravelCities)
+
+	if req.BarterAccepted != nil {
+		profile.BarterAccepted = *req.BarterAccepted
+	}
+	if req.AcceptRemoteWork != nil {
+		profile.AcceptRemoteWork = *req.AcceptRemoteWork
+	}
+	if req.Visibility != "" {
+		profile.Visibility = sql.NullString{String: req.Visibility, Valid: true}
+	}
 
 	if err := s.modelRepo.Create(ctx, profile); err != nil {
 		return nil, err
@@ -239,6 +251,18 @@ func (s *Service) UpdateModelProfile(ctx context.Context, id uuid.UUID, userID u
 	}
 	if req.Categories != nil {
 		profile.SetCategories(req.Categories)
+	}
+	if req.Skills != nil {
+		profile.SetSkills(req.Skills)
+	}
+	if req.TravelCities != nil {
+		profile.SetTravelCities(req.TravelCities)
+	}
+	if req.BarterAccepted != nil {
+		profile.BarterAccepted = *req.BarterAccepted
+	}
+	if req.AcceptRemoteWork != nil {
+		profile.AcceptRemoteWork = *req.AcceptRemoteWork
 	}
 
 	profile.UpdatedAt = time.Now()

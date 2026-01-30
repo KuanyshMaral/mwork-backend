@@ -22,6 +22,7 @@ import (
 	"github.com/mwork/mwork-api/internal/domain/chat"
 	"github.com/mwork/mwork-api/internal/domain/content"
 	"github.com/mwork/mwork-api/internal/domain/dashboard"
+	"github.com/mwork/mwork-api/internal/domain/experience"
 	"github.com/mwork/mwork-api/internal/domain/lead"
 	"github.com/mwork/mwork-api/internal/domain/moderation"
 	"github.com/mwork/mwork-api/internal/domain/notification"
@@ -79,6 +80,7 @@ func main() {
 	// ---------- Repositories ----------
 	userRepo := user.NewRepository(db)
 	modelRepo := profile.NewModelRepository(db)
+	experienceRepo := experience.NewRepository(db)
 	employerRepo := profile.NewEmployerRepository(db)
 	castingRepo := casting.NewRepository(db)
 	responseRepo := response.NewRepository(db)
@@ -171,6 +173,7 @@ func main() {
 	authHandler := auth.NewHandler(authService)
 	profileHandler := profile.NewHandler(profileService)
 	castingHandler := casting.NewHandler(castingService, castingProfileService)
+	experienceHandler := experience.NewHandler(experienceRepo, modelRepo)
 	responseHandler := response.NewHandler(responseService)
 	photoHandler := photo.NewHandler(photoService)
 	chatHandler := chat.NewHandler(chatService, chatHub, redis, cfg.AllowedOrigins)
@@ -281,6 +284,8 @@ func main() {
 		})
 
 		r.Get("/profiles/{id}/photos", photoHandler.ListByProfile)
+
+		r.Mount("/", experienceHandler.Routes(authMiddleware))
 
 		r.Route("/profiles/{id}/social-links", func(r chi.Router) {
 			r.Get("/", socialLinksHandler.List)

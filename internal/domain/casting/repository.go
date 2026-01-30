@@ -63,17 +63,20 @@ func (r *repository) Create(ctx context.Context, casting *Casting) error {
 		INSERT INTO castings (
 			id, creator_id, title, description, city, address,
 			pay_min, pay_max, pay_type, date_from, date_to,
+			cover_image_url,
 			requirements, status, is_promoted, view_count, response_count
 		) VALUES (
 			$1, $2, $3, $4, $5, $6,
 			$7, $8, $9, $10, $11,
-			$12, $13, $14, $15, $16
+			$12,
+			$13, $14, $15, $16, $17
 		)
 	`
 
 	_, err := r.db.ExecContext(ctx, query,
 		casting.ID, casting.CreatorID, casting.Title, casting.Description, casting.City, casting.Address,
 		casting.PayMin, casting.PayMax, casting.PayType, casting.DateFrom, casting.DateTo,
+		casting.CoverImageURL,
 		casting.Requirements, casting.Status, casting.IsPromoted, casting.ViewCount, casting.ResponseCount,
 	)
 
@@ -104,7 +107,8 @@ func (r *repository) Update(ctx context.Context, casting *Casting) error {
 			title = $2, description = $3, city = $4, address = $5,
 			pay_min = $6, pay_max = $7, pay_type = $8,
 			date_from = $9, date_to = $10,
-			requirements = $11, status = $12,
+			cover_image_url = $11,
+			requirements = $12, status = $13,
 			updated_at = NOW()
 		WHERE id = $1
 	`
