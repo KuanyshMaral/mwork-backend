@@ -35,9 +35,10 @@ type ModelProfile struct {
 	Country    sql.NullString  `db:"country"`
 
 	// JSON arrays
-	Languages  json.RawMessage `db:"languages"`
-	Categories json.RawMessage `db:"categories"`
-	Skills     json.RawMessage `db:"skills"`
+	Languages    json.RawMessage `db:"languages"`
+	Categories   json.RawMessage `db:"categories"`
+	Skills       json.RawMessage `db:"skills"`
+	TravelCities json.RawMessage `db:"travel_cities"`
 
 	// Preferences
 	BarterAccepted   bool `db:"barter_accepted"`
@@ -114,6 +115,29 @@ func (p *ModelProfile) SetCategories(categories []string) {
 		categories = []string{}
 	}
 	p.Categories, _ = json.Marshal(categories)
+}
+
+func (p *ModelProfile) SetSkills(skills []string) {
+	if skills == nil {
+		skills = []string{}
+	}
+	p.Skills, _ = json.Marshal(skills)
+}
+
+func (p *ModelProfile) GetTravelCities() []string {
+	if p.TravelCities == nil {
+		return []string{}
+	}
+	var cities []string
+	_ = json.Unmarshal(p.TravelCities, &cities)
+	return cities
+}
+
+func (p *ModelProfile) SetTravelCities(cities []string) {
+	if cities == nil {
+		cities = []string{}
+	}
+	p.TravelCities, _ = json.Marshal(cities)
 }
 
 // GetSkills parses skills JSON

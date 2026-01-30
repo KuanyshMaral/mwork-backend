@@ -8,34 +8,43 @@ import (
 
 // CreateModelProfileRequest for POST /profiles/model
 type CreateModelProfileRequest struct {
-	Name       string   `json:"name" validate:"required,min=2,max=100"`
-	Bio        string   `json:"bio" validate:"max=2000"`
-	City       string   `json:"city" validate:"required,min=2,max=100"`
-	Age        *int     `json:"age" validate:"omitempty,gte=18,lte=100"`
-	Height     *float64 `json:"height" validate:"omitempty,gte=100,lte=250"`
-	Weight     *float64 `json:"weight" validate:"omitempty,gte=30,lte=200"`
-	Gender     string   `json:"gender" validate:"omitempty,oneof=male female other"`
-	HourlyRate *float64 `json:"hourly_rate" validate:"omitempty,gte=0"`
-	Experience *int     `json:"experience" validate:"omitempty,gte=0,lte=50"`
-	Languages  []string `json:"languages"`
-	Categories []string `json:"categories"`
+	Name             string   `json:"name" validate:"required,min=2,max=100"`
+	Bio              string   `json:"bio" validate:"max=2000"`
+	City             string   `json:"city" validate:"required,min=2,max=100"`
+	Age              *int     `json:"age" validate:"omitempty,gte=18,lte=100"`
+	Height           *float64 `json:"height" validate:"omitempty,gte=100,lte=250"`
+	Weight           *float64 `json:"weight" validate:"omitempty,gte=30,lte=200"`
+	Gender           string   `json:"gender" validate:"omitempty,oneof=male female other"`
+	HourlyRate       *float64 `json:"hourly_rate" validate:"omitempty,gte=0"`
+	Experience       *int     `json:"experience" validate:"omitempty,gte=0,lte=50"`
+	Languages        []string `json:"languages"`
+	Categories       []string `json:"categories"`
+	Skills           []string `json:"skills"`
+	BarterAccepted   *bool    `json:"barter_accepted"`
+	AcceptRemoteWork *bool    `json:"accept_remote_work"`
+	TravelCities     []string `json:"travel_cities"`
+	Visibility       string   `json:"visibility" validate:"omitempty,oneof=public link_only hidden"`
 }
 
 // UpdateModelProfileRequest for PUT /profiles/model/{id}
 type UpdateModelProfileRequest struct {
-	Name       string   `json:"name" validate:"omitempty,min=2,max=100"`
-	Bio        string   `json:"bio" validate:"max=2000"`
-	City       string   `json:"city" validate:"omitempty,min=2,max=100"`
-	Age        *int     `json:"age" validate:"omitempty,gte=18,lte=100"`
-	Height     *float64 `json:"height" validate:"omitempty,gte=100,lte=250"`
-	Weight     *float64 `json:"weight" validate:"omitempty,gte=30,lte=200"`
-	Gender     string   `json:"gender" validate:"omitempty,oneof=male female other"`
-	HourlyRate *float64 `json:"hourly_rate" validate:"omitempty,gte=0"`
-	Experience *int     `json:"experience" validate:"omitempty,gte=0,lte=50"`
-	Languages  []string `json:"languages"`
-	Categories []string `json:"categories"`
-	IsPublic   *bool    `json:"is_public"`
-	Visibility string   `json:"visibility" validate:"omitempty,oneof=public link_only hidden"`
+	Name             string   `json:"name" validate:"omitempty,min=2,max=100"`
+	Bio              string   `json:"bio" validate:"max=2000"`
+	City             string   `json:"city" validate:"omitempty,min=2,max=100"`
+	Age              *int     `json:"age" validate:"omitempty,gte=18,lte=100"`
+	Height           *float64 `json:"height" validate:"omitempty,gte=100,lte=250"`
+	Weight           *float64 `json:"weight" validate:"omitempty,gte=30,lte=200"`
+	Gender           string   `json:"gender" validate:"omitempty,oneof=male female other"`
+	HourlyRate       *float64 `json:"hourly_rate" validate:"omitempty,gte=0"`
+	Experience       *int     `json:"experience" validate:"omitempty,gte=0,lte=50"`
+	Languages        []string `json:"languages"`
+	Categories       []string `json:"categories"`
+	IsPublic         *bool    `json:"is_public"`
+	Visibility       string   `json:"visibility" validate:"omitempty,oneof=public link_only hidden"`
+	Skills           []string `json:"skills"`
+	BarterAccepted   *bool    `json:"barter_accepted"`
+	AcceptRemoteWork *bool    `json:"accept_remote_work"`
+	TravelCities     []string `json:"travel_cities"`
 }
 
 // CreateEmployerProfileRequest for POST /profiles/employer
@@ -61,28 +70,31 @@ type UpdateEmployerProfileRequest struct {
 
 // ModelProfileResponse represents model profile in API response
 type ModelProfileResponse struct {
-	ID           uuid.UUID `json:"id"`
-	UserID       uuid.UUID `json:"user_id"`
-	Name         *string   `json:"name,omitempty"`
-	Bio          *string   `json:"bio,omitempty"`
-	City         *string   `json:"city,omitempty"`
-	Country      *string   `json:"country,omitempty"`
-	Age          *int      `json:"age,omitempty"`
-	Height       *float64  `json:"height,omitempty"`
-	Weight       *float64  `json:"weight,omitempty"`
-	Gender       *string   `json:"gender,omitempty"`
-	HourlyRate   *float64  `json:"hourly_rate,omitempty"`
-	Experience   *int      `json:"experience,omitempty"`
-	Languages    []string  `json:"languages,omitempty"`
-	Categories   []string  `json:"categories,omitempty"`
-	Skills       []string  `json:"skills,omitempty"`
-	IsPublic     bool      `json:"is_public"`
-	Visibility   *string   `json:"visibility,omitempty"`
-	ProfileViews int       `json:"profile_views"`
-	Rating       float64   `json:"rating"`
-	TotalReviews int       `json:"total_reviews"`
-	CreatedAt    string    `json:"created_at"`
-	UpdatedAt    string    `json:"updated_at"`
+	ID               uuid.UUID `json:"id"`
+	UserID           uuid.UUID `json:"user_id"`
+	Name             *string   `json:"name,omitempty"`
+	Bio              *string   `json:"bio,omitempty"`
+	City             *string   `json:"city,omitempty"`
+	Country          *string   `json:"country,omitempty"`
+	Age              *int      `json:"age,omitempty"`
+	Height           *float64  `json:"height,omitempty"`
+	Weight           *float64  `json:"weight,omitempty"`
+	Gender           *string   `json:"gender,omitempty"`
+	HourlyRate       *float64  `json:"hourly_rate,omitempty"`
+	Experience       *int      `json:"experience,omitempty"`
+	Languages        []string  `json:"languages,omitempty"`
+	Categories       []string  `json:"categories,omitempty"`
+	Skills           []string  `json:"skills,omitempty"`
+	IsPublic         bool      `json:"is_public"`
+	Visibility       *string   `json:"visibility,omitempty"`
+	ProfileViews     int       `json:"profile_views"`
+	Rating           float64   `json:"rating"`
+	TotalReviews     int       `json:"total_reviews"`
+	CreatedAt        string    `json:"created_at"`
+	UpdatedAt        string    `json:"updated_at"`
+	BarterAccepted   bool      `json:"barter_accepted"`
+	AcceptRemoteWork bool      `json:"accept_remote_work"`
+	TravelCities     []string  `json:"travel_cities,omitempty"`
 }
 
 // EmployerProfileResponse represents employer profile in API response
@@ -123,17 +135,20 @@ type SocialLinkResponse struct {
 // ModelProfileResponseFromEntity converts entity to response DTO
 func ModelProfileResponseFromEntity(p *ModelProfile) *ModelProfileResponse {
 	resp := &ModelProfileResponse{
-		ID:           p.ID,
-		UserID:       p.UserID,
-		Languages:    p.GetLanguages(),
-		Categories:   p.GetCategories(),
-		Skills:       p.GetSkills(),
-		IsPublic:     p.IsPublic,
-		ProfileViews: p.ProfileViews,
-		Rating:       p.Rating,
-		TotalReviews: p.TotalReviews,
-		CreatedAt:    p.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:    p.UpdatedAt.Format(time.RFC3339),
+		ID:               p.ID,
+		UserID:           p.UserID,
+		Languages:        p.GetLanguages(),
+		Categories:       p.GetCategories(),
+		Skills:           p.GetSkills(),
+		IsPublic:         p.IsPublic,
+		ProfileViews:     p.ProfileViews,
+		Rating:           p.Rating,
+		TotalReviews:     p.TotalReviews,
+		CreatedAt:        p.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:        p.UpdatedAt.Format(time.RFC3339),
+		BarterAccepted:   p.BarterAccepted,
+		AcceptRemoteWork: p.AcceptRemoteWork,
+		TravelCities:     p.GetTravelCities(),
 	}
 
 	if p.Name.Valid {
