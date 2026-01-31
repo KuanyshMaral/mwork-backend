@@ -76,3 +76,31 @@ func (o *Organization) IsVerified() bool {
 func (o *Organization) IsPending() bool {
 	return o.VerificationStatus == VerificationPending || o.VerificationStatus == VerificationInReview
 }
+
+// MemberRole represents organization member role
+type MemberRole string
+
+const (
+	RoleOwner  MemberRole = "owner"
+	RoleAdmin  MemberRole = "admin"
+	RoleMember MemberRole = "member"
+)
+
+// OrganizationMember represents a member of an organization
+type OrganizationMember struct {
+	ID             uuid.UUID     `db:"id" json:"id"`
+	OrganizationID uuid.UUID     `db:"organization_id" json:"organization_id"`
+	UserID         uuid.UUID     `db:"user_id" json:"user_id"`
+	Role           MemberRole    `db:"role" json:"role"`
+	InvitedBy      uuid.NullUUID `db:"invited_by" json:"invited_by,omitempty"`
+	CreatedAt      time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time     `db:"updated_at" json:"updated_at"`
+}
+
+// AgencyFollower represents a follower of an organization/agency
+type AgencyFollower struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	FollowerUserID uuid.UUID `db:"follower_user_id" json:"follower_user_id"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+}
