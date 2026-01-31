@@ -233,3 +233,36 @@ func (h *Handler) ListModels(w http.ResponseWriter, r *http.Request) {
 		HasPrev: page > 1,
 	})
 }
+
+// ListPromotedModels handles GET /profiles/models/promoted
+func (h *Handler) ListPromotedModels(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+
+	var city *string
+	if c := query.Get("city"); c != "" {
+		city = &c
+	}
+
+	limit := 20
+	if l := query.Get("limit"); l != "" {
+		if v, err := strconv.Atoi(l); err == nil && v > 0 && v <= 100 {
+			limit = v
+		}
+	}
+
+	profiles, err := h.service.ListPromotedModels(r.Context(), city, limit)
+	if err != nil {
+		response.InternalError(w)
+		return
+	}
+
+	items := make([]*ModelProfileResponse, len(profiles))
+	for i, p := range profiles {
+		items[i] = ModelProfileResponseFromEntity(p)
+	}
+
+	response.OK(w, map[string]interface{}{
+		"items": items,
+		"total": len(items),
+	})
+}

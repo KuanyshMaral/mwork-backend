@@ -16,12 +16,12 @@ import (
 // Service handles lead business logic
 type Service struct {
 	repo     Repository
-	orgRepo  organization.Repository
+	orgRepo  *organization.Repository
 	userRepo user.Repository
 }
 
 // NewService creates lead service
-func NewService(repo Repository, orgRepo organization.Repository, userRepo user.Repository) *Service {
+func NewService(repo Repository, orgRepo *organization.Repository, userRepo user.Repository) *Service {
 	return &Service{
 		repo:     repo,
 		orgRepo:  orgRepo,
