@@ -26,7 +26,7 @@ type PhotoRepository interface {
 
 // ResponseRepository defines response operations needed by subscription
 type ResponseRepository interface {
-	CountWeeklyByUserID(ctx context.Context, userID uuid.UUID) (int, error)
+	CountMonthlyByUserID(ctx context.Context, userID uuid.UUID) (int, error)
 }
 
 // CastingRepository defines casting operations needed by subscription
@@ -264,8 +264,8 @@ func (s *Service) GetLimitsWithUsage(ctx context.Context, userID uuid.UUID) (*Li
 		}
 		result.photos = photosUsed
 
-		// Count weekly responses
-		responsesUsed, err := s.responseRepo.CountWeeklyByUserID(ctx, userID)
+		// Count monthly responses
+		responsesUsed, err := s.responseRepo.CountMonthlyByUserID(ctx, userID)
 		if err != nil {
 			log.Warn().Err(err).Msg("failed to count responses")
 			responsesUsed = 0

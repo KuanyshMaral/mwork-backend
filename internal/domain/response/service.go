@@ -225,3 +225,8 @@ func (s *Service) ListMyApplications(ctx context.Context, userID uuid.UUID, pagi
 
 	return s.repo.ListByModel(ctx, prof.ID, pagination)
 }
+
+// CountMonthlyByUserID returns how many applications user made this month
+func (s *Service) CountMonthlyByUserID(ctx context.Context, userID uuid.UUID) (int, error) {
+	return s.repo.CountMonthlyByUserID(ctx, userID)
+}

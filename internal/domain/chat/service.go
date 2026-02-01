@@ -14,26 +14,39 @@ type BlockChecker interface {
 	IsBlocked(ctx context.Context, user1, user2 uuid.UUID) (bool, error)
 }
 
+// LimitChecker defines interface for subscription limit checks.
+type LimitChecker interface {
+	CanUseChat(ctx context.Context, userID uuid.UUID) error
+}
+
 // Service handles chat business logic
 type Service struct {
 	repo         Repository
 	userRepo     user.Repository
 	hub          *Hub // WebSocket hub
 	blockChecker BlockChecker
+	limitChecker LimitChecker
 }
 
 // NewService creates chat service
-func NewService(repo Repository, userRepo user.Repository, hub *Hub, blockChecker BlockChecker) *Service {
+func NewService(repo Repository, userRepo user.Repository, hub *Hub, blockChecker BlockChecker, limitChecker LimitChecker) *Service {
 	return &Service{
 		repo:         repo,
 		userRepo:     userRepo,
 		hub:          hub,
 		blockChecker: blockChecker,
+		limitChecker: limitChecker,
 	}
 }
 
 // CreateOrGetRoom creates a room or returns existing one
 func (s *Service) CreateOrGetRoom(ctx context.Context, userID uuid.UUID, req *CreateRoomRequest) (*Room, error) {
+	if s.limitChecker != nil {
+		if err := s.limitChecker.CanUseChat(ctx, userID); err != nil {
+			return nil, err
+		}
+	}
+
 	// Can't chat with yourself
 	if userID == req.RecipientID {
 		return nil, ErrCannotChatSelf
@@ -147,6 +160,12 @@ type RoomWithUnread struct {
 
 // SendMessage sends a message in a room
 func (s *Service) SendMessage(ctx context.Context, userID, roomID uuid.UUID, req *SendMessageRequest) (*Message, error) {
+	if s.limitChecker != nil {
+		if err := s.limitChecker.CanUseChat(ctx, userID); err != nil {
+			return nil, err
+		}
+	}
+
 	// Verify room access
 	room, err := s.repo.GetRoomByID(ctx, roomID)
 	if err != nil || room == nil {
