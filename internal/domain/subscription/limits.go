@@ -35,7 +35,7 @@ func (c *LimitChecker) CanUploadPhoto(ctx context.Context, userID uuid.UUID, cur
 			Err:       ErrPhotoLimitReached,
 			Current:   currentPhotoCount,
 			Limit:     plan.MaxPhotos,
-			PlanName:  string(plan.ID),
+			PlanName:  plan.Name,
 			UpgradeTo: c.getUpgradePlan(plan.ID),
 		}
 	}
@@ -53,7 +53,7 @@ func (c *LimitChecker) CanApplyToResponse(ctx context.Context, userID uuid.UUID,
 			Err:       ErrResponseLimitReached,
 			Current:   monthlyApplications,
 			Limit:     plan.MaxResponsesMonth,
-			PlanName:  string(plan.ID),
+			PlanName:  plan.Name,
 			UpgradeTo: c.getUpgradePlan(plan.ID),
 		}
 	}
@@ -69,7 +69,7 @@ func (c *LimitChecker) CanUseChat(ctx context.Context, userID uuid.UUID) error {
 	if !allowed {
 		return &LimitError{
 			Err:       ErrChatNotAllowed,
-			PlanName:  string(plan.ID),
+			PlanName:  plan.Name,
 			UpgradeTo: c.getUpgradePlan(plan.ID),
 		}
 	}

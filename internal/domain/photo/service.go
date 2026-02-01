@@ -26,6 +26,15 @@ func NewService(repo Repository, modelRepo profile.ModelRepository, uploadSvc *u
 	}
 }
 
+// CountByUserID returns number of photos for the user's profile.
+func (s *Service) CountByUserID(ctx context.Context, userID uuid.UUID) (int, error) {
+	prof, err := s.modelRepo.GetByUserID(ctx, userID)
+	if err != nil || prof == nil {
+		return 0, ErrNoProfileFound
+	}
+	return s.repo.CountByProfile(ctx, prof.ID)
+}
+
 // Free tier limit
 const FreeTierPhotoLimit = 5
 

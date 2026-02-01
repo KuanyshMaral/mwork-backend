@@ -14,12 +14,16 @@ import (
 
 // Handler handles photo HTTP requests
 type Handler struct {
-	service *Service
+	service      *Service
+	limitChecker *subscription.LimitChecker
 }
 
 // NewHandler creates photo handler
-func NewHandler(service *Service) *Handler {
-	return &Handler{service: service}
+func NewHandler(service *Service, limitChecker *subscription.LimitChecker) *Handler {
+	return &Handler{
+		service:      service,
+		limitChecker: limitChecker,
+	}
 }
 
 // Presign handles POST /uploads/presign
@@ -36,6 +40,15 @@ func (h *Handler) Presign(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID := middleware.GetUserID(r.Context())
+	if h.limitChecker != nil {
+		count, err := h.service.CountByUserID(r.Context(), userID)
+		if err == nil {
+			if err := h.limitChecker.CanUploadPhoto(r.Context(), userID, count); err != nil {
+				middleware.WriteLimitExceeded(w, err)
+				return
+			}
+		}
+	}
 	result, err := h.service.GeneratePresignedURL(r.Context(), userID, &req)
 	if err != nil {
 		switch err {
@@ -68,6 +81,15 @@ func (h *Handler) ConfirmUpload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID := middleware.GetUserID(r.Context())
+	if h.limitChecker != nil {
+		count, err := h.service.CountByUserID(r.Context(), userID)
+		if err == nil {
+			if err := h.limitChecker.CanUploadPhoto(r.Context(), userID, count); err != nil {
+				middleware.WriteLimitExceeded(w, err)
+				return
+			}
+		}
+	}
 	photo, err := h.service.ConfirmUpload(r.Context(), userID, &req)
 	if err != nil {
 		switch err {
