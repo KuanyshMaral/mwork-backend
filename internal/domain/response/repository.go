@@ -25,7 +25,7 @@ type Repository interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 	ListByCasting(ctx context.Context, castingID uuid.UUID, pagination *Pagination) ([]*Response, int, error)
 	ListByModel(ctx context.Context, modelID uuid.UUID, pagination *Pagination) ([]*Response, int, error)
-	CountWeeklyByUserID(ctx context.Context, userID string) (int, error)
+	CountMonthlyByUserID(ctx context.Context, userID uuid.UUID) (int, error)
 }
 
 type repository struct {
@@ -166,15 +166,18 @@ func (r *repository) Delete(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
-func (r *repository) CountWeeklyByUserID(ctx context.Context, userID string) (int, error) {
+func (r *repository) CountMonthlyByUserID(ctx context.Context, userID uuid.UUID) (int, error) {
 	query := `
-        SELECT COUNT(*) 
-        FROM responses 
-        WHERE user_id = $1 AND created_at >= NOW() - INTERVAL '7 days'`
+		SELECT COUNT(*)
+		FROM casting_responses cr
+		JOIN model_profiles mp ON cr.model_id = mp.id
+		WHERE mp.user_id = $1
+		  AND cr.created_at >= date_trunc('month', NOW())
+	`
 	var count int
 	err := r.db.QueryRowContext(ctx, query, userID).Scan(&count)
 	if err != nil {
-		return 0, fmt.Errorf("failed to count weekly responses: %w", err)
+		return 0, fmt.Errorf("failed to count monthly responses: %w", err)
 	}
 	return count, nil
 }
