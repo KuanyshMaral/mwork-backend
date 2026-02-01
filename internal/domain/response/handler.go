@@ -1,7 +1,6 @@
 package response
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -16,18 +15,12 @@ import (
 
 // Handler handles response HTTP requests
 type Handler struct {
-	service      *Service
-	limitChecker LimitChecker
-}
-
-// LimitChecker enforces response limits.
-type LimitChecker interface {
-	CanApplyToResponse(ctx context.Context, userID uuid.UUID, monthlyApplications int) error
+	service *Service
 }
 
 // NewHandler creates response handler
-func NewHandler(service *Service, limitChecker LimitChecker) *Handler {
-	return &Handler{service: service, limitChecker: limitChecker}
+func NewHandler(service *Service) *Handler {
+	return &Handler{service: service}
 }
 
 // Apply handles POST /castings/{id}/responses
@@ -50,22 +43,6 @@ func (h *Handler) Apply(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID := middleware.GetUserID(r.Context())
-	if h.limitChecker != nil {
-		count, err := h.service.CountMonthlyByUserID(r.Context(), userID)
-		if err != nil {
-			response.InternalError(w)
-			return
-		}
-
-		if err := h.limitChecker.CanApplyToResponse(r.Context(), userID, count); err != nil {
-			if middleware.WriteLimitExceeded(w, err) {
-				return
-			}
-			response.InternalError(w)
-			return
-		}
-	}
-
 	resp, err := h.service.Apply(r.Context(), userID, castingID, &req)
 	if err != nil {
 		switch err {

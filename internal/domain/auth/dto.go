@@ -8,9 +8,16 @@ import (
 
 // RegisterRequest for POST /auth/register
 type RegisterRequest struct {
-	Email    string `json:"email" validate:"required,email,max=255"`
-	Password string `json:"password" validate:"required,min=8,max=128"`
-	Role     string `json:"role" validate:"required,oneof=model employer"`
+	Email           string `json:"email" validate:"required,email,max=255"`
+	Password        string `json:"password" validate:"required,min=8,max=128"`
+	Role            string `json:"role" validate:"required,oneof=model employer"`
+	CompanyName     string `json:"company_name" validate:"required_if=Role employer,omitempty,min=2,max=255"`
+	BinIIN          string `json:"bin_iin" validate:"required_if=Role employer,omitempty,len=12"`
+	ContactName     string `json:"contact_name" validate:"required_if=Role employer,omitempty,min=2,max=200"`
+	ContactPhone    string `json:"contact_phone" validate:"required_if=Role employer,omitempty,min=10,max=20"`
+	ContactEmail    string `json:"contact_email" validate:"required_if=Role employer,omitempty,email,max=255"`
+	ContactTelegram string `json:"contact_telegram" validate:"omitempty,max=100"`
+	ContactWhatsApp string `json:"contact_whatsapp" validate:"omitempty,max=100"`
 }
 
 // AgencyRegisterRequest represents agency registration data
@@ -42,11 +49,12 @@ type AuthResponse struct {
 
 // UserResponse represents user in API response
 type UserResponse struct {
-	ID            uuid.UUID `json:"id"`
-	Email         string    `json:"email"`
-	Role          string    `json:"role"`
-	EmailVerified bool      `json:"email_verified"`
-	CreatedAt     string    `json:"created_at"`
+	ID                 uuid.UUID `json:"id"`
+	Email              string    `json:"email"`
+	Role               string    `json:"role"`
+	EmailVerified      bool      `json:"email_verified"`
+	VerificationStatus string    `json:"verification_status"`
+	CreatedAt          string    `json:"created_at"`
 }
 
 // TokensResponse represents tokens in API response
@@ -57,12 +65,13 @@ type TokensResponse struct {
 }
 
 // NewUserResponse creates UserResponse from user data
-func NewUserResponse(id uuid.UUID, email, role string, emailVerified bool, createdAt time.Time) UserResponse {
+func NewUserResponse(id uuid.UUID, email, role string, emailVerified bool, verificationStatus string, createdAt time.Time) UserResponse {
 	return UserResponse{
-		ID:            id,
-		Email:         email,
-		Role:          role,
-		EmailVerified: emailVerified,
-		CreatedAt:     createdAt.Format(time.RFC3339),
+		ID:                 id,
+		Email:              email,
+		Role:               role,
+		EmailVerified:      emailVerified,
+		VerificationStatus: verificationStatus,
+		CreatedAt:          createdAt.Format(time.RFC3339),
 	}
 }

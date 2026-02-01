@@ -3,12 +3,14 @@ package auth
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 
+	"github.com/mwork/mwork-api/internal/domain/organization"
 	"github.com/mwork/mwork-api/internal/domain/user"
 	"github.com/mwork/mwork-api/internal/pkg/jwt"
 	"github.com/mwork/mwork-api/internal/pkg/password"
@@ -20,11 +22,19 @@ type Service struct {
 	jwtService       *jwt.Service
 	redis            *redis.Client // nil if Redis disabled
 	employerProfRepo EmployerProfileRepository
+	orgRepo          OrganizationRepository
 }
 
 // EmployerProfileRepository defines employer profile operations needed by auth
 type EmployerProfileRepository interface {
 	Create(ctx context.Context, profile *EmployerProfile) error
+}
+
+// OrganizationRepository defines organization operations needed by auth
+type OrganizationRepository interface {
+	Create(ctx context.Context, org *organization.Organization) error
+	GetByBIN(ctx context.Context, bin string) (*organization.Organization, error)
+	Delete(ctx context.Context, id uuid.UUID) error
 }
 
 // EmployerProfile represents an employer profile entity
@@ -35,17 +45,19 @@ type EmployerProfile struct {
 	Description   string
 	Website       string
 	ContactPerson string
+	ContactPhone  string
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 }
 
 // NewService creates auth service
-func NewService(userRepo user.Repository, jwtService *jwt.Service, redis *redis.Client, employerProfRepo EmployerProfileRepository) *Service {
+func NewService(userRepo user.Repository, jwtService *jwt.Service, redis *redis.Client, employerProfRepo EmployerProfileRepository, orgRepo OrganizationRepository) *Service {
 	return &Service{
 		userRepo:         userRepo,
 		jwtService:       jwtService,
 		redis:            redis,
 		employerProfRepo: employerProfRepo,
+		orgRepo:          orgRepo,
 	}
 }
 
@@ -62,6 +74,17 @@ func (s *Service) Register(ctx context.Context, req *RegisterRequest) (*AuthResp
 		return nil, ErrInvalidRole
 	}
 
+	var org *organization.Organization
+	if req.Role == string(user.RoleEmployer) {
+		if s.orgRepo == nil {
+			return nil, fmt.Errorf("organization repository is not configured")
+		}
+		existingOrg, _ := s.orgRepo.GetByBIN(ctx, req.BinIIN)
+		if existingOrg != nil {
+			return nil, organization.ErrBINAlreadyExists
+		}
+	}
+
 	// 3. Hash password
 	hash, err := password.Hash(req.Password)
 	if err != nil {
@@ -70,18 +93,74 @@ func (s *Service) Register(ctx context.Context, req *RegisterRequest) (*AuthResp
 
 	// 4. Create user
 	now := time.Now()
+	verificationStatus := user.VerificationNone
+	var submittedAt sql.NullTime
+	if req.Role == string(user.RoleEmployer) {
+		verificationStatus = user.VerificationPending
+		submittedAt = sql.NullTime{Time: now, Valid: true}
+	}
 	u := &user.User{
-		ID:            uuid.New(),
-		Email:         req.Email,
-		PasswordHash:  hash,
-		Role:          user.Role(req.Role),
-		EmailVerified: false,
-		CreatedAt:     now,
-		UpdatedAt:     now,
+		ID:                      uuid.New(),
+		Email:                   req.Email,
+		PasswordHash:            hash,
+		Role:                    user.Role(req.Role),
+		EmailVerified:           false,
+		UserVerificationStatus:  verificationStatus,
+		VerificationSubmittedAt: submittedAt,
+		CreatedAt:               now,
+		UpdatedAt:               now,
 	}
 
 	if err := s.userRepo.Create(ctx, u); err != nil {
 		return nil, err
+	}
+
+	if req.Role == string(user.RoleEmployer) {
+		org = &organization.Organization{
+			ID:                 uuid.New(),
+			LegalName:          req.CompanyName,
+			BrandName:          sql.NullString{String: req.CompanyName, Valid: true},
+			BinIIN:             req.BinIIN,
+			OrgType:            organization.OrgTypeTOO,
+			Phone:              sql.NullString{String: req.ContactPhone, Valid: true},
+			Email:              sql.NullString{String: req.ContactEmail, Valid: true},
+			ContactPerson:      sql.NullString{String: req.ContactName, Valid: true},
+			ContactPhone:       sql.NullString{String: req.ContactPhone, Valid: true},
+			ContactTelegram:    sql.NullString{String: req.ContactTelegram, Valid: req.ContactTelegram != ""},
+			ContactWhatsApp:    sql.NullString{String: req.ContactWhatsApp, Valid: req.ContactWhatsApp != ""},
+			VerificationStatus: organization.VerificationPending,
+			CreatedAt:          now,
+			UpdatedAt:          now,
+		}
+
+		if err := s.orgRepo.Create(ctx, org); err != nil {
+			_ = s.userRepo.Delete(ctx, u.ID)
+			return nil, err
+		}
+
+		u.OrganizationID = uuid.NullUUID{UUID: org.ID, Valid: true}
+		if err := s.userRepo.Update(ctx, u); err != nil {
+			_ = s.userRepo.Delete(ctx, u.ID)
+			_ = s.orgRepo.Delete(ctx, org.ID)
+			return nil, err
+		}
+
+		if s.employerProfRepo != nil {
+			profile := &EmployerProfile{
+				ID:            uuid.New(),
+				UserID:        u.ID,
+				CompanyName:   req.CompanyName,
+				ContactPerson: req.ContactName,
+				ContactPhone:  req.ContactPhone,
+				CreatedAt:     now,
+				UpdatedAt:     now,
+			}
+			if err := s.employerProfRepo.Create(ctx, profile); err != nil {
+				_ = s.userRepo.Delete(ctx, u.ID)
+				_ = s.orgRepo.Delete(ctx, org.ID)
+				return nil, err
+			}
+		}
 	}
 
 	// 5. Generate tokens
@@ -207,7 +286,7 @@ func (s *Service) GetCurrentUser(ctx context.Context, userID uuid.UUID) (*UserRe
 		return nil, ErrUserNotFound
 	}
 
-	resp := NewUserResponse(u.ID, u.Email, string(u.Role), u.EmailVerified, u.CreatedAt)
+	resp := NewUserResponse(u.ID, u.Email, string(u.Role), u.EmailVerified, string(u.UserVerificationStatus), u.CreatedAt)
 	return &resp, nil
 }
 
@@ -232,7 +311,7 @@ func (s *Service) generateTokens(ctx context.Context, u *user.User) (*AuthRespon
 	}
 
 	return &AuthResponse{
-		User: NewUserResponse(u.ID, u.Email, string(u.Role), u.EmailVerified, u.CreatedAt),
+		User: NewUserResponse(u.ID, u.Email, string(u.Role), u.EmailVerified, string(u.UserVerificationStatus), u.CreatedAt),
 		Tokens: TokensResponse{
 			AccessToken:  accessToken,
 			RefreshToken: refreshToken, // return raw refresh to client
