@@ -517,6 +517,256 @@ func (h *ModerationHandler) UpgradeUser(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
+// --- Organization Verification ---
+
+type organizationRow struct {
+	ID                 uuid.UUID      `db:"id"`
+	LegalName          string         `db:"legal_name"`
+	BrandName          sql.NullString `db:"brand_name"`
+	BinIIN             string         `db:"bin_iin"`
+	OrgType            string         `db:"org_type"`
+	City               sql.NullString `db:"city"`
+	Phone              sql.NullString `db:"phone"`
+	Email              sql.NullString `db:"email"`
+	Website            sql.NullString `db:"website"`
+	ContactPerson      sql.NullString `db:"contact_person"`
+	ContactPhone       sql.NullString `db:"contact_phone"`
+	ContactTelegram    sql.NullString `db:"contact_telegram"`
+	ContactWhatsApp    sql.NullString `db:"contact_whatsapp"`
+	VerificationStatus string         `db:"verification_status"`
+	VerificationNotes  sql.NullString `db:"verification_notes"`
+	RejectionReason    sql.NullString `db:"rejection_reason"`
+	VerifiedAt         sql.NullTime   `db:"verified_at"`
+	VerifiedBy         uuid.NullUUID  `db:"verified_by"`
+	CreatedAt          time.Time      `db:"created_at"`
+	UpdatedAt          time.Time      `db:"updated_at"`
+}
+
+func strPtr(ns sql.NullString) *string {
+	if ns.Valid {
+		s := ns.String
+		return &s
+	}
+	return nil
+}
+
+func timePtr(nt sql.NullTime) *string {
+	if nt.Valid {
+		s := nt.Time.Format(time.RFC3339)
+		return &s
+	}
+	return nil
+}
+
+func uuidPtr(nu uuid.NullUUID) *uuid.UUID {
+	if nu.Valid {
+		u := nu.UUID
+		return &u
+	}
+	return nil
+}
+
+func orgResp(row organizationRow) OrganizationResponse {
+	return OrganizationResponse{
+		ID:                 row.ID,
+		LegalName:          row.LegalName,
+		BrandName:          strPtr(row.BrandName),
+		BinIIN:             row.BinIIN,
+		OrgType:            row.OrgType,
+		City:               strPtr(row.City),
+		Phone:              strPtr(row.Phone),
+		Email:              strPtr(row.Email),
+		Website:            strPtr(row.Website),
+		ContactPerson:      strPtr(row.ContactPerson),
+		ContactPhone:       strPtr(row.ContactPhone),
+		ContactTelegram:    strPtr(row.ContactTelegram),
+		ContactWhatsApp:    strPtr(row.ContactWhatsApp),
+		VerificationStatus: row.VerificationStatus,
+		VerificationNotes:  strPtr(row.VerificationNotes),
+		RejectionReason:    strPtr(row.RejectionReason),
+		VerifiedAt:         timePtr(row.VerifiedAt),
+		VerifiedBy:         uuidPtr(row.VerifiedBy),
+		CreatedAt:          row.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:          row.UpdatedAt.Format(time.RFC3339),
+	}
+}
+
+// ListOrganizations handles GET /admin/moderation/organizations
+func (h *ModerationHandler) ListOrganizations(w http.ResponseWriter, r *http.Request) {
+	limit := 50
+	offset := 0
+	if l := r.URL.Query().Get("limit"); l != "" {
+		if v, err := strconv.Atoi(l); err == nil && v > 0 && v <= 100 {
+			limit = v
+		}
+	}
+	if o := r.URL.Query().Get("offset"); o != "" {
+		if v, err := strconv.Atoi(o); err == nil && v >= 0 {
+			offset = v
+		}
+	}
+
+	status := r.URL.Query().Get("status")
+	if status == "" {
+		status = "pending"
+	}
+	switch status {
+	case "none", "pending", "in_review", "verified", "rejected":
+	default:
+		response.BadRequest(w, "Invalid status")
+		return
+	}
+
+	rows := []organizationRow{}
+	q := `SELECT id, legal_name, brand_name, bin_iin, org_type, city, phone, email, website,
+		contact_person, contact_phone, contact_telegram, contact_whatsapp,
+		verification_status, verification_notes, rejection_reason, verified_at, verified_by,
+		created_at, updated_at
+		FROM organizations
+		WHERE verification_status = $1
+		ORDER BY created_at DESC
+		LIMIT $2 OFFSET $3`
+	if err := h.db.SelectContext(r.Context(), &rows, q, status, limit, offset); err != nil {
+		response.InternalError(w)
+		return
+	}
+
+	var total int
+	_ = h.db.GetContext(r.Context(), &total, `SELECT COUNT(*) FROM organizations WHERE verification_status = $1`, status)
+
+	out := make([]OrganizationResponse, len(rows))
+	for i, row := range rows {
+		out[i] = orgResp(row)
+	}
+
+	response.OK(w, ListOrganizationsResponse{Organizations: out, Total: total})
+}
+
+// GetOrganization handles GET /admin/moderation/organizations/{id}
+func (h *ModerationHandler) GetOrganization(w http.ResponseWriter, r *http.Request) {
+	orgID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		response.BadRequest(w, "Invalid organization ID")
+		return
+	}
+
+	var row organizationRow
+	q := `SELECT id, legal_name, brand_name, bin_iin, org_type, city, phone, email, website,
+		contact_person, contact_phone, contact_telegram, contact_whatsapp,
+		verification_status, verification_notes, rejection_reason, verified_at, verified_by,
+		created_at, updated_at
+		FROM organizations WHERE id = $1`
+	if err := h.db.GetContext(r.Context(), &row, q, orgID); err != nil {
+		if err == sql.ErrNoRows {
+			response.NotFound(w, "Organization not found")
+			return
+		}
+		response.InternalError(w)
+		return
+	}
+
+	response.OK(w, orgResp(row))
+}
+
+// VerifyOrganization handles PATCH /admin/moderation/organizations/{id}/verify
+func (h *ModerationHandler) VerifyOrganization(w http.ResponseWriter, r *http.Request) {
+	orgID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		response.BadRequest(w, "Invalid organization ID")
+		return
+	}
+
+	var req VerifyOrganizationRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.BadRequest(w, "Invalid JSON body")
+		return
+	}
+	if errs := validator.Validate(&req); errs != nil {
+		response.ValidationError(w, errs)
+		return
+	}
+
+	adminID := GetAdminID(r.Context())
+
+	notes := sql.NullString{String: req.Notes, Valid: req.Notes != ""}
+	rej := sql.NullString{String: req.RejectionReason, Valid: req.RejectionReason != ""}
+
+	tx, err := h.db.BeginTxx(r.Context(), nil)
+	if err != nil {
+		response.InternalError(w)
+		return
+	}
+	defer tx.Rollback()
+
+	// Update organization verification
+	_, err = tx.ExecContext(r.Context(),
+		`UPDATE organizations
+		SET verification_status = $2,
+			verification_notes = $3,
+			rejection_reason = $4,
+			verified_at = CASE WHEN $2 = 'verified' THEN NOW() ELSE NULL END,
+			verified_by = CASE WHEN $2 IN ('verified','rejected','in_review') THEN $5 ELSE NULL END,
+			updated_at = NOW()
+		WHERE id = $1`,
+		orgID, req.Status, notes, rej, adminID)
+	if err != nil {
+		response.InternalError(w)
+		return
+	}
+
+	// Sync employer/agency user verification status for this organization
+	_, err = tx.ExecContext(r.Context(),
+		`UPDATE users
+		SET user_verification_status = $2,
+			verification_reviewed_at = NOW(),
+			verification_reviewed_by = $3,
+			verification_notes = $4,
+			verification_rejection_reason = $5
+		WHERE organization_id = $1 AND role IN ('employer','agency')`,
+		orgID, req.Status, adminID, notes, rej)
+	if err != nil {
+		response.InternalError(w)
+		return
+	}
+
+	// Sync employer profile flag
+	_, err = tx.ExecContext(r.Context(),
+		`UPDATE employer_profiles
+		SET is_verified = ($2 = 'verified'),
+			verified_at = CASE WHEN $2 = 'verified' THEN NOW() ELSE NULL END
+		WHERE user_id IN (SELECT id FROM users WHERE organization_id = $1 AND role IN ('employer','agency'))`,
+		orgID, req.Status)
+	if err != nil {
+		response.InternalError(w)
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		response.InternalError(w)
+		return
+	}
+
+	action := "organization.status"
+	switch req.Status {
+	case "verified":
+		action = "organization.approve"
+	case "rejected":
+		action = "organization.reject"
+	case "in_review":
+		action = "organization.in_review"
+	case "pending":
+		action = "organization.pending"
+	}
+
+	reason := req.RejectionReason
+	if reason == "" {
+		reason = req.Notes
+	}
+	h.adminSvc.LogActionWithReason(r.Context(), adminID, action, "organization", orgID, reason, nil, map[string]interface{}{"status": req.Status})
+
+	response.OK(w, map[string]string{"status": "ok"})
+}
+
 // ModerationRoutes returns moderation router
 func (h *ModerationHandler) Routes(jwtSvc *JWTService, adminSvc *Service) chi.Router {
 	r := chi.NewRouter()
@@ -534,6 +784,18 @@ func (h *ModerationHandler) Routes(jwtSvc *JWTService, adminSvc *Service) chi.Ro
 		r.Group(func(r chi.Router) {
 			r.Use(RequirePermission(PermVerifyUsers))
 			r.Patch("/{id}/verify", h.VerifyUser)
+		})
+	})
+
+	// Organizations
+	r.Route("/organizations", func(r chi.Router) {
+		r.Use(RequirePermission(PermViewOrganizations))
+		r.Get("/", h.ListOrganizations)
+		r.Get("/{id}", h.GetOrganization)
+
+		r.Group(func(r chi.Router) {
+			r.Use(RequirePermission(PermVerifyOrganizations))
+			r.Patch("/{id}/verify", h.VerifyOrganization)
 		})
 	})
 

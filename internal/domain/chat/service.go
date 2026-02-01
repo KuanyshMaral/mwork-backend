@@ -39,6 +39,15 @@ func (s *Service) CreateOrGetRoom(ctx context.Context, userID uuid.UUID, req *Cr
 		return nil, ErrCannotChatSelf
 	}
 
+	// Ensure employers/agencies are verified before using chat
+	sender, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil || sender == nil {
+		return nil, ErrUserNotFound
+	}
+	if (sender.Role == user.RoleEmployer || sender.Role == user.RoleAgency) && !sender.IsVerificationApproved() {
+		return nil, ErrEmployerNotVerified
+	}
+
 	// Check recipient exists
 	recipient, err := s.userRepo.GetByID(ctx, req.RecipientID)
 	if err != nil || recipient == nil {

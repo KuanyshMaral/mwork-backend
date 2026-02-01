@@ -125,6 +125,8 @@ func (h *Handler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 			response.NotFound(w, "User not found")
 		case ErrUserBlocked:
 			response.Forbidden(w, "Cannot create chat - user is blocked")
+		case ErrEmployerNotVerified:
+			response.Forbidden(w, "Employer account is pending verification")
 		default:
 			response.InternalError(w)
 		}
@@ -234,6 +236,8 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 			response.Forbidden(w, "Cannot send message - user is blocked")
 		case ErrInvalidImageURL:
 			response.BadRequest(w, "Invalid image URL - must be a valid HTTP(S) URL")
+		case ErrEmployerNotVerified:
+			response.Forbidden(w, "Employer account is pending verification")
 		default:
 			response.InternalError(w)
 		}

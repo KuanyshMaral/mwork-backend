@@ -35,6 +35,9 @@ func (s *Service) Create(ctx context.Context, userID uuid.UUID, req *CreateCasti
 	if !u.CanCreateCasting() {
 		return nil, ErrOnlyEmployersCanCreate
 	}
+	if (u.Role == user.RoleEmployer || u.Role == user.RoleAgency) && !u.IsVerificationApproved() {
+		return nil, ErrEmployerNotVerified
+	}
 
 	now := time.Now()
 	casting := &Casting{

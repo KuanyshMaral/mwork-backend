@@ -86,6 +86,43 @@ type VerifyUserRequest struct {
 	IsIdentityVerified *bool `json:"is_identity_verified,omitempty"`
 }
 
+// VerifyOrganizationRequest for PATCH /admin/moderation/organizations/{id}/verify
+type VerifyOrganizationRequest struct {
+	Status          string `json:"status" validate:"required,oneof=pending in_review verified rejected"`
+	Notes           string `json:"notes,omitempty" validate:"max=2000"`
+	RejectionReason string `json:"rejection_reason,omitempty" validate:"max=500"`
+}
+
+// OrganizationResponse represents organization in admin API
+type OrganizationResponse struct {
+	ID                 uuid.UUID  `json:"id"`
+	LegalName          string     `json:"legal_name"`
+	BrandName          *string    `json:"brand_name,omitempty"`
+	BinIIN             string     `json:"bin_iin"`
+	OrgType            string     `json:"org_type"`
+	City               *string    `json:"city,omitempty"`
+	Phone              *string    `json:"phone,omitempty"`
+	Email              *string    `json:"email,omitempty"`
+	Website            *string    `json:"website,omitempty"`
+	ContactPerson      *string    `json:"contact_person,omitempty"`
+	ContactPhone       *string    `json:"contact_phone,omitempty"`
+	ContactTelegram    *string    `json:"contact_telegram,omitempty"`
+	ContactWhatsApp    *string    `json:"contact_whatsapp,omitempty"`
+	VerificationStatus string     `json:"verification_status"`
+	VerificationNotes  *string    `json:"verification_notes,omitempty"`
+	RejectionReason    *string    `json:"rejection_reason,omitempty"`
+	VerifiedAt         *string    `json:"verified_at,omitempty"`
+	VerifiedBy         *uuid.UUID `json:"verified_by,omitempty"`
+	CreatedAt          string     `json:"created_at"`
+	UpdatedAt          string     `json:"updated_at"`
+}
+
+// ListOrganizationsResponse represents organizations list
+type ListOrganizationsResponse struct {
+	Organizations []OrganizationResponse `json:"organizations"`
+	Total         int                    `json:"total"`
+}
+
 // ModerateRequest for content moderation
 type ModerateRequest struct {
 	Status string `json:"status" validate:"required,oneof=approved rejected"`
