@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/mwork/mwork-api/internal/domain/organization"
 	"github.com/mwork/mwork-api/internal/middleware"
 	"github.com/mwork/mwork-api/internal/pkg/response"
 	"github.com/mwork/mwork-api/internal/pkg/validator"
@@ -90,6 +91,8 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 				response.Conflict(w, "Email already registered")
 			case ErrInvalidRole:
 				response.BadRequest(w, "Role must be 'model' or 'employer'")
+			case organization.ErrBINAlreadyExists:
+				response.Conflict(w, "Company with this BIN/IIN already exists")
 			default:
 				response.InternalError(w)
 			}
