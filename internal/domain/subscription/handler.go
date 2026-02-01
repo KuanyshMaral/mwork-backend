@@ -125,7 +125,7 @@ func (h *Handler) GetLimits(w http.ResponseWriter, r *http.Request) {
 
 	// Build response with both usage and plan features
 	limits := &LimitsResponse{
-		Plan:           string(plan.ID),
+		PlanID:         string(plan.ID),
 		MaxPhotos:      limitsData.PhotosLimit,
 		PhotosUsed:     limitsData.PhotosUsed,
 		MaxResponses:   limitsData.ResponsesLimit,
@@ -138,7 +138,7 @@ func (h *Handler) GetLimits(w http.ResponseWriter, r *http.Request) {
 	response.OK(w, limits)
 }
 
-// Subscribe handles POST /subscriptions
+// Subscribe handles POST /subscriptions/subscribe
 func (h *Handler) Subscribe(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -283,6 +283,7 @@ func (h *Handler) Routes(authMiddleware func(http.Handler) http.Handler) chi.Rou
 		r.Get("/current", h.GetCurrent)
 		r.Get("/limits", h.GetLimits)
 		r.Post("/", h.Subscribe)
+		r.Post("/subscribe", h.Subscribe)
 		r.Post("/cancel", h.Cancel)
 	})
 

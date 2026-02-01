@@ -6,7 +6,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// SubscribeRequest for POST /subscriptions
+// SubscribeRequest for POST /subscriptions/subscribe
 type SubscribeRequest struct {
 	PlanID        string `json:"plan_id" validate:"required,oneof=pro agency"`
 	BillingPeriod string `json:"billing_period" validate:"required,oneof=monthly yearly"`
@@ -129,7 +129,7 @@ func SubscriptionResponseFromEntity(s *Subscription, plan *Plan) *SubscriptionRe
 
 // LimitsResponse returns current user limits
 type LimitsResponse struct {
-	Plan           string `json:"plan"`
+	PlanID         string `json:"plan_id"`
 	MaxPhotos      int    `json:"max_photos"`
 	PhotosUsed     int    `json:"photos_used"`
 	MaxResponses   int    `json:"max_responses_month"` // -1 = unlimited

@@ -114,6 +114,22 @@ type LimitError struct {
 	UpgradeTo string
 }
 
+func (e *LimitError) CurrentValue() int {
+	return e.Current
+}
+
+func (e *LimitError) LimitValue() int {
+	return e.Limit
+}
+
+func (e *LimitError) PlanNameValue() string {
+	return e.PlanName
+}
+
+func (e *LimitError) UpgradeToValue() string {
+	return e.UpgradeTo
+}
+
 func (e *LimitError) Error() string {
 	return e.Err.Error()
 }
