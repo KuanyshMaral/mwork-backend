@@ -11,6 +11,10 @@ const (
 	PermDeleteUsers      Permission = "users.delete"
 	PermImpersonateUsers Permission = "users.impersonate"
 
+	// Organization verification
+	PermViewOrganizations   Permission = "organizations.view"
+	PermVerifyOrganizations Permission = "organizations.verify"
+
 	// Content moderation
 	PermViewContent     Permission = "content.view"
 	PermModerateContent Permission = "content.moderate"
@@ -33,6 +37,8 @@ var RolePermissions = map[Role][]Permission{
 	RoleSuperAdmin: {
 		// All permissions
 		PermViewUsers, PermBanUsers, PermVerifyUsers, PermDeleteUsers, PermImpersonateUsers,
+		PermVerifyOrganizations,
+		PermViewOrganizations,
 		PermViewContent, PermModerateContent, PermDeleteContent,
 		PermViewSubscriptions, PermManageSubscriptions, PermRefundPayments,
 		PermViewAnalytics, PermManageFeatures, PermManageAdmins, PermViewAuditLogs,
@@ -42,16 +48,21 @@ var RolePermissions = map[Role][]Permission{
 		PermViewContent, PermModerateContent, PermDeleteContent,
 		PermViewSubscriptions, PermManageSubscriptions,
 		PermViewAnalytics, PermManageFeatures, PermViewAuditLogs,
+		PermViewOrganizations,
+		PermVerifyOrganizations,
 	},
 	RoleModerator: {
 		PermViewUsers, PermBanUsers,
 		PermViewContent, PermModerateContent,
 		PermViewAnalytics,
+		PermViewOrganizations,
+		PermVerifyOrganizations,
 	},
 	RoleSupport: {
 		PermViewUsers,
 		PermViewContent,
 		PermViewSubscriptions,
+		PermViewOrganizations,
 	},
 }
 

@@ -9,4 +9,7 @@ var (
 	ErrInvalidStatus          = errors.New("invalid casting status")
 	ErrCannotDeleteActive     = errors.New("cannot delete active casting, close it first")
 	ErrOnlyEmployersCanCreate = errors.New("only employers can create castings")
+
+	// ✅ добавь это
+	ErrEmployerNotVerified = errors.New("employer account is pending verification")
 )

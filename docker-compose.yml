@@ -1,9 +1,21 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: mwork
+      POSTGRES_PASSWORD: mwork_secret
+      POSTGRES_DB: mwork_dev
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mwork -d mwork_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
   redis:
     image: redis:7-alpine
-    container_name: mwork-redis
-    ports:
-      - "6379:6379"
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes
@@ -14,29 +26,10 @@ services:
       retries: 10
     restart: unless-stopped
 
-  postgres:
-    image: postgres:16-alpine
-    container_name: mwork-postgres
-    environment:
-      POSTGRES_USER: mwork
-      POSTGRES_PASSWORD: mwork_secret
-      POSTGRES_DB: mwork_dev
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U mwork -d mwork_dev"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-    restart: unless-stopped
-
   adminer:
     image: adminer:latest
-    container_name: mwork-adminer
     ports:
-      - "8081:8080"
+      - "8082:8080"
     depends_on:
       postgres:
         condition: service_healthy
@@ -44,22 +37,20 @@ services:
 
   migrate:
     image: migrate/migrate:4
-    container_name: mwork-migrate
     depends_on:
       postgres:
         condition: service_healthy
     volumes:
-      - ../migrations:/migrations
+      - ./migrations:/migrations
     env_file:
-      - ../.env.docker
+      - ./.env.docker
     command: ["-path=/migrations", "-database", "${DATABASE_URL}", "up"]
     restart: "no"
 
   api:
     build:
-      context: ..
+      context: .
       dockerfile: Dockerfile
-    container_name: mwork-api
     depends_on:
       postgres:
         condition: service_healthy
@@ -68,7 +59,7 @@ services:
       migrate:
         condition: service_completed_successfully
     env_file:
-      - ../.env.docker
+      - ./.env.docker
     ports:
       - "8080:8080"
     restart: unless-stopped
@@ -76,7 +67,3 @@ services:
 volumes:
   postgres_data:
   redis_data:
-
-networks:
-  default:
-    name: mwork-network
