@@ -36,18 +36,20 @@ services:
     restart: unless-stopped
 
   migrate:
-    image: migrate/migrate:4
+    image: ghcr.io/${MWORK_IMAGE_OWNER}/${MWORK_IMAGE_REPO}/mwork-backend-migrate:${MWORK_IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile.migrate
     depends_on:
       postgres:
         condition: service_healthy
-    volumes:
-      - ./migrations:/migrations
     env_file:
       - ./.env.docker
     command: ["-path=/migrations", "-database", "${DATABASE_URL}", "up"]
     restart: "no"
 
   api:
+    image: ghcr.io/${MWORK_IMAGE_OWNER}/${MWORK_IMAGE_REPO}/mwork-backend-api:${MWORK_IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: Dockerfile

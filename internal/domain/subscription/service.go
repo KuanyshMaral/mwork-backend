@@ -264,7 +264,7 @@ func (s *Service) GetLimitsWithUsage(ctx context.Context, userID uuid.UUID) (*Li
 		}
 		result.photos = photosUsed
 
-		// Count monthly responses
+		// Count weekly responses
 		responsesUsed, err := s.responseRepo.CountMonthlyByUserID(ctx, userID)
 		if err != nil {
 			log.Warn().Err(err).Msg("failed to count responses")

@@ -14,6 +14,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog/log"
 
+	"github.com/mwork/mwork-api/internal/domain/subscription"
 	"github.com/mwork/mwork-api/internal/middleware"
 	"github.com/mwork/mwork-api/internal/pkg/response"
 	"github.com/mwork/mwork-api/internal/pkg/validator"
@@ -29,10 +30,11 @@ const (
 
 // Handler handles chat HTTP requests
 type Handler struct {
-	service     *Service
-	hub         *Hub
-	rateLimiter *RateLimiter
-	upgrader    websocket.Upgrader
+	service      *Service
+	hub          *Hub
+	limitChecker *subscription.LimitChecker
+	rateLimiter  *RateLimiter
+	upgrader     websocket.Upgrader
 }
 
 // RateLimiter for chat messages
@@ -73,11 +75,12 @@ func (rl *RateLimiter) Allow(userID uuid.UUID) bool {
 }
 
 // NewHandler creates chat handler
-func NewHandler(service *Service, hub *Hub, redisClient *redis.Client, allowedOrigins []string) *Handler {
+func NewHandler(service *Service, hub *Hub, limitChecker *subscription.LimitChecker, redisClient *redis.Client, allowedOrigins []string) *Handler {
 	return &Handler{
-		service:     service,
-		hub:         hub,
-		rateLimiter: NewRateLimiter(redisClient),
+		service:      service,
+		hub:          hub,
+		limitChecker: limitChecker,
+		rateLimiter:  NewRateLimiter(redisClient),
 		upgrader: websocket.Upgrader{
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
@@ -116,6 +119,12 @@ func (h *Handler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID := middleware.GetUserID(r.Context())
+	if h.limitChecker != nil {
+		if err := h.limitChecker.CanUseChat(r.Context(), userID); err != nil {
+			subscription.WriteLimitExceeded(w, err)
+			return
+		}
+	}
 	room, err := h.service.CreateOrGetRoom(r.Context(), userID, &req)
 	if err != nil {
 		if middleware.WriteLimitExceeded(w, err) {
@@ -228,6 +237,12 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.limitChecker != nil {
+		if err := h.limitChecker.CanUseChat(r.Context(), userID); err != nil {
+			subscription.WriteLimitExceeded(w, err)
+			return
+		}
+	}
 	msg, err := h.service.SendMessage(r.Context(), userID, roomID, &req)
 	if err != nil {
 		if middleware.WriteLimitExceeded(w, err) {

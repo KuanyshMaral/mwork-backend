@@ -36,8 +36,11 @@ func NewRepository(db *sqlx.DB) Repository {
 // Create creates a new user
 func (r *repository) Create(ctx context.Context, user *User) error {
 	query := `
-		INSERT INTO users (id, email, password_hash, role, email_verified, is_banned)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO users (
+			id, email, password_hash, role, email_verified, is_banned,
+			organization_id, user_verification_status, verification_submitted_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`
 
 	_, err := r.db.ExecContext(ctx, query,
@@ -47,6 +50,9 @@ func (r *repository) Create(ctx context.Context, user *User) error {
 		user.Role,
 		user.EmailVerified,
 		user.IsBanned,
+		user.OrganizationID,
+		user.UserVerificationStatus,
+		user.VerificationSubmittedAt,
 	)
 
 	return err
@@ -55,7 +61,8 @@ func (r *repository) Create(ctx context.Context, user *User) error {
 // GetByID returns user by ID
 func (r *repository) GetByID(ctx context.Context, id uuid.UUID) (*User, error) {
 	query := `
-		SELECT id, email, password_hash, role, email_verified, is_banned, 
+		SELECT id, email, password_hash, role, email_verified, is_banned,
+		       organization_id, user_verification_status, verification_submitted_at,
 		       created_at, updated_at
 		FROM users WHERE id = $1
 	`
@@ -74,7 +81,8 @@ func (r *repository) GetByID(ctx context.Context, id uuid.UUID) (*User, error) {
 // GetByEmail returns user by email
 func (r *repository) GetByEmail(ctx context.Context, email string) (*User, error) {
 	query := `
-		SELECT id, email, password_hash, role, email_verified, is_banned, 
+		SELECT id, email, password_hash, role, email_verified, is_banned,
+		       organization_id, user_verification_status, verification_submitted_at,
 		       created_at, updated_at
 		FROM users WHERE email = $1
 	`
@@ -95,7 +103,9 @@ func (r *repository) Update(ctx context.Context, user *User) error {
 	query := `
 		UPDATE users 
 		SET email = $2, password_hash = $3, 
-		    role = $4, email_verified = $5, is_banned = $6, updated_at = NOW()
+		    role = $4, email_verified = $5, is_banned = $6,
+		    organization_id = $7, user_verification_status = $8,
+		    verification_submitted_at = $9, updated_at = NOW()
 		WHERE id = $1
 	`
 
@@ -106,6 +116,9 @@ func (r *repository) Update(ctx context.Context, user *User) error {
 		user.Role,
 		user.EmailVerified,
 		user.IsBanned,
+		user.OrganizationID,
+		user.UserVerificationStatus,
+		user.VerificationSubmittedAt,
 	)
 
 	return err

@@ -172,8 +172,7 @@ func (r *repository) CountMonthlyByUserID(ctx context.Context, userID uuid.UUID)
 		FROM casting_responses cr
 		JOIN model_profiles mp ON cr.model_id = mp.id
 		WHERE mp.user_id = $1
-		  AND cr.created_at >= date_trunc('month', NOW())
-	`
+		  AND cr.created_at >= date_trunc('month', NOW())`
 	var count int
 	err := r.db.QueryRowContext(ctx, query, userID).Scan(&count)
 	if err != nil {

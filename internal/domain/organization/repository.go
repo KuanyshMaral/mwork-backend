@@ -25,18 +25,21 @@ func (r *Repository) Create(ctx context.Context, org *Organization) error {
 			id, legal_name, brand_name, bin_iin, org_type,
 			legal_address, actual_address, city,
 			phone, email, website,
+			contact_person, contact_phone, contact_telegram, contact_whatsapp,
 			verification_status, created_at, updated_at
 		) VALUES (
 			$1, $2, $3, $4, $5,
 			$6, $7, $8,
 			$9, $10, $11,
-			$12, $13, $14
+			$12, $13, $14, $15,
+			$16, $17, $18
 		)
 	`
 	_, err := r.db.ExecContext(ctx, query,
 		org.ID, org.LegalName, org.BrandName, org.BinIIN, org.OrgType,
 		org.LegalAddress, org.ActualAddress, org.City,
 		org.Phone, org.Email, org.Website,
+		org.ContactPerson, org.ContactPhone, org.ContactTelegram, org.ContactWhatsApp,
 		org.VerificationStatus, org.CreatedAt, org.UpdatedAt,
 	)
 	return err
@@ -74,6 +77,7 @@ func (r *Repository) Update(ctx context.Context, org *Organization) error {
 			legal_name = $2, brand_name = $3,
 			legal_address = $4, actual_address = $5, city = $6,
 			phone = $7, email = $8, website = $9,
+			contact_person = $10, contact_phone = $11, contact_telegram = $12, contact_whatsapp = $13,
 			updated_at = NOW()
 		WHERE id = $1
 	`
@@ -81,6 +85,7 @@ func (r *Repository) Update(ctx context.Context, org *Organization) error {
 		org.ID, org.LegalName, org.BrandName,
 		org.LegalAddress, org.ActualAddress, org.City,
 		org.Phone, org.Email, org.Website,
+		org.ContactPerson, org.ContactPhone, org.ContactTelegram, org.ContactWhatsApp,
 	)
 	return err
 }

@@ -1,7 +1,6 @@
 package response
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -9,6 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
+	"github.com/mwork/mwork-api/internal/domain/subscription"
 	"github.com/mwork/mwork-api/internal/middleware"
 	"github.com/mwork/mwork-api/internal/pkg/response"
 	"github.com/mwork/mwork-api/internal/pkg/validator"
@@ -17,17 +17,15 @@ import (
 // Handler handles response HTTP requests
 type Handler struct {
 	service      *Service
-	limitChecker LimitChecker
-}
-
-// LimitChecker enforces response limits.
-type LimitChecker interface {
-	CanApplyToResponse(ctx context.Context, userID uuid.UUID, monthlyApplications int) error
+	limitChecker *subscription.LimitChecker
 }
 
 // NewHandler creates response handler
-func NewHandler(service *Service, limitChecker LimitChecker) *Handler {
-	return &Handler{service: service, limitChecker: limitChecker}
+func NewHandler(service *Service, limitChecker *subscription.LimitChecker) *Handler {
+	return &Handler{
+		service:      service,
+		limitChecker: limitChecker,
+	}
 }
 
 // Apply handles POST /castings/{id}/responses
@@ -51,21 +49,16 @@ func (h *Handler) Apply(w http.ResponseWriter, r *http.Request) {
 
 	userID := middleware.GetUserID(r.Context())
 	if h.limitChecker != nil {
-		count, err := h.service.CountMonthlyByUserID(r.Context(), userID)
+		monthlyCount, err := h.service.CountMonthlyByUserID(r.Context(), userID)
 		if err != nil {
 			response.InternalError(w)
 			return
 		}
-
-		if err := h.limitChecker.CanApplyToResponse(r.Context(), userID, count); err != nil {
-			if middleware.WriteLimitExceeded(w, err) {
-				return
-			}
-			response.InternalError(w)
+		if err := h.limitChecker.CanApplyToResponse(r.Context(), userID, monthlyCount); err != nil {
+			subscription.WriteLimitExceeded(w, err)
 			return
 		}
 	}
-
 	resp, err := h.service.Apply(r.Context(), userID, castingID, &req)
 	if err != nil {
 		switch err {

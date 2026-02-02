@@ -46,9 +46,13 @@ type Organization struct {
 	City          sql.NullString `db:"city" json:"city,omitempty"`
 
 	// Contacts
-	Phone   sql.NullString `db:"phone" json:"phone,omitempty"`
-	Email   sql.NullString `db:"email" json:"email,omitempty"`
-	Website sql.NullString `db:"website" json:"website,omitempty"`
+	Phone           sql.NullString `db:"phone" json:"phone,omitempty"`
+	Email           sql.NullString `db:"email" json:"email,omitempty"`
+	Website         sql.NullString `db:"website" json:"website,omitempty"`
+	ContactPerson   sql.NullString `db:"contact_person" json:"contact_person,omitempty"`
+	ContactPhone    sql.NullString `db:"contact_phone" json:"contact_phone,omitempty"`
+	ContactTelegram sql.NullString `db:"contact_telegram" json:"contact_telegram,omitempty"`
+	ContactWhatsApp sql.NullString `db:"contact_whatsapp" json:"contact_whatsapp,omitempty"`
 
 	// Documents
 	RegistrationDocURL sql.NullString  `db:"registration_doc_url" json:"registration_doc_url,omitempty"`

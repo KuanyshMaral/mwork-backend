@@ -36,6 +36,11 @@ func NewService(repo Repository, castingRepo casting.Repository, modelRepo profi
 	}
 }
 
+// CountMonthlyByUserID returns count of responses created by user in current month
+func (s *Service) CountMonthlyByUserID(ctx context.Context, userID uuid.UUID) (int, error) {
+	return s.repo.CountMonthlyByUserID(ctx, userID)
+}
+
 // SetNotificationService sets the notification service (optional, to avoid circular dependency)
 func (s *Service) SetNotificationService(notifService NotificationService) {
 	s.notifService = notifService
