@@ -7,6 +7,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
+	"github.com/mwork/mwork-api/internal/domain/subscription"
 	"github.com/mwork/mwork-api/internal/middleware"
 	"github.com/mwork/mwork-api/internal/pkg/response"
 	"github.com/mwork/mwork-api/internal/pkg/validator"
@@ -44,7 +45,7 @@ func (h *Handler) Presign(w http.ResponseWriter, r *http.Request) {
 		count, err := h.service.CountByUserID(r.Context(), userID)
 		if err == nil {
 			if err := h.limitChecker.CanUploadPhoto(r.Context(), userID, count); err != nil {
-				middleware.WriteLimitExceeded(w, err)
+				subscription.WriteLimitExceeded(w, err)
 				return
 			}
 		}
@@ -85,7 +86,7 @@ func (h *Handler) ConfirmUpload(w http.ResponseWriter, r *http.Request) {
 		count, err := h.service.CountByUserID(r.Context(), userID)
 		if err == nil {
 			if err := h.limitChecker.CanUploadPhoto(r.Context(), userID, count); err != nil {
-				middleware.WriteLimitExceeded(w, err)
+				subscription.WriteLimitExceeded(w, err)
 				return
 			}
 		}

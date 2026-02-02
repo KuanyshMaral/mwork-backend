@@ -164,7 +164,7 @@ func main() {
 	paymentService = payment.NewService(paymentRepo, subscriptionService)
 
 	limitChecker := subscription.NewLimitChecker(subscriptionService)
-	subscriptionLimits := middleware.NewSubscriptionLimits(subscriptionService)
+	subscriptionLimits := subscription.NewLimitsMiddleware(subscriptionService)
 
 	adminRepo := admin.NewRepository(db)
 	adminService := admin.NewService(adminRepo)

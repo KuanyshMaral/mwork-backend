@@ -1,4 +1,4 @@
-package middleware
+package subscription
 
 import (
 	"errors"
@@ -7,28 +7,28 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/mwork/mwork-api/internal/domain/subscription"
+	"github.com/mwork/mwork-api/internal/middleware"
 	"github.com/mwork/mwork-api/internal/pkg/response"
 )
 
-// SubscriptionLimits provides middleware to enforce subscription limits.
-type SubscriptionLimits struct {
-	checker *subscription.LimitChecker
-	service *subscription.Service
+// LimitsMiddleware provides middleware to enforce subscription limits.
+type LimitsMiddleware struct {
+	checker *LimitChecker
+	service *Service
 }
 
-// NewSubscriptionLimits creates a middleware helper for subscription limits.
-func NewSubscriptionLimits(service *subscription.Service) *SubscriptionLimits {
-	return &SubscriptionLimits{
-		checker: subscription.NewLimitChecker(service),
+// NewLimitsMiddleware creates a middleware helper for subscription limits.
+func NewLimitsMiddleware(service *Service) *LimitsMiddleware {
+	return &LimitsMiddleware{
+		checker: NewLimitChecker(service),
 		service: service,
 	}
 }
 
 // RequireResponseLimit enforces monthly response limits.
-func (s *SubscriptionLimits) RequireResponseLimit(next http.Handler) http.Handler {
+func (s *LimitsMiddleware) RequireResponseLimit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userID := GetUserID(r.Context())
+		userID := middleware.GetUserID(r.Context())
 		if userID == uuid.Nil {
 			response.Unauthorized(w, "unauthorized")
 			return
@@ -50,9 +50,9 @@ func (s *SubscriptionLimits) RequireResponseLimit(next http.Handler) http.Handle
 }
 
 // RequireChatAccess enforces chat availability by plan.
-func (s *SubscriptionLimits) RequireChatAccess(next http.Handler) http.Handler {
+func (s *LimitsMiddleware) RequireChatAccess(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userID := GetUserID(r.Context())
+		userID := middleware.GetUserID(r.Context())
 		if userID == uuid.Nil {
 			response.Unauthorized(w, "unauthorized")
 			return
@@ -68,9 +68,9 @@ func (s *SubscriptionLimits) RequireChatAccess(next http.Handler) http.Handler {
 }
 
 // RequirePhotoUpload enforces photo upload limits.
-func (s *SubscriptionLimits) RequirePhotoUpload(next http.Handler) http.Handler {
+func (s *LimitsMiddleware) RequirePhotoUpload(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userID := GetUserID(r.Context())
+		userID := middleware.GetUserID(r.Context())
 		if userID == uuid.Nil {
 			response.Unauthorized(w, "unauthorized")
 			return
@@ -93,7 +93,7 @@ func (s *SubscriptionLimits) RequirePhotoUpload(next http.Handler) http.Handler 
 
 // WriteLimitExceeded renders a unified subscription limit error payload.
 func WriteLimitExceeded(w http.ResponseWriter, err error) {
-	var limitErr *subscription.LimitError
+	var limitErr *LimitError
 	if errors.As(err, &limitErr) {
 		response.ErrorWithDetails(w, http.StatusTooManyRequests, "LIMIT_EXCEEDED", limitErr.Err.Error(), map[string]string{
 			"current":    strconv.Itoa(limitErr.Current),

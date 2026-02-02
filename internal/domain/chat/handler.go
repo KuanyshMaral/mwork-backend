@@ -14,6 +14,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog/log"
 
+	"github.com/mwork/mwork-api/internal/domain/subscription"
 	"github.com/mwork/mwork-api/internal/middleware"
 	"github.com/mwork/mwork-api/internal/pkg/response"
 	"github.com/mwork/mwork-api/internal/pkg/validator"
@@ -120,7 +121,7 @@ func (h *Handler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 	if h.limitChecker != nil {
 		if err := h.limitChecker.CanUseChat(r.Context(), userID); err != nil {
-			middleware.WriteLimitExceeded(w, err)
+			subscription.WriteLimitExceeded(w, err)
 			return
 		}
 	}
@@ -235,7 +236,7 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 
 	if h.limitChecker != nil {
 		if err := h.limitChecker.CanUseChat(r.Context(), userID); err != nil {
-			middleware.WriteLimitExceeded(w, err)
+			subscription.WriteLimitExceeded(w, err)
 			return
 		}
 	}
