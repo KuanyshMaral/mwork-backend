@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
+	"github.com/mwork/mwork-api/internal/domain/subscription"
 	"github.com/mwork/mwork-api/internal/middleware"
 	"github.com/mwork/mwork-api/internal/pkg/response"
 	"github.com/mwork/mwork-api/internal/pkg/validator"
@@ -54,7 +55,7 @@ func (h *Handler) Apply(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := h.limitChecker.CanApplyToResponse(r.Context(), userID, monthlyCount); err != nil {
-			middleware.WriteLimitExceeded(w, err)
+			subscription.WriteLimitExceeded(w, err)
 			return
 		}
 	}
