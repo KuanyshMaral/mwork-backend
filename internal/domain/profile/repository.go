@@ -37,6 +37,7 @@ type ModelRepository interface {
 	Update(ctx context.Context, profile *ModelProfile) error
 	Delete(ctx context.Context, id uuid.UUID) error
 	List(ctx context.Context, filter *Filter, pagination *Pagination) ([]*ModelProfile, int, error)
+	ListPromoted(ctx context.Context, city *string, limit int) ([]*ModelProfile, error)
 	IncrementViewCount(ctx context.Context, id uuid.UUID) error
 }
 
@@ -160,7 +161,7 @@ func (r *modelRepository) Update(ctx context.Context, profile *ModelProfile) err
 		profile.Name, profile.Bio, profile.Description, profile.Age, profile.Height, profile.Weight, profile.Gender,
 		profile.ClothingSize, profile.ShoeSize, profile.Experience, profile.HourlyRate,
 		profile.City, profile.Country, profile.Languages, profile.Categories, profile.Skills,
-		profile.BarterAccepted, profile.AcceptRemoteWork, profile.IsPublic,
+		profile.BarterAccepted, profile.AcceptRemoteWork, profile.IsPublic, profile.TravelCities, profile.Visibility,
 	)
 
 	return err
@@ -249,6 +250,64 @@ func (r *modelRepository) IncrementViewCount(ctx context.Context, id uuid.UUID) 
 	query := `UPDATE profiles SET view_count = view_count + 1 WHERE id = $1`
 	_, err := r.db.ExecContext(ctx, query, id)
 	return err
+}
+
+func (r *modelRepository) ListPromoted(ctx context.Context, city *string, limit int) ([]*ModelProfile, error) {
+	// Join with profile_promotions table to get promoted profiles
+	// Priority: active promotions first, sorted by daily_budget DESC, then created_at DESC
+	query := `
+		SELECT DISTINCT ON (p.id)
+			p.id, p.user_id, p.first_name as name, p.bio, p.description,
+			p.age, p.height_cm as height, p.weight_kg as weight, p.gender,
+			p.clothing_size, p.shoe_size, p.experience_years as experience,
+			p.hourly_rate, p.city, p.country,
+			COALESCE(p.languages, '{}') as languages,
+			COALESCE(p.categories, '{}') as categories,
+			COALESCE(p.skills, '{}') as skills,
+			COALESCE(p.barter_accepted, false) as barter_accepted,
+			COALESCE(p.accept_remote_work, false) as accept_remote_work,
+			COALESCE(p.travel_cities, '{}') as travel_cities,
+			COALESCE(p.visibility, 'public') as visibility,
+			p.view_count as profile_views, p.rating, p.total_reviews,
+			COALESCE(p.is_public, true) as is_public,
+			p.created_at, p.updated_at
+		FROM profiles p
+		INNER JOIN profile_promotions pr ON pr.profile_id = p.id
+		WHERE p.type = 'model'
+			AND p.is_public = true
+			AND pr.status = 'active'
+			AND pr.starts_at <= NOW()
+			AND pr.ends_at >= NOW()
+	`
+
+	var args []interface{}
+	argNum := 1
+
+	if city != nil && *city != "" {
+		query += fmt.Sprintf(" AND p.city = $%d", argNum)
+		args = append(args, *city)
+		argNum++
+	}
+
+	query += `
+		ORDER BY p.id,
+			COALESCE(pr.daily_budget, 0) DESC,
+			pr.created_at DESC
+	`
+
+	if limit > 0 {
+		query += fmt.Sprintf(" LIMIT $%d", argNum)
+		args = append(args, limit)
+	} else {
+		query += " LIMIT 20" // Default limit
+	}
+
+	var profiles []*ModelProfile
+	if err := r.db.SelectContext(ctx, &profiles, query, args...); err != nil {
+		return nil, err
+	}
+
+	return profiles, nil
 }
 
 func (r *modelRepository) Delete(ctx context.Context, id uuid.UUID) error {

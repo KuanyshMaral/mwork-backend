@@ -12,6 +12,7 @@ func (h *Handler) Routes(authMiddleware func(http.Handler) http.Handler) chi.Rou
 
 	// Public routes for models
 	r.Get("/models", h.ListModels)
+	r.Get("/models/promoted", h.ListPromotedModels)
 	r.Get("/models/{id}", h.GetModelByID)
 
 	// Protected routes

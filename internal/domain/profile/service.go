@@ -279,6 +279,11 @@ func (s *Service) ListModels(ctx context.Context, filter *Filter, pagination *Pa
 	return s.modelRepo.List(ctx, filter, pagination)
 }
 
+// ListPromotedModels returns promoted model profiles
+func (s *Service) ListPromotedModels(ctx context.Context, city *string, limit int) ([]*ModelProfile, error) {
+	return s.modelRepo.ListPromoted(ctx, city, limit)
+}
+
 // IncrementModelViewCount increments mo view count
 func (s *Service) IncrementModelViewCount(ctx context.Context, id uuid.UUID) error {
 	return s.modelRepo.IncrementViewCount(ctx, id)

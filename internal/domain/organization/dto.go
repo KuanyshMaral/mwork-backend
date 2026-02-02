@@ -5,18 +5,21 @@ import (
 )
 
 // CreateRequest for creating organization
-type CreateRequest struct {
-	LegalName     string `json:"legal_name" validate:"required,min=2,max=255"`
-	BrandName     string `json:"brand_name,omitempty"`
-	BinIIN        string `json:"bin_iin" validate:"required,len=12"`
-	OrgType       string `json:"org_type" validate:"required,oneof=ip too ao agency other"`
-	LegalAddress  string `json:"legal_address,omitempty"`
-	ActualAddress string `json:"actual_address,omitempty"`
-	City          string `json:"city,omitempty"`
-	Phone         string `json:"phone,omitempty"`
-	Email         string `json:"email,omitempty" validate:"omitempty,email"`
-	Website       string `json:"website,omitempty"`
+type CreateOrganizationRequest struct {
+	LegalName     string  `json:"legal_name" validate:"required,min=2,max=255"`
+	BrandName     string  `json:"brand_name,omitempty"`
+	BinIIN        string  `json:"bin_iin" validate:"required,len=12"`
+	OrgType       OrgType `json:"org_type" validate:"required"`
+	LegalAddress  string  `json:"legal_address,omitempty"`
+	ActualAddress string  `json:"actual_address,omitempty"`
+	City          string  `json:"city,omitempty"`
+	Phone         string  `json:"phone,omitempty"`
+	Email         string  `json:"email,omitempty" validate:"omitempty,email"`
+	Website       string  `json:"website,omitempty"`
 }
+
+// For backwards compatibility
+type CreateRequest = CreateOrganizationRequest
 
 // UpdateRequest for updating organization
 type UpdateRequest struct {
@@ -88,4 +91,52 @@ func ToResponse(org *Organization) *Response {
 	}
 
 	return resp
+}
+
+// AddMemberRequest for adding organization member
+type AddMemberRequest struct {
+	UserID uuid.UUID  `json:"user_id" validate:"required"`
+	Role   MemberRole `json:"role" validate:"required"`
+}
+
+// UpdateMemberRoleRequest for updating member role
+type UpdateMemberRoleRequest struct {
+	Role MemberRole `json:"role" validate:"required"`
+}
+
+// MemberResponse for organization member data
+type MemberResponse struct {
+	ID        uuid.UUID  `json:"id"`
+	UserID    uuid.UUID  `json:"user_id"`
+	Role      MemberRole `json:"role"`
+	InvitedBy *uuid.UUID `json:"invited_by,omitempty"`
+	CreatedAt string     `json:"created_at"`
+}
+
+// ToMemberResponse converts OrganizationMember to MemberResponse
+func ToMemberResponse(member *OrganizationMember) *MemberResponse {
+	resp := &MemberResponse{
+		ID:        member.ID,
+		UserID:    member.UserID,
+		Role:      member.Role,
+		CreatedAt: member.CreatedAt.Format("2006-01-02T15:04:05Z"),
+	}
+	if member.InvitedBy.Valid {
+		resp.InvitedBy = &member.InvitedBy.UUID
+	}
+	return resp
+}
+
+// FollowerResponse for follower data
+type FollowerResponse struct {
+	UserID    uuid.UUID `json:"user_id"`
+	CreatedAt string    `json:"created_at"`
+}
+
+// ToFollowerResponse converts AgencyFollower to FollowerResponse
+func ToFollowerResponse(follower *AgencyFollower) *FollowerResponse {
+	return &FollowerResponse{
+		UserID:    follower.FollowerUserID,
+		CreatedAt: follower.CreatedAt.Format("2006-01-02T15:04:05Z"),
+	}
 }

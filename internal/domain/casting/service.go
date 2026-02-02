@@ -11,10 +11,16 @@ import (
 	"github.com/mwork/mwork-api/internal/domain/user"
 )
 
+// NotificationService interface for notification operations
+type NotificationService interface {
+	NotifyAgencyFollowersNewCasting(ctx context.Context, organizationID uuid.UUID, castingID uuid.UUID, castingTitle string) error
+}
+
 // Service handles casting business logic
 type Service struct {
-	repo     Repository
-	userRepo user.Repository
+	repo         Repository
+	userRepo     user.Repository
+	notifService NotificationService
 }
 
 // NewService creates casting service
@@ -23,6 +29,11 @@ func NewService(repo Repository, userRepo user.Repository) *Service {
 		repo:     repo,
 		userRepo: userRepo,
 	}
+}
+
+// SetNotificationService sets the notification service (optional)
+func (s *Service) SetNotificationService(notifService NotificationService) {
+	s.notifService = notifService
 }
 
 // Create creates a new casting
