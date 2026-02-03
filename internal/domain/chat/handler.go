@@ -14,6 +14,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog/log"
 
+	subscriptionmiddleware "github.com/mwork/mwork-api/internal/domain/subscription/middleware"
 	"github.com/mwork/mwork-api/internal/middleware"
 	"github.com/mwork/mwork-api/internal/pkg/response"
 	"github.com/mwork/mwork-api/internal/pkg/validator"
@@ -118,7 +119,7 @@ func (h *Handler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 	room, err := h.service.CreateOrGetRoom(r.Context(), userID, &req)
 	if err != nil {
-		if middleware.WriteLimitExceeded(w, err) {
+		if subscriptionmiddleware.WriteLimitExceeded(w, err) {
 			return
 		}
 		switch err {
@@ -230,7 +231,7 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 
 	msg, err := h.service.SendMessage(r.Context(), userID, roomID, &req)
 	if err != nil {
-		if middleware.WriteLimitExceeded(w, err) {
+		if subscriptionmiddleware.WriteLimitExceeded(w, err) {
 			return
 		}
 		switch err {

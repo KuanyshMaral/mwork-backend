@@ -34,6 +34,7 @@ import (
 	"github.com/mwork/mwork-api/internal/domain/response"
 	"github.com/mwork/mwork-api/internal/domain/review"
 	"github.com/mwork/mwork-api/internal/domain/subscription"
+	subscriptionmiddleware "github.com/mwork/mwork-api/internal/domain/subscription/middleware"
 	uploadDomain "github.com/mwork/mwork-api/internal/domain/upload"
 	"github.com/mwork/mwork-api/internal/domain/user"
 	"github.com/mwork/mwork-api/internal/middleware"
@@ -208,9 +209,9 @@ func main() {
 	userAdminHandler := admin.NewUserHandler(db, adminService)
 
 	authMiddleware := middleware.Auth(jwtService)
-	responseLimitMiddleware := middleware.RequireResponseLimit(limitChecker, &responseLimitCounter{repo: responseRepo})
-	chatLimitMiddleware := middleware.RequireChatLimit(limitChecker)
-	photoLimitMiddleware := middleware.RequirePhotoLimit(limitChecker, &photoLimitCounter{repo: photoRepo}, &modelProfileIDProvider{repo: modelRepo})
+	responseLimitMiddleware := subscriptionmiddleware.RequireResponseLimit(limitChecker, &responseLimitCounter{repo: responseRepo})
+	chatLimitMiddleware := subscriptionmiddleware.RequireChatLimit(limitChecker)
+	photoLimitMiddleware := subscriptionmiddleware.RequirePhotoLimit(limitChecker, &photoLimitCounter{repo: photoRepo}, &modelProfileIDProvider{repo: modelRepo})
 
 	// ---------- Router ----------
 	r := chi.NewRouter()
