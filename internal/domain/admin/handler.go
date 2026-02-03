@@ -37,7 +37,6 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req.Email = normalizeEmail(req.Email)
 	if errors := validator.Validate(&req); errors != nil {
 		response.ValidationError(w, errors)
 		return
@@ -116,7 +115,6 @@ func (h *Handler) CreateAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req.Email = normalizeEmail(req.Email)
 	if errors := validator.Validate(&req); errors != nil {
 		response.ValidationError(w, errors)
 		return

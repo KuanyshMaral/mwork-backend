@@ -66,7 +66,7 @@ CREATE INDEX idx_audit_logs_created ON audit_logs(created_at DESC);
 
 -- Default super admin (password: admin123 - CHANGE IN PRODUCTION!)
 INSERT INTO admin_users (email, password_hash, role, name) VALUES
-('admin@mwork.kz', '$2a$12$ob/WOA675I7wHxM/a9aQKexapuOA2ll28eCwHZhG8dxdEUEWL8kH.', 'super_admin', 'System Admin');
+('admin@mwork.kz', '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4tJxzPXzLqZKJKWe', 'super_admin', 'System Admin');
 
 -- Default feature flags
 INSERT INTO feature_flags (key, value, description) VALUES
