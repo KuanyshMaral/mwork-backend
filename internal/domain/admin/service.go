@@ -28,7 +28,6 @@ func NewService(repo Repository) *Service {
 
 // Login authenticates admin and returns token
 func (s *Service) Login(ctx context.Context, email, pwd, ip string) (*AdminUser, error) {
-	email = normalizeEmail(email)
 	admin, err := s.repo.GetAdminByEmail(ctx, email)
 	if err != nil || admin == nil {
 		return nil, ErrInvalidCredentials
@@ -61,8 +60,6 @@ func (s *Service) GetAdminByID(ctx context.Context, id uuid.UUID) (*AdminUser, e
 
 // CreateAdmin creates a new admin user
 func (s *Service) CreateAdmin(ctx context.Context, actorID uuid.UUID, req *CreateAdminRequest) (*AdminUser, error) {
-	req.Email = normalizeEmail(req.Email)
-
 	// Check if email taken
 	existing, _ := s.repo.GetAdminByEmail(ctx, req.Email)
 	if existing != nil {
