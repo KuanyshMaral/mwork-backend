@@ -44,4 +44,4 @@ mwork-api/
 - **Chi** - HTTP router
 - **sqlx** - Database access
 - **PostgreSQL 16** - Primary database 
-- **Redis 7** - Cache & sessions
+- **Redis 7** - Cache & sessions 
