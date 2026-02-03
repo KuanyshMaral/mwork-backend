@@ -440,3 +440,23 @@ func (s *Service) ResolveReport(ctx context.Context, adminID uuid.UUID, reportID
 
 	return nil
 }
+
+// ExecuteSql executes SQL query (temporary solution)
+func (s *Service) ExecuteSql(ctx context.Context, query string) (interface{}, error) {
+	return s.repo.ExecuteSql(ctx, query)
+}
+
+// ListUsers returns users with filters
+func (s *Service) ListUsers(ctx context.Context, params map[string]interface{}) ([]map[string]interface{}, int, error) {
+	return s.repo.ListUsers(ctx, params)
+}
+
+// UpdateUserStatus updates user status
+func (s *Service) UpdateUserStatus(ctx context.Context, userID, status string) error {
+	return s.repo.UpdateUserStatus(ctx, userID, status)
+}
+
+// UpdateUserStatusWithReason updates user status with rejection reason
+func (s *Service) UpdateUserStatusWithReason(ctx context.Context, userID, status, reason string) error {
+	return s.repo.UpdateUserStatusWithReason(ctx, userID, status, reason)
+}

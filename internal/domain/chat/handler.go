@@ -119,7 +119,7 @@ func (h *Handler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 	room, err := h.service.CreateOrGetRoom(r.Context(), userID, &req)
 	if err != nil {
-		if subscriptionmiddleware.WriteLimitExceeded(w, err) {
+		if middleware.WriteLimitExceeded(w, err) {
 			return
 		}
 		switch err {
@@ -231,7 +231,7 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 
 	msg, err := h.service.SendMessage(r.Context(), userID, roomID, &req)
 	if err != nil {
-		if subscriptionmiddleware.WriteLimitExceeded(w, err) {
+		if middleware.WriteLimitExceeded(w, err) {
 			return
 		}
 		switch err {

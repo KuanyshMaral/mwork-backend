@@ -5,7 +5,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -46,8 +48,15 @@ type Repository interface {
 	GetReportByID(ctx context.Context, id uuid.UUID) (*Report, error)
 	UpdateReportStatus(ctx context.Context, id uuid.UUID, status string, adminNotes string, resolvedBy uuid.UUID) error
 	GetReportedUserByID(ctx context.Context, userID uuid.UUID) (*ReportedUser, error)
-	UpdateUserStatus(ctx context.Context, userID uuid.UUID, status string) error
 	SoftDeleteEntity(ctx context.Context, entityType string, entityID uuid.UUID) error
+
+	// User management
+	ListUsers(ctx context.Context, params map[string]interface{}) ([]map[string]interface{}, int, error)
+	UpdateUserStatus(ctx context.Context, userID string, status string) error
+	UpdateUserStatusWithReason(ctx context.Context, userID, status, reason string) error
+
+	// SQL execution (temporary solution)
+	ExecuteSql(ctx context.Context, query string) (interface{}, error)
 
 	// Transaction-based report resolution
 	BeginTx(ctx context.Context) (*sqlx.Tx, error)
@@ -431,12 +440,6 @@ func (r *repository) GetReportedUserByID(ctx context.Context, userID uuid.UUID) 
 	return &user, nil
 }
 
-func (r *repository) UpdateUserStatus(ctx context.Context, userID uuid.UUID, status string) error {
-	query := `UPDATE users SET status = $2, updated_at = NOW() WHERE id = $1`
-	_, err := r.db.ExecContext(ctx, query, userID, status)
-	return err
-}
-
 func (r *repository) SoftDeleteEntity(ctx context.Context, entityType string, entityID uuid.UUID) error {
 	var query string
 	switch entityType {
@@ -494,5 +497,151 @@ func (r *repository) SoftDeleteEntityTx(ctx context.Context, tx *sqlx.Tx, entity
 	}
 
 	_, err := tx.ExecContext(ctx, query, entityID)
+	return err
+}
+
+// ExecuteSql executes a SQL query (temporary solution for frontend-only moderation)
+func (r *repository) ExecuteSql(ctx context.Context, query string) (interface{}, error) {
+	// For safety, only allow UPDATE queries on users table
+	if !strings.Contains(strings.ToUpper(query), "UPDATE") ||
+		!strings.Contains(strings.ToUpper(query), "users") ||
+		strings.Contains(strings.ToUpper(query), "DELETE") ||
+		strings.Contains(strings.ToUpper(query), "DROP") {
+		return nil, errors.New("only UPDATE queries on users table are allowed")
+	}
+
+	var result interface{}
+
+	// Execute the query
+	rows, err := r.db.QueryxContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	// For UPDATE queries, return affected rows count
+	if strings.HasPrefix(strings.ToUpper(query), "UPDATE") {
+		res, err := r.db.ExecContext(ctx, query)
+		if err != nil {
+			return nil, err
+		}
+		affected, _ := res.RowsAffected()
+		result = map[string]interface{}{
+			"affected_rows": affected,
+			"message":       "Query executed successfully",
+		}
+	} else {
+		// For SELECT queries, return the rows
+		var results []map[string]interface{}
+		for rows.Next() {
+			row := make(map[string]interface{})
+			if err := rows.MapScan(row); err != nil {
+				return nil, err
+			}
+			results = append(results, row)
+		}
+		result = results
+	}
+
+	return result, nil
+}
+
+// ListUsers returns users with filters
+func (r *repository) ListUsers(ctx context.Context, params map[string]interface{}) ([]map[string]interface{}, int, error) {
+	query := `
+		SELECT id, email, role, email_verified, is_banned, user_verification_status, created_at, updated_at
+		FROM users
+		WHERE deleted_at IS NULL
+	`
+
+	var args []interface{}
+	argIndex := 1
+
+	// Add filters
+	if role, ok := params["role"].(string); ok && role != "" {
+		query += fmt.Sprintf(" AND role = $%d", argIndex)
+		args = append(args, role)
+		argIndex++
+	}
+
+	if status, ok := params["status"].(string); ok && status != "" {
+		if status == "active" {
+			query += fmt.Sprintf(" AND is_banned = $%d", argIndex)
+			args = append(args, false)
+			argIndex++
+		} else if status == "banned" {
+			query += fmt.Sprintf(" AND is_banned = $%d", argIndex)
+			args = append(args, true)
+			argIndex++
+		}
+	}
+
+	if search, ok := params["search"].(string); ok && search != "" {
+		query += fmt.Sprintf(" AND email ILIKE $%d", argIndex)
+		args = append(args, "%"+search+"%")
+		argIndex++
+	}
+
+	// Count query
+	countQuery := strings.Replace(query, "SELECT id, email, role, email_verified, is_banned, created_at, updated_at", "SELECT COUNT(*)", 1)
+
+	var total int
+	err := r.db.GetContext(ctx, &total, countQuery, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Add pagination
+	query += " ORDER BY created_at DESC"
+
+	limit := 20 // default limit
+	if l, ok := params["limit"].(int); ok && l > 0 {
+		limit = l
+		query += fmt.Sprintf(" LIMIT $%d", argIndex)
+		args = append(args, limit)
+		argIndex++
+	}
+
+	if page, ok := params["page"].(int); ok && page > 0 {
+		offset := (page - 1) * limit
+		query += fmt.Sprintf(" OFFSET $%d", argIndex)
+		args = append(args, offset)
+	}
+
+	var users []map[string]interface{}
+	err = r.db.SelectContext(ctx, &users, query, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return users, total, nil
+}
+
+// UpdateUserStatus updates user verification status
+func (r *repository) UpdateUserStatus(ctx context.Context, userID, status string) error {
+	query := `
+		UPDATE users 
+		SET user_verification_status = $2, 
+		    verification_reviewed_at = NOW(),
+		    updated_at = NOW()
+		WHERE id = $1
+	`
+
+	_, err := r.db.ExecContext(ctx, query, userID, status)
+	return err
+}
+
+// UpdateUserStatusWithReason updates user verification status with rejection reason
+func (r *repository) UpdateUserStatusWithReason(ctx context.Context, userID, status, reason string) error {
+	query := `
+		UPDATE users 
+		SET user_verification_status = $2, 
+		    verification_rejection_reason = $3,
+		    verification_reviewed_at = NOW(),
+		    updated_at = NOW()
+		WHERE id = $1
+	`
+
+	_, err := r.db.ExecContext(ctx, query, userID, status, reason)
 	return err
 }

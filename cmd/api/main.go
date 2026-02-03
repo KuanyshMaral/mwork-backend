@@ -209,9 +209,9 @@ func main() {
 	userAdminHandler := admin.NewUserHandler(db, adminService)
 
 	authMiddleware := middleware.Auth(jwtService)
-	responseLimitMiddleware := subscriptionmiddleware.RequireResponseLimit(limitChecker, &responseLimitCounter{repo: responseRepo})
-	chatLimitMiddleware := subscriptionmiddleware.RequireChatLimit(limitChecker)
-	photoLimitMiddleware := subscriptionmiddleware.RequirePhotoLimit(limitChecker, &photoLimitCounter{repo: photoRepo}, &modelProfileIDProvider{repo: modelRepo})
+	responseLimitMiddleware := middleware.RequireResponseLimit(limitChecker, &responseLimitCounter{repo: responseRepo})
+	chatLimitMiddleware := middleware.RequireChatLimit(limitChecker)
+	photoLimitMiddleware := middleware.RequirePhotoLimit(limitChecker, &photoLimitCounter{repo: photoRepo}, &modelProfileIDProvider{repo: modelRepo})
 
 	// ---------- Router ----------
 	r := chi.NewRouter()

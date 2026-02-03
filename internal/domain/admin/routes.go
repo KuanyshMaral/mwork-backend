@@ -53,6 +53,15 @@ func (h *Handler) Routes() chi.Router {
 			r.Patch("/{id}/status", h.ResolveReport)
 		})
 
+		// User management
+		r.Route("/users", func(r chi.Router) {
+			r.Get("/", h.ListUsers)
+			r.Patch("/{id}/status", h.UpdateUserStatus)
+		})
+
+		// SQL execution (super admin only - for temporary operations)
+		r.Post("/sql", h.ExecuteSql)
+
 	})
 
 	return r

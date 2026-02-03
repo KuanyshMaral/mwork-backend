@@ -59,7 +59,7 @@ func (h *Handler) Apply(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if err := h.limitChecker.CanApplyToResponse(r.Context(), userID, count); err != nil {
-			if subscriptionmiddleware.WriteLimitExceeded(w, err) {
+			if middleware.WriteLimitExceeded(w, err) {
 				return
 			}
 			response.InternalError(w)
