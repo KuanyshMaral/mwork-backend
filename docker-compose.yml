@@ -64,6 +64,18 @@ services:
       - "8080:8080"
     restart: unless-stopped
 
+  # --- НОВЫЙ СЕРВИС: ФРОНТЕНД ---
+  web:
+    image: ghcr.io/kuanyshmaral/mwork-frontend:latest
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+    # Эта настройка обязательна, чтобы Nginx мог подключиться к host.docker.internal:8080
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
 volumes:
   postgres_data:
   redis_data:
