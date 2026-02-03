@@ -120,7 +120,7 @@ func main() {
 	go chatHub.Run()
 
 	// ---------- Services ----------
-	authService := auth.NewService(userRepo, jwtService, redis, nil)
+	authService := auth.NewService(userRepo, jwtService, redis, nil, nil)
 	profileService := profile.NewService(modelRepo, employerRepo, userRepo)
 	castingService := casting.NewService(castingRepo, userRepo)
 	responseService := response.NewService(responseRepo, castingRepo, modelRepo, employerRepo)
@@ -154,18 +154,22 @@ func main() {
 		SecretKey:  cfg.KaspiSecretKey,
 	})}
 
+	orgRepo := organization.NewRepository(db)
+
 	// Update authService with authEmployerRepo
-	authService = auth.NewService(userRepo, jwtService, redis, authEmployerRepo)
+	authService = auth.NewService(userRepo, jwtService, redis, authEmployerRepo, orgRepo)
 
 	// Update services with proper dependencies
 	subscriptionService = subscription.NewService(subscriptionRepo, subscriptionPhotoRepo, subscriptionResponseRepo, subscriptionCastingRepo, subscriptionProfileRepo)
 	paymentService = payment.NewService(paymentRepo, subscriptionService)
 
+	limitChecker := subscription.NewLimitChecker(subscriptionService)
+	subscriptionLimits := subscription.NewLimitsMiddleware(subscriptionService)
+
 	adminRepo := admin.NewRepository(db)
 	adminService := admin.NewService(adminRepo)
 	adminJWTService := admin.NewJWTService(cfg.JWTSecret, 24*time.Hour)
 
-	orgRepo := organization.NewRepository(db)
 	leadRepo := lead.NewRepository(db)
 	leadService := lead.NewService(leadRepo, orgRepo, userRepo)
 
@@ -174,9 +178,9 @@ func main() {
 	profileHandler := profile.NewHandler(profileService)
 	castingHandler := casting.NewHandler(castingService, castingProfileService)
 	experienceHandler := experience.NewHandler(experienceRepo, modelRepo)
-	responseHandler := response.NewHandler(responseService)
-	photoHandler := photo.NewHandler(photoService)
-	chatHandler := chat.NewHandler(chatService, chatHub, redis, cfg.AllowedOrigins)
+	responseHandler := response.NewHandler(responseService, limitChecker)
+	photoHandler := photo.NewHandler(photoService, limitChecker)
+	chatHandler := chat.NewHandler(chatService, chatHub, limitChecker, redis, cfg.AllowedOrigins)
 	moderationHandler := moderation.NewHandler(moderationService)
 	notificationHandler := notification.NewHandler(notificationService)
 
@@ -258,14 +262,23 @@ func main() {
 
 		r.Route("/castings/{id}/responses", func(r chi.Router) {
 			r.Use(authMiddleware)
-			r.Post("/", responseHandler.Apply)
+			r.With(subscriptionLimits.RequireResponseLimit).Post("/", responseHandler.Apply)
 			r.Get("/", responseHandler.ListByCasting)
 		})
 		r.Mount("/responses", responseHandler.Routes(authMiddleware))
 
 		// legacy uploads/photos
-		r.Mount("/uploads", photoHandler.UploadRoutes(authMiddleware))
-		r.Mount("/photos", photoHandler.Routes(authMiddleware))
+		r.Route("/uploads", func(r chi.Router) {
+			r.Use(authMiddleware)
+			r.With(subscriptionLimits.RequirePhotoUpload).Post("/presign", photoHandler.Presign)
+		})
+		r.Route("/photos", func(r chi.Router) {
+			r.Use(authMiddleware)
+			r.With(subscriptionLimits.RequirePhotoUpload).Post("/", photoHandler.ConfirmUpload)
+			r.Delete("/{id}", photoHandler.Delete)
+			r.Patch("/{id}/avatar", photoHandler.SetAvatar)
+			r.Patch("/reorder", photoHandler.Reorder)
+		})
 
 		// NEW: 2-phase file uploads
 		r.Route("/files", func(r chi.Router) {
@@ -301,7 +314,21 @@ func main() {
 		r.Get("/profiles/{id}/reviews", reviewHandler.ListByProfile)
 		r.Get("/profiles/{id}/reviews/summary", reviewHandler.GetSummary)
 
-		r.Mount("/chat", chatHandler.Routes(authMiddleware))
+		r.Route("/chat", func(r chi.Router) {
+			r.Use(authMiddleware)
+
+			// Room operations
+			r.With(subscriptionLimits.RequireChatAccess).Post("/rooms", chatHandler.CreateRoom)
+			r.Get("/rooms", chatHandler.ListRooms)
+
+			// Room messages
+			r.Get("/rooms/{id}/messages", chatHandler.GetMessages)
+			r.With(subscriptionLimits.RequireChatAccess).Post("/rooms/{id}/messages", chatHandler.SendMessage)
+			r.Post("/rooms/{id}/read", chatHandler.MarkAsRead)
+
+			// Unread count
+			r.Get("/unread", chatHandler.GetUnreadCount)
+		})
 		r.Mount("/moderation", moderationHandler.Routes(authMiddleware))
 		r.Mount("/notifications", notificationHandler.Routes(authMiddleware))
 		r.Mount("/notifications/preferences", preferencesHandler.Routes(authMiddleware))
@@ -395,6 +422,7 @@ func (a *authEmployerProfileAdapter) Create(ctx context.Context, authProfile *au
 		Description:   sql.NullString{String: authProfile.Description, Valid: authProfile.Description != ""},
 		Website:       sql.NullString{String: authProfile.Website, Valid: authProfile.Website != ""},
 		ContactPerson: sql.NullString{String: authProfile.ContactPerson, Valid: authProfile.ContactPerson != ""},
+		ContactPhone:  sql.NullString{String: authProfile.ContactPhone, Valid: authProfile.ContactPhone != ""},
 		CreatedAt:     authProfile.CreatedAt,
 		UpdatedAt:     authProfile.UpdatedAt,
 	}
@@ -479,8 +507,8 @@ type subscriptionResponseAdapter struct {
 	repo response.Repository
 }
 
-func (a *subscriptionResponseAdapter) CountWeeklyByUserID(ctx context.Context, userID uuid.UUID) (int, error) {
-	return a.repo.CountWeeklyByUserID(ctx, userID.String())
+func (a *subscriptionResponseAdapter) CountMonthlyByUserID(ctx context.Context, userID uuid.UUID) (int, error) {
+	return a.repo.CountMonthlyByUserID(ctx, userID)
 }
 
 type subscriptionCastingAdapter struct {
