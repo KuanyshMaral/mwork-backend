@@ -69,8 +69,10 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 
 	response.OK(w, &LoginResponse{
 		AccessToken: token,
+		Token:       token,
 		Admin:       AdminResponseFromEntity(admin),
 	})
+
 }
 
 // Me handles GET /admin/auth/me
@@ -222,6 +224,16 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.OK(w, stats)
+}
+
+func (h *Handler) Revenue(w http.ResponseWriter, r *http.Request) {
+	stats, err := h.service.GetDashboardStats(r.Context())
+	if err != nil {
+		response.InternalError(w)
+		return
+	}
+
+	response.OK(w, stats.Revenue)
 }
 
 // --- Audit Logs ---

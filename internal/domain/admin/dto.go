@@ -15,6 +15,7 @@ type LoginRequest struct {
 // LoginResponse after successful login
 type LoginResponse struct {
 	AccessToken string         `json:"access_token"`
+	Token       string         `json:"token"`
 	Admin       *AdminResponse `json:"admin"`
 }
 
