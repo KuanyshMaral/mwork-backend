@@ -49,6 +49,8 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		req.Email = normalizeEmail(req.Email)
+
 		// Validate agency fields
 		if errors := validator.Validate(&req); errors != nil {
 			response.ValidationError(w, errors)
@@ -75,6 +77,8 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 			response.BadRequest(w, "Invalid JSON body")
 			return
 		}
+
+		req.Email = normalizeEmail(req.Email)
 
 		// Validate request
 		if errors := validator.Validate(&req); errors != nil {
@@ -112,6 +116,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate request
+	req.Email = normalizeEmail(req.Email)
 	if errors := validator.Validate(&req); errors != nil {
 		response.ValidationError(w, errors)
 		return
