@@ -91,6 +91,7 @@ func main() {
 	subscriptionRepo := subscription.NewRepository(db)
 	paymentRepo := payment.NewRepository(db)
 	dashboardRepo := dashboard.NewRepository(db)
+	dashboardSvc := dashboard.NewService(db)
 	promotionRepo := promotion.NewRepository(db)
 
 	// ---------- Upload domain (2-phase) ----------
@@ -192,7 +193,7 @@ func main() {
 	})
 	paymentHandler := payment.NewHandler(paymentService, cfg.KaspiSecretKey)
 
-	dashboardHandler := dashboard.NewHandler(dashboardRepo)
+	dashboardHandler := dashboard.NewHandler(dashboardRepo, dashboardSvc)
 	promotionHandler := promotion.NewHandler(promotionRepo)
 
 	savedCastingsHandler := casting.NewSavedCastingsHandler(db)
