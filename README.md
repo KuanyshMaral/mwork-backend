@@ -43,5 +43,5 @@ mwork-api/
 - **Go 1.22+**
 - **Chi** - HTTP router
 - **sqlx** - Database access
-- **PostgreSQL 16** - Primary database
+- **PostgreSQL 16** - Primary database 
 - **Redis 7** - Cache & sessions
