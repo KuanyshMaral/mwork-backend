@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
+	coremiddleware "github.com/mwork/mwork-api/internal/middleware"
 	"github.com/mwork/mwork-api/internal/pkg/response"
 )
 
@@ -107,7 +108,7 @@ func RequireResponseLimit(checker SubscriptionLimitChecker, counter ResponseCoun
 				return
 			}
 
-			userID := GetUserID(r.Context())
+			userID := coremiddleware.GetUserID(r.Context())
 			if userID == uuid.Nil {
 				response.Unauthorized(w, "unauthorized")
 				return
@@ -141,7 +142,7 @@ func RequireChatLimit(checker SubscriptionLimitChecker) func(http.Handler) http.
 				return
 			}
 
-			userID := GetUserID(r.Context())
+			userID := coremiddleware.GetUserID(r.Context())
 			if userID == uuid.Nil {
 				response.Unauthorized(w, "unauthorized")
 				return
@@ -169,7 +170,7 @@ func RequirePhotoLimit(checker SubscriptionLimitChecker, counter PhotoCounter, p
 				return
 			}
 
-			userID := GetUserID(r.Context())
+			userID := coremiddleware.GetUserID(r.Context())
 			if userID == uuid.Nil {
 				response.Unauthorized(w, "unauthorized")
 				return
