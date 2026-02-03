@@ -23,6 +23,7 @@ type Entity struct {
 type Repository interface {
 	Create(ctx context.Context, exp *Entity) error
 	ListByProfileID(ctx context.Context, profileID string) ([]*Entity, error)
+	GetByID(ctx context.Context, id string) (*Entity, error)
 	Delete(ctx context.Context, id string) error
 }
 
@@ -57,6 +58,16 @@ func (r *repositoryImpl) ListByProfileID(ctx context.Context, profileID string) 
 		return nil, err
 	}
 	return experiences, nil
+}
+
+func (r *repositoryImpl) GetByID(ctx context.Context, id string) (*Entity, error) {
+	query := `SELECT * FROM work_experiences WHERE id = $1`
+	var exp Entity
+	err := r.db.GetContext(ctx, &exp, query, id)
+	if err != nil {
+		return nil, err
+	}
+	return &exp, nil
 }
 
 // Delete удаляет запись о работе по ID

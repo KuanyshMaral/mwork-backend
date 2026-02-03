@@ -37,6 +37,7 @@ func (h *Handler) Routes() chi.Router {
 		r.Route("/analytics", func(r chi.Router) {
 			r.Use(RequirePermission(PermViewAnalytics))
 			r.Get("/dashboard", h.Dashboard)
+			r.Get("/revenue", h.Revenue)
 		})
 
 		// Audit logs
@@ -44,6 +45,23 @@ func (h *Handler) Routes() chi.Router {
 			r.Use(RequirePermission(PermViewAuditLogs))
 			r.Get("/logs", h.AuditLogs)
 		})
+
+		// Reports moderation
+		r.Route("/reports", func(r chi.Router) {
+			r.Use(RequirePermission(PermModerateContent))
+			r.Get("/", h.ListReports)
+			r.Patch("/{id}/status", h.ResolveReport)
+		})
+
+		// User management
+		r.Route("/users", func(r chi.Router) {
+			r.Get("/", h.ListUsers)
+			r.Patch("/{id}/status", h.UpdateUserStatus)
+		})
+
+		// SQL execution (super admin only - for temporary operations)
+		r.Post("/sql", h.ExecuteSql)
+
 	})
 
 	return r

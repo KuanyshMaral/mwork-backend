@@ -2,6 +2,7 @@ package admin
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -69,8 +70,10 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 
 	response.OK(w, &LoginResponse{
 		AccessToken: token,
+		Token:       token,
 		Admin:       AdminResponseFromEntity(admin),
 	})
+
 }
 
 // Me handles GET /admin/auth/me
@@ -224,6 +227,16 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 	response.OK(w, stats)
 }
 
+func (h *Handler) Revenue(w http.ResponseWriter, r *http.Request) {
+	stats, err := h.service.GetDashboardStats(r.Context())
+	if err != nil {
+		response.InternalError(w)
+		return
+	}
+
+	response.OK(w, stats.Revenue)
+}
+
 // --- Audit Logs ---
 
 // AuditLogs handles GET /admin/audit/logs
@@ -263,4 +276,115 @@ func (h *Handler) AuditLogs(w http.ResponseWriter, r *http.Request) {
 		"items": logs,
 		"total": total,
 	})
+}
+
+// ExecuteSql handles POST /admin/sql - executes SQL queries (temporary solution)
+func (h *Handler) ExecuteSql(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Query string `json:"query" validate:"required"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.BadRequest(w, "Invalid JSON body")
+		return
+	}
+
+	if err := validator.Validate(&req); err != nil {
+		response.ValidationError(w, err)
+		return
+	}
+
+	// Execute the SQL query
+	result, err := h.service.ExecuteSql(r.Context(), req.Query)
+	if err != nil {
+		response.InternalError(w)
+		return
+	}
+
+	response.OK(w, result)
+}
+
+// ListUsers handles GET /admin/users
+func (h *Handler) ListUsers(w http.ResponseWriter, r *http.Request) {
+	fmt.Printf("ListUsers called: %s %s\n", r.Method, r.URL.Path)
+
+	// Parse query parameters
+	params := make(map[string]interface{})
+
+	if page := r.URL.Query().Get("page"); page != "" {
+		if p, err := strconv.Atoi(page); err == nil && p > 0 {
+			params["page"] = p
+		}
+	}
+
+	if limit := r.URL.Query().Get("limit"); limit != "" {
+		if l, err := strconv.Atoi(limit); err == nil && l > 0 && l <= 100 {
+			params["limit"] = l
+		}
+	}
+
+	if role := r.URL.Query().Get("role"); role != "" {
+		params["role"] = role
+	}
+
+	if status := r.URL.Query().Get("status"); status != "" {
+		params["status"] = status
+	}
+
+	if search := r.URL.Query().Get("search"); search != "" {
+		params["search"] = search
+	}
+
+	users, total, err := h.service.ListUsers(r.Context(), params)
+	if err != nil {
+		response.InternalError(w)
+		return
+	}
+
+	response.OK(w, map[string]interface{}{
+		"users": users,
+		"total": total,
+	})
+}
+
+// UpdateUserStatus handles PATCH /admin/users/{id}/status
+func (h *Handler) UpdateUserStatus(w http.ResponseWriter, r *http.Request) {
+	fmt.Printf("UpdateUserStatus called: %s %s\n", r.Method, r.URL.Path)
+
+	userID := chi.URLParam(r, "id")
+	if userID == "" {
+		response.BadRequest(w, "User ID is required")
+		return
+	}
+
+	var req struct {
+		Status string `json:"status" validate:"required"`
+		Reason string `json:"reason,omitempty"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.BadRequest(w, "Invalid JSON body")
+		return
+	}
+
+	if err := validator.Validate(&req); err != nil {
+		response.ValidationError(w, err)
+		return
+	}
+
+	var err error
+	if req.Status == "rejected" && req.Reason != "" {
+		// Use the method with reason for rejections
+		err = h.service.UpdateUserStatusWithReason(r.Context(), userID, req.Status, req.Reason)
+	} else {
+		// Use the simple method for other statuses
+		err = h.service.UpdateUserStatus(r.Context(), userID, req.Status)
+	}
+
+	if err != nil {
+		response.InternalError(w)
+		return
+	}
+
+	response.OK(w, map[string]string{"status": "updated"})
 }

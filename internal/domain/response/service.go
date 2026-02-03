@@ -11,12 +11,19 @@ import (
 	"github.com/mwork/mwork-api/internal/domain/profile"
 )
 
+// NotificationService interface for notification operations
+type NotificationService interface {
+	NotifyNewResponse(ctx context.Context, employerUserID uuid.UUID, castingID uuid.UUID, responseID uuid.UUID, castingTitle string, modelName string) error
+	NotifyResponseStatusChange(ctx context.Context, modelUserID uuid.UUID, castingTitle string, status string, castingID uuid.UUID, responseID uuid.UUID) error
+}
+
 // Service handles response business logic
 type Service struct {
 	repo         Repository
 	castingRepo  casting.Repository
 	modelRepo    profile.ModelRepository
 	employerRepo profile.EmployerRepository
+	notifService NotificationService
 }
 
 // NewService creates response service
@@ -27,6 +34,11 @@ func NewService(repo Repository, castingRepo casting.Repository, modelRepo profi
 		modelRepo:    modelRepo,
 		employerRepo: employerRepo,
 	}
+}
+
+// SetNotificationService sets the notification service (optional, to avoid circular dependency)
+func (s *Service) SetNotificationService(notifService NotificationService) {
+	s.notifService = notifService
 }
 
 // Apply applies to a casting
@@ -75,6 +87,31 @@ func (s *Service) Apply(ctx context.Context, userID uuid.UUID, castingID uuid.UU
 		return nil, err
 	}
 
+	// Send notification to employer about new response
+	if s.notifService != nil {
+		go func() {
+			// Use background context to avoid cancellation
+			bgCtx := context.Background()
+
+			// Get model details for notification
+			model, _ := s.modelRepo.GetByID(bgCtx, prof.ID)
+			modelName := "Модель"
+			if model != nil && model.Name.Valid && model.Name.String != "" {
+				modelName = model.Name.String
+			}
+
+			// Send notification
+			_ = s.notifService.NotifyNewResponse(
+				bgCtx,
+				cast.CreatorID,
+				castingID,
+				response.ID,
+				cast.Title,
+				modelName,
+			)
+		}()
+	}
+
 	return response, nil
 }
 
@@ -115,6 +152,32 @@ func (s *Service) UpdateStatus(ctx context.Context, userID uuid.UUID, responseID
 
 	resp.Status = newStatus
 	resp.UpdatedAt = time.Now()
+
+	// Send notification to model about status change
+	if s.notifService != nil && (newStatus == StatusAccepted || newStatus == StatusRejected) {
+		go func() {
+			// Use background context to avoid cancellation
+			bgCtx := context.Background()
+
+			// Get model's user ID
+			model, _ := s.modelRepo.GetByID(bgCtx, resp.ModelID)
+			if model != nil {
+				status := "accepted"
+				if newStatus == StatusRejected {
+					status = "rejected"
+				}
+
+				_ = s.notifService.NotifyResponseStatusChange(
+					bgCtx,
+					model.UserID,
+					cast.Title,
+					status,
+					cast.ID,
+					resp.ID,
+				)
+			}
+		}()
+	}
 
 	return resp, nil
 }
@@ -161,4 +224,9 @@ func (s *Service) ListMyApplications(ctx context.Context, userID uuid.UUID, pagi
 	}
 
 	return s.repo.ListByModel(ctx, prof.ID, pagination)
+}
+
+// CountMonthlyByUserID returns how many applications user made this month
+func (s *Service) CountMonthlyByUserID(ctx context.Context, userID uuid.UUID) (int, error) {
+	return s.repo.CountMonthlyByUserID(ctx, userID)
 }

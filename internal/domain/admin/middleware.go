@@ -63,6 +63,9 @@ func (s *JWTService) GenerateToken(admin *AdminUser) (string, error) {
 // ValidateToken validates admin JWT and returns claims
 func (s *JWTService) ValidateToken(tokenString string) (*AdminClaims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &AdminClaims{}, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, jwt.ErrSignatureInvalid
+		}
 		return s.secret, nil
 	})
 
@@ -88,8 +91,8 @@ func AuthMiddleware(jwtSvc *JWTService, adminSvc *Service) func(http.Handler) ht
 				return
 			}
 
-			parts := strings.Split(authHeader, " ")
-			if len(parts) != 2 || parts[0] != "Bearer" {
+			parts := strings.Fields(authHeader)
+			if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
 				response.Unauthorized(w, "Invalid authorization header format")
 				return
 			}

@@ -118,11 +118,18 @@ func (h *Handler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 	room, err := h.service.CreateOrGetRoom(r.Context(), userID, &req)
 	if err != nil {
+		if middleware.WriteLimitExceeded(w, err) {
+			return
+		}
 		switch err {
 		case ErrCannotChatSelf:
 			response.BadRequest(w, "Cannot start chat with yourself")
 		case ErrUserNotFound:
 			response.NotFound(w, "User not found")
+		case ErrUserBlocked:
+			response.Forbidden(w, "Cannot create chat - user is blocked")
+		case ErrEmployerNotVerified:
+			response.Forbidden(w, "Employer account is pending verification")
 		default:
 			response.InternalError(w)
 		}
@@ -223,11 +230,20 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 
 	msg, err := h.service.SendMessage(r.Context(), userID, roomID, &req)
 	if err != nil {
+		if middleware.WriteLimitExceeded(w, err) {
+			return
+		}
 		switch err {
 		case ErrRoomNotFound:
 			response.NotFound(w, "Room not found")
 		case ErrNotRoomMember:
 			response.Forbidden(w, "You are not a member of this chat")
+		case ErrUserBlocked:
+			response.Forbidden(w, "Cannot send message - user is blocked")
+		case ErrInvalidImageURL:
+			response.BadRequest(w, "Invalid image URL - must be a valid HTTP(S) URL")
+		case ErrEmployerNotVerified:
+			response.Forbidden(w, "Employer account is pending verification")
 		default:
 			response.InternalError(w)
 		}

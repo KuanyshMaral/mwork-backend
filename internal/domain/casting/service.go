@@ -11,10 +11,16 @@ import (
 	"github.com/mwork/mwork-api/internal/domain/user"
 )
 
+// NotificationService interface for notification operations
+type NotificationService interface {
+	NotifyAgencyFollowersNewCasting(ctx context.Context, organizationID uuid.UUID, castingID uuid.UUID, castingTitle string) error
+}
+
 // Service handles casting business logic
 type Service struct {
-	repo     Repository
-	userRepo user.Repository
+	repo         Repository
+	userRepo     user.Repository
+	notifService NotificationService
 }
 
 // NewService creates casting service
@@ -23,6 +29,11 @@ func NewService(repo Repository, userRepo user.Repository) *Service {
 		repo:     repo,
 		userRepo: userRepo,
 	}
+}
+
+// SetNotificationService sets the notification service (optional)
+func (s *Service) SetNotificationService(notifService NotificationService) {
+	s.notifService = notifService
 }
 
 // Create creates a new casting
@@ -34,6 +45,9 @@ func (s *Service) Create(ctx context.Context, userID uuid.UUID, req *CreateCasti
 	}
 	if !u.CanCreateCasting() {
 		return nil, ErrOnlyEmployersCanCreate
+	}
+	if (u.Role == user.RoleEmployer || u.Role == user.RoleAgency) && !u.IsVerificationApproved() {
+		return nil, ErrEmployerNotVerified
 	}
 
 	now := time.Now()
@@ -167,6 +181,9 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, re
 		if t, err := time.Parse(time.RFC3339, *req.DateTo); err == nil {
 			casting.DateTo = sql.NullTime{Time: t, Valid: true}
 		}
+	}
+	if req.CoverImageURL != "" {
+		casting.CoverImageURL = sql.NullString{String: req.CoverImageURL, Valid: true}
 	}
 
 	// Update requirements

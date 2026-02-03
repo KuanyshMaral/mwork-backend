@@ -2,7 +2,6 @@ package experience
 
 // CreateRequest represents add experience request
 type CreateRequest struct {
-	ProfileID   string `json:"profile_id" validate:"required,uuid"`
 	Title       string `json:"title" validate:"required,min=2,max=200"`
 	Company     string `json:"company" validate:"omitempty,max=200"`
 	Role        string `json:"role" validate:"omitempty,max=100"`

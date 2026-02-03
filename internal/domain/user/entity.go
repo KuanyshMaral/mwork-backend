@@ -13,10 +13,11 @@ type Role string
 const (
 	RoleModel    Role = "model"
 	RoleEmployer Role = "employer"
+	RoleAgency   Role = "agency"
 	RoleAdmin    Role = "admin"
 )
 
-// Status represents user status (matches user_status enum)
+// Status represents user status (legacy logical status used in code; users table uses is_banned)
 type Status string
 
 const (
@@ -24,6 +25,17 @@ const (
 	StatusActive    Status = "active"
 	StatusSuspended Status = "suspended"
 	StatusBanned    Status = "banned"
+)
+
+// VerificationStatus represents user's company verification state (matches user_verification_status enum)
+type VerificationStatus string
+
+const (
+	VerificationNone     VerificationStatus = "none"
+	VerificationPending  VerificationStatus = "pending"
+	VerificationInReview VerificationStatus = "in_review"
+	VerificationVerified VerificationStatus = "verified"
+	VerificationRejected VerificationStatus = "rejected"
 )
 
 // User represents a user account (matches actual users table)
@@ -34,6 +46,17 @@ type User struct {
 	Role          Role      `db:"role"`
 	EmailVerified bool      `db:"email_verified"`
 	IsBanned      bool      `db:"is_banned"`
+
+	// Optional link to organization (for verified employers)
+	OrganizationID uuid.NullUUID `db:"organization_id"`
+
+	// Employer/company verification flow
+	UserVerificationStatus  VerificationStatus `db:"user_verification_status"`
+	VerificationNotes       sql.NullString     `db:"verification_notes"`
+	VerificationRejection   sql.NullString     `db:"verification_rejection_reason"`
+	VerificationSubmittedAt sql.NullTime       `db:"verification_submitted_at"`
+	VerificationReviewedAt  sql.NullTime       `db:"verification_reviewed_at"`
+	VerificationReviewedBy  uuid.NullUUID      `db:"verification_reviewed_by"`
 
 	// Verification & Reset tokens
 	VerificationToken sql.NullString `db:"verification_token"`
@@ -63,6 +86,11 @@ func (u *User) IsEmployer() bool {
 	return u.Role == RoleEmployer
 }
 
+// IsAgency returns true if user is an agency
+func (u *User) IsAgency() bool {
+	return u.Role == RoleAgency
+}
+
 // IsAdmin returns true if user is an admin
 func (u *User) IsAdmin() bool {
 	return u.Role == RoleAdmin
@@ -73,9 +101,19 @@ func (u *User) IsActive() bool {
 	return !u.IsBanned
 }
 
+// IsCompanyVerified returns true if the user's company verification is approved
+func (u *User) IsCompanyVerified() bool {
+	return u.UserVerificationStatus == VerificationVerified
+}
+
+// IsVerificationApproved is an alias used by some domains (casting/chat)
+func (u *User) IsVerificationApproved() bool {
+	return u.IsCompanyVerified()
+}
+
 // CanCreateCasting returns true if user can create castings
 func (u *User) CanCreateCasting() bool {
-	return u.IsEmployer() || u.IsAdmin()
+	return u.IsEmployer() || u.IsAgency() || u.IsAdmin()
 }
 
 // CanApplyToCasting returns true if user can apply to castings

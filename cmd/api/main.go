@@ -22,7 +22,9 @@ import (
 	"github.com/mwork/mwork-api/internal/domain/chat"
 	"github.com/mwork/mwork-api/internal/domain/content"
 	"github.com/mwork/mwork-api/internal/domain/dashboard"
+	"github.com/mwork/mwork-api/internal/domain/experience"
 	"github.com/mwork/mwork-api/internal/domain/lead"
+	"github.com/mwork/mwork-api/internal/domain/moderation"
 	"github.com/mwork/mwork-api/internal/domain/notification"
 	"github.com/mwork/mwork-api/internal/domain/organization"
 	"github.com/mwork/mwork-api/internal/domain/payment"
@@ -78,15 +80,18 @@ func main() {
 	// ---------- Repositories ----------
 	userRepo := user.NewRepository(db)
 	modelRepo := profile.NewModelRepository(db)
+	experienceRepo := experience.NewRepository(db)
 	employerRepo := profile.NewEmployerRepository(db)
 	castingRepo := casting.NewRepository(db)
 	responseRepo := response.NewRepository(db)
 	photoRepo := photo.NewRepository(db)
 	chatRepo := chat.NewRepository(db)
+	moderationRepo := moderation.NewRepository(db)
 	notificationRepo := notification.NewRepository(db)
 	subscriptionRepo := subscription.NewRepository(db)
 	paymentRepo := payment.NewRepository(db)
 	dashboardRepo := dashboard.NewRepository(db)
+	dashboardSvc := dashboard.NewService(db)
 	promotionRepo := promotion.NewRepository(db)
 
 	// ---------- Upload domain (2-phase) ----------
@@ -121,7 +126,8 @@ func main() {
 	castingService := casting.NewService(castingRepo, userRepo)
 	responseService := response.NewService(responseRepo, castingRepo, modelRepo, employerRepo)
 	photoService := photo.NewService(photoRepo, modelRepo, uploadSvc)
-	chatService := chat.NewService(chatRepo, userRepo, chatHub)
+	moderationService := moderation.NewService(moderationRepo, userRepo)
+	var chatService *chat.Service
 	notificationService := notification.NewService(notificationRepo)
 	subscriptionService := subscription.NewService(subscriptionRepo, nil, nil, nil, nil)
 	paymentService := payment.NewService(paymentRepo, nil)
@@ -155,6 +161,8 @@ func main() {
 	// Update services with proper dependencies
 	subscriptionService = subscription.NewService(subscriptionRepo, subscriptionPhotoRepo, subscriptionResponseRepo, subscriptionCastingRepo, subscriptionProfileRepo)
 	paymentService = payment.NewService(paymentRepo, subscriptionService)
+	limitChecker := subscription.NewLimitChecker(subscriptionService)
+	chatService = chat.NewService(chatRepo, userRepo, chatHub, moderationService, limitChecker)
 
 	adminRepo := admin.NewRepository(db)
 	adminService := admin.NewService(adminRepo)
@@ -168,9 +176,11 @@ func main() {
 	authHandler := auth.NewHandler(authService)
 	profileHandler := profile.NewHandler(profileService)
 	castingHandler := casting.NewHandler(castingService, castingProfileService)
-	responseHandler := response.NewHandler(responseService)
+	experienceHandler := experience.NewHandler(experienceRepo, modelRepo)
+	responseHandler := response.NewHandler(responseService, limitChecker)
 	photoHandler := photo.NewHandler(photoService)
 	chatHandler := chat.NewHandler(chatService, chatHub, redis, cfg.AllowedOrigins)
+	moderationHandler := moderation.NewHandler(moderationService)
 	notificationHandler := notification.NewHandler(notificationService)
 
 	prefsRepo := notification.NewPreferencesRepository(db)
@@ -183,7 +193,7 @@ func main() {
 	})
 	paymentHandler := payment.NewHandler(paymentService, cfg.KaspiSecretKey)
 
-	dashboardHandler := dashboard.NewHandler(dashboardRepo)
+	dashboardHandler := dashboard.NewHandler(dashboardRepo, dashboardSvc)
 	promotionHandler := promotion.NewHandler(promotionRepo)
 
 	savedCastingsHandler := casting.NewSavedCastingsHandler(db)
@@ -193,11 +203,14 @@ func main() {
 	faqHandler := content.NewFAQHandler(db)
 
 	adminHandler := admin.NewHandler(adminService, adminJWTService)
-	moderationHandler := admin.NewModerationHandler(db, adminService)
+	adminModerationHandler := admin.NewModerationHandler(db, adminService)
 	leadHandler := lead.NewHandler(leadService)
 	userAdminHandler := admin.NewUserHandler(db, adminService)
 
 	authMiddleware := middleware.Auth(jwtService)
+	responseLimitMiddleware := middleware.RequireResponseLimit(limitChecker, &responseLimitCounter{repo: responseRepo})
+	chatLimitMiddleware := middleware.RequireChatLimit(limitChecker)
+	photoLimitMiddleware := middleware.RequirePhotoLimit(limitChecker, &photoLimitCounter{repo: photoRepo}, &modelProfileIDProvider{repo: modelRepo})
 
 	// ---------- Router ----------
 	r := chi.NewRouter()
@@ -251,14 +264,20 @@ func main() {
 
 		r.Route("/castings/{id}/responses", func(r chi.Router) {
 			r.Use(authMiddleware)
-			r.Post("/", responseHandler.Apply)
+			r.With(responseLimitMiddleware).Post("/", responseHandler.Apply)
 			r.Get("/", responseHandler.ListByCasting)
 		})
 		r.Mount("/responses", responseHandler.Routes(authMiddleware))
 
 		// legacy uploads/photos
 		r.Mount("/uploads", photoHandler.UploadRoutes(authMiddleware))
-		r.Mount("/photos", photoHandler.Routes(authMiddleware))
+		r.Route("/photos", func(r chi.Router) {
+			r.Use(authMiddleware)
+			r.With(photoLimitMiddleware).Post("/", photoHandler.ConfirmUpload)
+			r.Delete("/{id}", photoHandler.Delete)
+			r.Patch("/{id}/avatar", photoHandler.SetAvatar)
+			r.Patch("/reorder", photoHandler.Reorder)
+		})
 
 		// NEW: 2-phase file uploads
 		r.Route("/files", func(r chi.Router) {
@@ -278,6 +297,8 @@ func main() {
 
 		r.Get("/profiles/{id}/photos", photoHandler.ListByProfile)
 
+		r.Mount("/", experienceHandler.Routes(authMiddleware))
+
 		r.Route("/profiles/{id}/social-links", func(r chi.Router) {
 			r.Get("/", socialLinksHandler.List)
 			r.Group(func(r chi.Router) {
@@ -292,7 +313,18 @@ func main() {
 		r.Get("/profiles/{id}/reviews", reviewHandler.ListByProfile)
 		r.Get("/profiles/{id}/reviews/summary", reviewHandler.GetSummary)
 
-		r.Mount("/chat", chatHandler.Routes(authMiddleware))
+		r.Route("/chat", func(r chi.Router) {
+			r.Use(authMiddleware)
+			r.With(chatLimitMiddleware).Post("/rooms", chatHandler.CreateRoom)
+			r.Get("/rooms", chatHandler.ListRooms)
+
+			r.Get("/rooms/{id}/messages", chatHandler.GetMessages)
+			r.With(chatLimitMiddleware).Post("/rooms/{id}/messages", chatHandler.SendMessage)
+			r.Post("/rooms/{id}/read", chatHandler.MarkAsRead)
+
+			r.Get("/unread", chatHandler.GetUnreadCount)
+		})
+		r.Mount("/moderation", moderationHandler.Routes(authMiddleware))
 		r.Mount("/notifications", notificationHandler.Routes(authMiddleware))
 		r.Mount("/notifications/preferences", preferencesHandler.Routes(authMiddleware))
 
@@ -310,7 +342,13 @@ func main() {
 
 	r.Route("/api/admin", func(r chi.Router) {
 		r.Mount("/", adminHandler.Routes())
-		r.Mount("/moderation", moderationHandler.Routes(adminJWTService, adminService))
+		r.Mount("/moderation", adminModerationHandler.Routes(adminJWTService, adminService))
+
+		// User-facing moderation admin routes (reports)
+		adminAuthMiddleware := admin.AuthMiddleware(adminJWTService, adminService)
+		adminOnlyMiddleware := admin.RequirePermission(admin.PermModerateContent) // Using content moderation permission
+		r.Mount("/reports", moderationHandler.AdminRoutes(adminAuthMiddleware, adminOnlyMiddleware))
+
 		r.Mount("/leads", leadHandler.AdminRoutes(adminJWTService, adminService))
 		r.Mount("/users", userAdminHandler.Routes(adminJWTService, adminService))
 	})
@@ -456,15 +494,15 @@ type subscriptionPhotoAdapter struct {
 }
 
 func (a *subscriptionPhotoAdapter) CountByProfileID(ctx context.Context, profileID uuid.UUID) (int, error) {
-	return a.repo.CountByProfileID(ctx, profileID.String())
+	return a.repo.CountByProfile(ctx, profileID)
 }
 
 type subscriptionResponseAdapter struct {
 	repo response.Repository
 }
 
-func (a *subscriptionResponseAdapter) CountWeeklyByUserID(ctx context.Context, userID uuid.UUID) (int, error) {
-	return a.repo.CountWeeklyByUserID(ctx, userID.String())
+func (a *subscriptionResponseAdapter) CountMonthlyByUserID(ctx context.Context, userID uuid.UUID) (int, error) {
+	return a.repo.CountMonthlyByUserID(ctx, userID)
 }
 
 type subscriptionCastingAdapter struct {
@@ -489,4 +527,32 @@ func (a *subscriptionProfileAdapter) GetByUserID(ctx context.Context, userID uui
 		ID:     modelProfile.ID,
 		UserID: modelProfile.UserID,
 	}, nil
+}
+
+type responseLimitCounter struct {
+	repo response.Repository
+}
+
+func (a *responseLimitCounter) CountMonthlyByUserID(ctx context.Context, userID uuid.UUID) (int, error) {
+	return a.repo.CountMonthlyByUserID(ctx, userID)
+}
+
+type photoLimitCounter struct {
+	repo photo.Repository
+}
+
+func (a *photoLimitCounter) CountByProfileID(ctx context.Context, profileID uuid.UUID) (int, error) {
+	return a.repo.CountByProfile(ctx, profileID)
+}
+
+type modelProfileIDProvider struct {
+	repo profile.ModelRepository
+}
+
+func (a *modelProfileIDProvider) ProfileIDByUserID(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
+	modelProfile, err := a.repo.GetByUserID(ctx, userID)
+	if err != nil || modelProfile == nil {
+		return uuid.Nil, err
+	}
+	return modelProfile.ID, nil
 }

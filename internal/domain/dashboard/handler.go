@@ -15,11 +15,12 @@ import (
 // Handler handles dashboard HTTP requests
 type Handler struct {
 	repo *Repository
+	svc  *Service
 }
 
 // NewHandler creates new dashboard handler
-func NewHandler(repo *Repository) *Handler {
-	return &Handler{repo: repo}
+func NewHandler(repo *Repository, svc *Service) *Handler {
+	return &Handler{repo: repo, svc: svc}
 }
 
 // GetModelStats returns aggregated stats for model dashboard
@@ -40,12 +41,45 @@ func (h *Handler) GetModelStats(w http.ResponseWriter, r *http.Request) {
 	response.OK(w, stats)
 }
 
+func (h *Handler) GetEmployerStats(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+	if userID == uuid.Nil {
+		response.Unauthorized(w, "unauthorized")
+		return
+	}
+
+	stats, err := h.svc.GetEmployerStats(r.Context(), userID)
+	if err != nil {
+		response.InternalError(w)
+		return
+	}
+
+	castings := stats.CastingsCount
+	totalResponses := stats.TotalResponses
+
+	var responseRate float64
+	if castings > 0 {
+		responseRate = float64(totalResponses) / float64(castings)
+	}
+
+	response.OK(w, map[string]any{
+		"castings_count":  stats.CastingsCount,
+		"active_castings": stats.ActiveCastings,
+		"total_responses": stats.TotalResponses,
+		"total_views":     stats.TotalViews,
+		"messages_count":  stats.MessagesCount,
+		"new_messages":    stats.NewMessages,
+		"response_rate":   responseRate,
+	})
+}
+
 // Routes returns dashboard routes
 func Routes(h *Handler, authMiddleware func(http.Handler) http.Handler) chi.Router {
 	r := chi.NewRouter()
 	r.Use(authMiddleware)
 
 	r.Get("/model/stats", h.GetModelStats)
+	r.Get("/employer", h.GetEmployerStats)
 
 	return r
 }

@@ -35,8 +35,13 @@ func NewRepository(db *sqlx.DB) Repository {
 
 func (r *repository) Create(ctx context.Context, photo *Photo) error {
 	query := `
-		INSERT INTO photos (id, profile_id, key, url, original_name, mime_type, size_bytes, is_avatar, sort_order, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		INSERT INTO photos (
+			id, profile_id, key, url, original_name, mime_type, size_bytes,
+			is_avatar, sort_order,
+			caption, project_name, brand, year,
+			created_at
+		)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
 	`
 	_, err := r.db.ExecContext(ctx, query,
 		photo.ID,
@@ -48,8 +53,13 @@ func (r *repository) Create(ctx context.Context, photo *Photo) error {
 		photo.SizeBytes,
 		photo.IsAvatar,
 		photo.SortOrder,
+		photo.Caption,
+		photo.ProjectName,
+		photo.Brand,
+		photo.Year,
 		photo.CreatedAt,
 	)
+
 	return err
 }
 
