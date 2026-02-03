@@ -51,10 +51,16 @@ jobs:
           script: |
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME }}" --password-stdin
             
-            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-            
-            # Путь, который давал Бекзат
+            # Переходим в папку
             cd /srv/apps/mwork-backend
+            
+            # --- ВАЖНО: Скачиваем свежий docker-compose.yml из Гита ---
+            # (если попросит stash, то сбросим локальные изменения)
+            git reset --hard
+            git pull origin main
+            
+            # Скачиваем образ
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
             
             # Перезапускаем API
             docker compose up -d --no-deps --build api
