@@ -1,4 +1,4 @@
--- 000036_add_user_status.up.sql
+-- 000044_add_user_status.up.sql
 -- Add status column to users table for employer moderation
 
 -- Add status column to users table
