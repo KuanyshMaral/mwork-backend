@@ -1,4 +1,4 @@
--- 000036_add_user_status.down.sql
+-- 000044_add_user_status.down.sql
 -- Remove status columns from users table
 
 -- Drop indexes
