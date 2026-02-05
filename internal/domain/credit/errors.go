@@ -14,4 +14,6 @@ var (
 
 	// ErrTransactionFailed is returned when a transaction fails
 	ErrTransactionFailed = errors.New("credit transaction failed")
+
+	ErrInternal = errors.New("internal error")
 )

@@ -26,7 +26,6 @@ type TransactionMeta struct {
 }
 
 // Service interface defines the credit service operations
-// This will be implemented by Backend Dev 1
 type Service interface {
 	// Deduct atomically deducts credits from a user
 	// Returns ErrInsufficientCredits if balance is insufficient
@@ -41,4 +40,10 @@ type Service interface {
 	// HasRefund checks if a refund transaction already exists for a given response
 	// This is used for idempotency in B2: preventing duplicate refunds on rejection
 	HasRefund(ctx context.Context, responseID uuid.UUID) (bool, error)
+
+	// ListTransactions returns paginated transaction history for a user
+	ListTransactions(ctx context.Context, userID uuid.UUID, limit, offset int) ([]CreditTransaction, error)
+
+	// SearchTransactions returns filtered transactions (for admin use)
+	SearchTransactions(ctx context.Context, filters SearchFilters) ([]CreditTransaction, error)
 }
