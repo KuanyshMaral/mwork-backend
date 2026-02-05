@@ -25,6 +25,9 @@ const (
 	PermManageSubscriptions Permission = "subscriptions.manage"
 	PermRefundPayments      Permission = "payments.refund"
 
+	// Credits (B3: New permission for admin credit grants)
+	PermGrantCredits Permission = "credits.grant"
+
 	// System
 	PermViewAnalytics  Permission = "analytics.view"
 	PermManageFeatures Permission = "features.manage"
@@ -41,12 +44,14 @@ var RolePermissions = map[Role][]Permission{
 		PermViewOrganizations,
 		PermViewContent, PermModerateContent, PermDeleteContent,
 		PermViewSubscriptions, PermManageSubscriptions, PermRefundPayments,
+		PermGrantCredits, // B3: SuperAdmin can grant credits
 		PermViewAnalytics, PermManageFeatures, PermManageAdmins, PermViewAuditLogs,
 	},
 	RoleAdmin: {
 		PermViewUsers, PermBanUsers, PermVerifyUsers,
 		PermViewContent, PermModerateContent, PermDeleteContent,
 		PermViewSubscriptions, PermManageSubscriptions,
+		PermGrantCredits, // B3: Admin can grant credits
 		PermViewAnalytics, PermManageFeatures, PermViewAuditLogs,
 		PermViewOrganizations,
 		PermVerifyOrganizations,

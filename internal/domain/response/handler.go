@@ -31,6 +31,7 @@ func NewHandler(service *Service, limitChecker LimitChecker) *Handler {
 }
 
 // Apply handles POST /castings/{id}/responses
+// B1: Returns HTTP 402 when user has insufficient credits
 func (h *Handler) Apply(w http.ResponseWriter, r *http.Request) {
 	castingID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -79,6 +80,12 @@ func (h *Handler) Apply(w http.ResponseWriter, r *http.Request) {
 			response.BadRequest(w, "Casting is not active")
 		case ErrAlreadyApplied:
 			response.Conflict(w, "You have already applied to this casting")
+		case ErrInsufficientCredits:
+		// B1: HTTP 402 Payment Required for insufficient credits
+		case ErrInsufficientCredits:
+			// B1: HTTP 402 Payment Required for insufficient credits
+			// ✅ FIXED: Added error code parameter
+			response.Error(w, http.StatusPaymentRequired, "INSUFFICIENT_CREDITS", "Insufficient credits to apply to this casting")
 		default:
 			response.InternalError(w)
 		}

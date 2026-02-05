@@ -222,8 +222,9 @@ func main() {
 	reviewHandler := review.NewHandler(reviewRepo)
 	faqHandler := content.NewFAQHandler(db)
 
+	creditHandler := admin.NewCreditHandler(creditService, adminService)
 	photoStudioAdminHandler := admin.NewPhotoStudioHandler(db, photoStudioClient, photoStudioSyncEnabled, photoStudioTimeout)
-	adminHandler := admin.NewHandler(adminService, adminJWTService, photoStudioAdminHandler)
+	adminHandler := admin.NewHandler(adminService, adminJWTService, photoStudioAdminHandler, creditHandler)
 	adminModerationHandler := admin.NewModerationHandler(db, adminService)
 	leadHandler := lead.NewHandler(leadService)
 	userAdminHandler := admin.NewUserHandler(db, adminService)
