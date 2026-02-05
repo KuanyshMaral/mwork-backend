@@ -55,7 +55,7 @@ func (r *repository) Create(ctx context.Context, user *User) error {
 // GetByID returns user by ID
 func (r *repository) GetByID(ctx context.Context, id uuid.UUID) (*User, error) {
 	query := `
-		SELECT id, email, password_hash, role, email_verified, is_banned, 
+		SELECT id, email, password_hash, role, email_verified, is_banned, credit_balance,
 		       created_at, updated_at
 		FROM users WHERE id = $1
 	`
@@ -74,7 +74,7 @@ func (r *repository) GetByID(ctx context.Context, id uuid.UUID) (*User, error) {
 // GetByEmail returns user by email
 func (r *repository) GetByEmail(ctx context.Context, email string) (*User, error) {
 	query := `
-		SELECT id, email, password_hash, role, email_verified, is_banned, 
+		SELECT id, email, password_hash, role, email_verified, is_banned, credit_balance,
 		       created_at, updated_at
 		FROM users WHERE email = $1
 	`
