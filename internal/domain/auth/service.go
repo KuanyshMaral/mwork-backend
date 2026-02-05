@@ -75,6 +75,7 @@ func NewService(
 
 // Register creates new user account
 func (s *Service) Register(ctx context.Context, req *RegisterRequest) (*AuthResponse, error) {
+	req.Email = normalizeEmail(req.Email)
 	// 1. Check if email exists
 	existing, _ := s.userRepo.GetByEmail(ctx, req.Email)
 	if existing != nil {
@@ -120,6 +121,7 @@ func (s *Service) Register(ctx context.Context, req *RegisterRequest) (*AuthResp
 
 // RegisterAgency creates new agency user account with employer profile
 func (s *Service) RegisterAgency(ctx context.Context, req *AgencyRegisterRequest) (*AuthResponse, error) {
+	req.Email = normalizeEmail(req.Email)
 	// 1. Check if email exists
 	existing, _ := s.userRepo.GetByEmail(ctx, req.Email)
 	if existing != nil {
@@ -179,6 +181,7 @@ func (s *Service) RegisterAgency(ctx context.Context, req *AgencyRegisterRequest
 
 // Login authenticates user
 func (s *Service) Login(ctx context.Context, req *LoginRequest) (*AuthResponse, error) {
+	req.Email = normalizeEmail(req.Email)
 	// 1. Find user
 	u, err := s.userRepo.GetByEmail(ctx, req.Email)
 	if err != nil || u == nil {
