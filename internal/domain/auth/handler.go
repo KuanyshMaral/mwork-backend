@@ -120,7 +120,14 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	// Login
 	result, err := h.service.Login(r.Context(), &req)
 	if err != nil {
-		response.Unauthorized(w, "Invalid email or password")
+		switch err {
+		case ErrInvalidCredentials:
+			response.Unauthorized(w, "Invalid email or password")
+		case ErrUserBanned:
+			response.Forbidden(w, "Account is banned")
+		default:
+			response.InternalError(w)
+		}
 		return
 	}
 
