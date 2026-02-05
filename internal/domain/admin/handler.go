@@ -18,14 +18,16 @@ type Handler struct {
 	service            *Service
 	jwtSvc             *JWTService
 	photoStudioHandler *PhotoStudioHandler
+	creditHandler      *CreditHandler // ✅ FIXED: Added credit handler
 }
 
 // NewHandler creates admin handler
-func NewHandler(service *Service, jwtSvc *JWTService, photoStudioHandler *PhotoStudioHandler) *Handler {
+func NewHandler(service *Service, jwtSvc *JWTService, photoStudioHandler *PhotoStudioHandler, creditHandler *CreditHandler) *Handler {
 	return &Handler{
 		service:            service,
 		jwtSvc:             jwtSvc,
 		photoStudioHandler: photoStudioHandler,
+		creditHandler:      creditHandler, // ✅ FIXED: Initialize credit handler
 	}
 }
 

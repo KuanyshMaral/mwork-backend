@@ -21,6 +21,7 @@ import (
 	"github.com/mwork/mwork-api/internal/domain/casting"
 	"github.com/mwork/mwork-api/internal/domain/chat"
 	"github.com/mwork/mwork-api/internal/domain/content"
+	"github.com/mwork/mwork-api/internal/domain/credit"
 	"github.com/mwork/mwork-api/internal/domain/dashboard"
 	"github.com/mwork/mwork-api/internal/domain/experience"
 	"github.com/mwork/mwork-api/internal/domain/lead"
@@ -188,6 +189,15 @@ func main() {
 	adminService := admin.NewService(adminRepo)
 	adminJWTService := admin.NewJWTService(cfg.JWTSecret, 24*time.Hour)
 
+	// Credit service initialization
+	creditService := credit.NewService(db)
+
+	// Inject credit service into response service for B1 and B2
+	responseService.SetCreditService(creditService)
+
+	// B4: Inject credit service into payment service for credit purchases
+	paymentService.SetCreditService(creditService)
+
 	orgRepo := organization.NewRepository(db)
 	leadRepo := lead.NewRepository(db)
 	leadService := lead.NewService(leadRepo, orgRepo, userRepo)
@@ -222,8 +232,9 @@ func main() {
 	reviewHandler := review.NewHandler(reviewRepo)
 	faqHandler := content.NewFAQHandler(db)
 
+	creditHandler := admin.NewCreditHandler(creditService, adminService)
 	photoStudioAdminHandler := admin.NewPhotoStudioHandler(db, photoStudioClient, photoStudioSyncEnabled, photoStudioTimeout)
-	adminHandler := admin.NewHandler(adminService, adminJWTService, photoStudioAdminHandler)
+	adminHandler := admin.NewHandler(adminService, adminJWTService, photoStudioAdminHandler, creditHandler)
 	adminModerationHandler := admin.NewModerationHandler(db, adminService)
 	leadHandler := lead.NewHandler(leadService)
 	userAdminHandler := admin.NewUserHandler(db, adminService)

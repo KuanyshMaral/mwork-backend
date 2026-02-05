@@ -57,6 +57,13 @@ func (h *Handler) Routes() chi.Router {
 		r.Route("/users", func(r chi.Router) {
 			r.Get("/", h.ListUsers)
 			r.Patch("/{id}/status", h.UpdateUserStatus)
+
+			// B3: Credit management endpoints (requires credits.grant permission)
+			r.Route("/{id}/credits", func(r chi.Router) {
+				r.Use(RequirePermission(PermGrantCredits))
+				r.Post("/grant", h.creditHandler.GrantCredits)
+				r.Get("/", h.creditHandler.GetUserCredits)
+			})
 		})
 
 		// PhotoStudio sync

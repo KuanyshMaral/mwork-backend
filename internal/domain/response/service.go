@@ -3,11 +3,14 @@ package response
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/mwork/mwork-api/internal/domain/casting"
+	"github.com/mwork/mwork-api/internal/domain/credit"
 	"github.com/mwork/mwork-api/internal/domain/profile"
 )
 
@@ -24,6 +27,7 @@ type Service struct {
 	modelRepo    profile.ModelRepository
 	employerRepo profile.EmployerRepository
 	notifService NotificationService
+	creditSvc    credit.Service // ✅ FIXED: Using standard credit.Service interface
 }
 
 // NewService creates response service
@@ -41,7 +45,13 @@ func (s *Service) SetNotificationService(notifService NotificationService) {
 	s.notifService = notifService
 }
 
+// SetCreditService sets the credit service (optional, to avoid circular dependency)
+func (s *Service) SetCreditService(creditSvc credit.Service) { // ✅ FIXED: Using credit.Service
+	s.creditSvc = creditSvc
+}
+
 // Apply applies to a casting
+// B1: Credit deduction before creating response
 func (s *Service) Apply(ctx context.Context, userID uuid.UUID, castingID uuid.UUID, req *ApplyRequest) (*Response, error) {
 	// Get user's model profile
 	prof, err := s.modelRepo.GetByUserID(ctx, userID)
@@ -66,6 +76,25 @@ func (s *Service) Apply(ctx context.Context, userID uuid.UUID, castingID uuid.UU
 		return nil, ErrAlreadyApplied
 	}
 
+	// B1: DEDUCT CREDIT BEFORE CREATING RESPONSE
+	// This ensures no response is created without payment
+	if s.creditSvc != nil {
+		creditMeta := credit.TransactionMeta{ // ✅ FIXED: Using credit.TransactionMeta
+			RelatedEntityType: "casting",
+			RelatedEntityID:   castingID,
+			Description:       fmt.Sprintf("Applied to casting %s", cast.Title),
+		}
+
+		err := s.creditSvc.Deduct(ctx, userID, 1, creditMeta)
+		if err != nil {
+			// Check if it's insufficient credits error
+			if errors.Is(err, credit.ErrInsufficientCredits) { // ✅ FIXED: Using credit.ErrInsufficientCredits
+				return nil, ErrInsufficientCredits
+			}
+			return nil, err
+		}
+	}
+
 	now := time.Now()
 	response := &Response{
 		ID:        uuid.New(),
@@ -83,7 +112,20 @@ func (s *Service) Apply(ctx context.Context, userID uuid.UUID, castingID uuid.UU
 		response.ProposedRate = sql.NullFloat64{Float64: *req.ProposedRate, Valid: true}
 	}
 
-	if err := s.repo.Create(ctx, response); err != nil {
+	// Create response
+	err = s.repo.Create(ctx, response)
+	if err != nil {
+		// B1: AUTOMATIC ROLLBACK - Refund credit if response creation fails
+		if s.creditSvc != nil {
+			refundMeta := credit.TransactionMeta{ // ✅ FIXED: Using credit.TransactionMeta
+				RelatedEntityType: "response",
+				RelatedEntityID:   response.ID,
+				Description:       fmt.Sprintf("Automatic rollback refund for response %s", response.ID.String()),
+			}
+			// Use background context to ensure refund completes even if request is cancelled
+			bgCtx := context.Background()
+			_ = s.creditSvc.Add(bgCtx, userID, 1, credit.TransactionTypeRefund, refundMeta) // ✅ FIXED: Using credit.TransactionTypeRefund
+		}
 		return nil, err
 	}
 
@@ -116,6 +158,7 @@ func (s *Service) Apply(ctx context.Context, userID uuid.UUID, castingID uuid.UU
 }
 
 // UpdateStatus updates response status (casting owner only)
+// B2: Refund on rejected status with idempotency
 func (s *Service) UpdateStatus(ctx context.Context, userID uuid.UUID, responseID uuid.UUID, newStatus Status) (*Response, error) {
 	// Get response
 	resp, err := s.repo.GetByID(ctx, responseID)
@@ -145,6 +188,9 @@ func (s *Service) UpdateStatus(ctx context.Context, userID uuid.UUID, responseID
 		return nil, ErrInvalidStatusTransition
 	}
 
+	// Get old status for refund logic
+	oldStatus := resp.Status
+
 	// Update status
 	if err := s.repo.UpdateStatus(ctx, responseID, newStatus); err != nil {
 		return nil, err
@@ -152,6 +198,27 @@ func (s *Service) UpdateStatus(ctx context.Context, userID uuid.UUID, responseID
 
 	resp.Status = newStatus
 	resp.UpdatedAt = time.Now()
+
+	// B2: REFUND ON REJECTION WITH IDEMPOTENCY
+	// Only refund when transitioning to rejected status
+	if s.creditSvc != nil && newStatus == StatusRejected && oldStatus == StatusPending {
+		// Check idempotency - ensure we don't refund twice
+		hasRefund, err := s.creditSvc.HasRefund(ctx, responseID) // ✅ FIXED: Using standard HasRefund method
+		if err == nil && !hasRefund {
+			// Get model's user ID for refund
+			model, err := s.modelRepo.GetByID(ctx, resp.ModelID)
+			if err == nil && model != nil {
+				refundMeta := credit.TransactionMeta{ // ✅ FIXED: Using credit.TransactionMeta
+					RelatedEntityType: "response",
+					RelatedEntityID:   responseID,
+					Description:       fmt.Sprintf("Refund due to rejection for response %s", responseID.String()),
+				}
+
+				// Refund 1 credit
+				_ = s.creditSvc.Add(ctx, model.UserID, 1, credit.TransactionTypeRefund, refundMeta) // ✅ FIXED: Using credit.TransactionTypeRefund
+			}
+		}
+	}
 
 	// Send notification to model about status change
 	if s.notifService != nil && (newStatus == StatusAccepted || newStatus == StatusRejected) {
