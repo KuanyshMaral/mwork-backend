@@ -3,6 +3,7 @@ package config
 import (
 	"log"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -41,6 +42,12 @@ type Config struct {
 	KaspiBaseURL    string
 	KaspiMerchantID string
 	KaspiSecretKey  string
+
+	// PhotoStudio
+	PhotoStudioBaseURL        string
+	PhotoStudioToken          string
+	PhotoStudioSyncEnabled    bool
+	PhotoStudioTimeoutSeconds int
 
 	// Logging
 	LogLevel string
@@ -86,6 +93,12 @@ func Load() *Config {
 		KaspiMerchantID: getEnv("KASPI_MERCHANT_ID", ""),
 		KaspiSecretKey:  getEnv("KASPI_SECRET_KEY", ""),
 
+		// PhotoStudio
+		PhotoStudioBaseURL:        getEnv("PHOTOSTUDIO_BASE_URL", ""),
+		PhotoStudioToken:          getEnv("PHOTOSTUDIO_TOKEN", ""),
+		PhotoStudioSyncEnabled:    parseBool(getEnv("PHOTOSTUDIO_SYNC_ENABLED", "false"), false),
+		PhotoStudioTimeoutSeconds: parseInt(getEnv("PHOTOSTUDIO_TIMEOUT_SECONDS", "10"), 10),
+
 		// Logging
 		LogLevel: getEnv("LOG_LEVEL", "debug"),
 	}
@@ -104,6 +117,22 @@ func parseDuration(s string) time.Duration {
 		return 15 * time.Minute
 	}
 	return d
+}
+
+func parseBool(s string, defaultValue bool) bool {
+	value, err := strconv.ParseBool(s)
+	if err != nil {
+		return defaultValue
+	}
+	return value
+}
+
+func parseInt(s string, defaultValue int) int {
+	value, err := strconv.Atoi(s)
+	if err != nil {
+		return defaultValue
+	}
+	return value
 }
 
 func parseStringSlice(s string) []string {

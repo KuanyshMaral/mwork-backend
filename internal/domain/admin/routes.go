@@ -59,6 +59,12 @@ func (h *Handler) Routes() chi.Router {
 			r.Patch("/{id}/status", h.UpdateUserStatus)
 		})
 
+		// PhotoStudio sync
+		r.Route("/photostudio", func(r chi.Router) {
+			r.Use(RequirePermission(PermViewUsers))
+			r.Post("/resync", h.ResyncPhotoStudioUsers)
+		})
+
 		// SQL execution (super admin only - for temporary operations)
 		r.Post("/sql", h.ExecuteSql)
 

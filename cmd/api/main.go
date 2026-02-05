@@ -40,6 +40,7 @@ import (
 	"github.com/mwork/mwork-api/internal/pkg/database"
 	"github.com/mwork/mwork-api/internal/pkg/jwt"
 	"github.com/mwork/mwork-api/internal/pkg/kaspi"
+	"github.com/mwork/mwork-api/internal/pkg/photostudio"
 	pkgresponse "github.com/mwork/mwork-api/internal/pkg/response"
 	"github.com/mwork/mwork-api/internal/pkg/storage"
 	"github.com/mwork/mwork-api/internal/pkg/upload"
@@ -120,8 +121,19 @@ func main() {
 	chatHub := chat.NewHub(redis)
 	go chatHub.Run()
 
+	photoStudioTimeout := time.Duration(cfg.PhotoStudioTimeoutSeconds) * time.Second
+	photoStudioSyncEnabled := cfg.PhotoStudioSyncEnabled && cfg.PhotoStudioBaseURL != ""
+	var photoStudioClient auth.PhotoStudioClient
+	if photoStudioSyncEnabled {
+		photoStudioClient = photostudio.NewClient(
+			cfg.PhotoStudioBaseURL,
+			cfg.PhotoStudioToken,
+			photoStudioTimeout,
+			"MWork/1.0.0 photostudio-sync",
+		)
+	}
+
 	// ---------- Services ----------
-	authService := auth.NewService(userRepo, jwtService, redis, nil)
 	profileService := profile.NewService(modelRepo, employerRepo, userRepo)
 	castingService := casting.NewService(castingRepo, userRepo)
 	responseService := response.NewService(responseRepo, castingRepo, modelRepo, employerRepo)
@@ -156,7 +168,15 @@ func main() {
 	})}
 
 	// Update authService with authEmployerRepo
-	authService = auth.NewService(userRepo, jwtService, redis, authEmployerRepo)
+	authService := auth.NewService(
+		userRepo,
+		jwtService,
+		redis,
+		authEmployerRepo,
+		photoStudioClient,
+		photoStudioSyncEnabled,
+		photoStudioTimeout,
+	)
 
 	// Update services with proper dependencies
 	subscriptionService = subscription.NewService(subscriptionRepo, subscriptionPhotoRepo, subscriptionResponseRepo, subscriptionCastingRepo, subscriptionProfileRepo)
@@ -202,7 +222,8 @@ func main() {
 	reviewHandler := review.NewHandler(reviewRepo)
 	faqHandler := content.NewFAQHandler(db)
 
-	adminHandler := admin.NewHandler(adminService, adminJWTService)
+	photoStudioAdminHandler := admin.NewPhotoStudioHandler(db, photoStudioClient, photoStudioSyncEnabled, photoStudioTimeout)
+	adminHandler := admin.NewHandler(adminService, adminJWTService, photoStudioAdminHandler)
 	adminModerationHandler := admin.NewModerationHandler(db, adminService)
 	leadHandler := lead.NewHandler(leadService)
 	userAdminHandler := admin.NewUserHandler(db, adminService)

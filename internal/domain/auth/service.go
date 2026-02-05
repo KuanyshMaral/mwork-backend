@@ -8,18 +8,23 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
+	"github.com/rs/zerolog/log"
 
 	"github.com/mwork/mwork-api/internal/domain/user"
 	"github.com/mwork/mwork-api/internal/pkg/jwt"
 	"github.com/mwork/mwork-api/internal/pkg/password"
+	"github.com/mwork/mwork-api/internal/pkg/photostudio"
 )
 
 // Service handles authentication business logic
 type Service struct {
-	userRepo         user.Repository
-	jwtService       *jwt.Service
-	redis            *redis.Client // nil if Redis disabled
-	employerProfRepo EmployerProfileRepository
+	userRepo               user.Repository
+	jwtService             *jwt.Service
+	redis                  *redis.Client // nil if Redis disabled
+	employerProfRepo       EmployerProfileRepository
+	photoStudioClient      PhotoStudioClient
+	photoStudioSyncEnabled bool
+	photoStudioTimeout     time.Duration
 }
 
 // EmployerProfileRepository defines employer profile operations needed by auth
@@ -39,13 +44,32 @@ type EmployerProfile struct {
 	UpdatedAt     time.Time
 }
 
+// PhotoStudioClient defines PhotoStudio sync client interface.
+type PhotoStudioClient interface {
+	SyncUser(ctx context.Context, payload photostudio.SyncUserPayload) error
+}
+
 // NewService creates auth service
-func NewService(userRepo user.Repository, jwtService *jwt.Service, redis *redis.Client, employerProfRepo EmployerProfileRepository) *Service {
+func NewService(
+	userRepo user.Repository,
+	jwtService *jwt.Service,
+	redis *redis.Client,
+	employerProfRepo EmployerProfileRepository,
+	photoStudioClient PhotoStudioClient,
+	photoStudioSyncEnabled bool,
+	photoStudioTimeout time.Duration,
+) *Service {
+	if photoStudioTimeout <= 0 {
+		photoStudioTimeout = 10 * time.Second
+	}
 	return &Service{
-		userRepo:         userRepo,
-		jwtService:       jwtService,
-		redis:            redis,
-		employerProfRepo: employerProfRepo,
+		userRepo:               userRepo,
+		jwtService:             jwtService,
+		redis:                  redis,
+		employerProfRepo:       employerProfRepo,
+		photoStudioClient:      photoStudioClient,
+		photoStudioSyncEnabled: photoStudioSyncEnabled,
+		photoStudioTimeout:     photoStudioTimeout,
 	}
 }
 
@@ -83,6 +107,12 @@ func (s *Service) Register(ctx context.Context, req *RegisterRequest) (*AuthResp
 	if err := s.userRepo.Create(ctx, u); err != nil {
 		return nil, err
 	}
+
+	s.syncPhotoStudioUser(photostudio.SyncUserPayload{
+		MWorkUserID: u.ID.String(),
+		Email:       u.Email,
+		Role:        string(u.Role),
+	})
 
 	// 5. Generate tokens
 	return s.generateTokens(ctx, u)
@@ -136,6 +166,12 @@ func (s *Service) RegisterAgency(ctx context.Context, req *AgencyRegisterRequest
 		_ = s.userRepo.Delete(ctx, u.ID)
 		return nil, err
 	}
+
+	s.syncPhotoStudioUser(photostudio.SyncUserPayload{
+		MWorkUserID: u.ID.String(),
+		Email:       u.Email,
+		Role:        string(u.Role),
+	})
 
 	// 5. Generate tokens
 	return s.generateTokens(ctx, u)
@@ -239,6 +275,39 @@ func (s *Service) generateTokens(ctx context.Context, u *user.User) (*AuthRespon
 			ExpiresIn:    int(s.jwtService.GetAccessTTL().Seconds()),
 		},
 	}, nil
+}
+
+func (s *Service) syncPhotoStudioUser(payload photostudio.SyncUserPayload) {
+	if !s.photoStudioSyncEnabled || s.photoStudioClient == nil || payload.MWorkUserID == "" {
+		return
+	}
+
+	go func(p photostudio.SyncUserPayload) {
+		ctx, cancel := context.WithTimeout(context.Background(), s.photoStudioTimeout)
+		defer cancel()
+
+		start := time.Now()
+		err := s.photoStudioClient.SyncUser(ctx, p)
+		duration := time.Since(start)
+
+		if err != nil {
+			log.Warn().
+				Err(err).
+				Str("user_id", p.MWorkUserID).
+				Str("email", p.Email).
+				Str("role", p.Role).
+				Dur("duration", duration).
+				Msg("photostudio sync failed")
+			return
+		}
+
+		log.Info().
+			Str("user_id", p.MWorkUserID).
+			Str("email", p.Email).
+			Str("role", p.Role).
+			Dur("duration", duration).
+			Msg("photostudio sync ok")
+	}(payload)
 }
 
 // Redis helpers (handle nil redis gracefully)
