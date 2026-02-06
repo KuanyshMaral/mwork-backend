@@ -46,6 +46,7 @@ type User struct {
 	Role          Role      `db:"role"`
 	EmailVerified bool      `db:"email_verified"`
 	IsBanned      bool      `db:"is_banned"`
+	CreditBalance int       `db:"credit_balance"`
 
 	// Optional link to organization (for verified employers)
 	OrganizationID uuid.NullUUID `db:"organization_id"`
