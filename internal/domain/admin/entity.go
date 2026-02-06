@@ -57,6 +57,7 @@ type AuditLog struct {
 	EntityID   uuid.NullUUID   `db:"entity_id" json:"entity_id,omitempty"`
 	OldValue   json.RawMessage `db:"old_value" json:"old_value,omitempty"`
 	NewValue   json.RawMessage `db:"new_value" json:"new_value,omitempty"`
+	Details    json.RawMessage `db:"details" json:"details,omitempty"` // ✅ FIXED: Added Details field
 	Reason     sql.NullString  `db:"reason" json:"reason,omitempty"`
 	IPAddress  sql.NullString  `db:"ip_address" json:"ip_address,omitempty"`
 	UserAgent  sql.NullString  `db:"user_agent" json:"user_agent,omitempty"`

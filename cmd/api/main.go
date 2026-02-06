@@ -21,6 +21,7 @@ import (
 	"github.com/mwork/mwork-api/internal/domain/casting"
 	"github.com/mwork/mwork-api/internal/domain/chat"
 	"github.com/mwork/mwork-api/internal/domain/content"
+	"github.com/mwork/mwork-api/internal/domain/credit"
 	"github.com/mwork/mwork-api/internal/domain/dashboard"
 	"github.com/mwork/mwork-api/internal/domain/experience"
 	"github.com/mwork/mwork-api/internal/domain/lead"
@@ -40,6 +41,7 @@ import (
 	"github.com/mwork/mwork-api/internal/pkg/database"
 	"github.com/mwork/mwork-api/internal/pkg/jwt"
 	"github.com/mwork/mwork-api/internal/pkg/kaspi"
+	"github.com/mwork/mwork-api/internal/pkg/photostudio"
 	pkgresponse "github.com/mwork/mwork-api/internal/pkg/response"
 	"github.com/mwork/mwork-api/internal/pkg/storage"
 	"github.com/mwork/mwork-api/internal/pkg/upload"
@@ -120,8 +122,19 @@ func main() {
 	chatHub := chat.NewHub(redis)
 	go chatHub.Run()
 
+	photoStudioTimeout := time.Duration(cfg.PhotoStudioTimeoutSeconds) * time.Second
+	photoStudioSyncEnabled := cfg.PhotoStudioSyncEnabled && cfg.PhotoStudioBaseURL != ""
+	var photoStudioClient auth.PhotoStudioClient
+	if photoStudioSyncEnabled {
+		photoStudioClient = photostudio.NewClient(
+			cfg.PhotoStudioBaseURL,
+			cfg.PhotoStudioToken,
+			photoStudioTimeout,
+			"MWork/1.0.0 photostudio-sync",
+		)
+	}
+
 	// ---------- Services ----------
-	authService := auth.NewService(userRepo, jwtService, redis, nil)
 	profileService := profile.NewService(modelRepo, employerRepo, userRepo)
 	castingService := casting.NewService(castingRepo, userRepo)
 	responseService := response.NewService(responseRepo, castingRepo, modelRepo, employerRepo)
@@ -156,7 +169,15 @@ func main() {
 	})}
 
 	// Update authService with authEmployerRepo
-	authService = auth.NewService(userRepo, jwtService, redis, authEmployerRepo)
+	authService := auth.NewService(
+		userRepo,
+		jwtService,
+		redis,
+		authEmployerRepo,
+		photoStudioClient,
+		photoStudioSyncEnabled,
+		photoStudioTimeout,
+	)
 
 	// Update services with proper dependencies
 	subscriptionService = subscription.NewService(subscriptionRepo, subscriptionPhotoRepo, subscriptionResponseRepo, subscriptionCastingRepo, subscriptionProfileRepo)
@@ -167,6 +188,15 @@ func main() {
 	adminRepo := admin.NewRepository(db)
 	adminService := admin.NewService(adminRepo)
 	adminJWTService := admin.NewJWTService(cfg.JWTSecret, 24*time.Hour)
+
+	// Credit service initialization
+	creditService := credit.NewService(db)
+
+	// Inject credit service into response service for B1 and B2
+	responseService.SetCreditService(creditService)
+
+	// B4: Inject credit service into payment service for credit purchases
+	paymentService.SetCreditService(creditService)
 
 	orgRepo := organization.NewRepository(db)
 	leadRepo := lead.NewRepository(db)
@@ -202,7 +232,9 @@ func main() {
 	reviewHandler := review.NewHandler(reviewRepo)
 	faqHandler := content.NewFAQHandler(db)
 
-	adminHandler := admin.NewHandler(adminService, adminJWTService)
+	creditHandler := admin.NewCreditHandler(creditService, adminService)
+	photoStudioAdminHandler := admin.NewPhotoStudioHandler(db, photoStudioClient, photoStudioSyncEnabled, photoStudioTimeout)
+	adminHandler := admin.NewHandler(adminService, adminJWTService, photoStudioAdminHandler, creditHandler)
 	adminModerationHandler := admin.NewModerationHandler(db, adminService)
 	leadHandler := lead.NewHandler(leadService)
 	userAdminHandler := admin.NewUserHandler(db, adminService)

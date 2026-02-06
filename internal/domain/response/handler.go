@@ -3,6 +3,7 @@ package response
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -31,6 +32,7 @@ func NewHandler(service *Service, limitChecker LimitChecker) *Handler {
 }
 
 // Apply handles POST /castings/{id}/responses
+// B1: Returns HTTP 402 when user has insufficient credits
 func (h *Handler) Apply(w http.ResponseWriter, r *http.Request) {
 	castingID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -68,17 +70,21 @@ func (h *Handler) Apply(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.service.Apply(r.Context(), userID, castingID, &req)
 	if err != nil {
-		switch err {
-		case ErrProfileRequired:
+		switch {
+		case errors.Is(err, ErrProfileRequired):
 			response.BadRequest(w, "You need to create a profile first")
-		case ErrOnlyModelsCanApply:
+		case errors.Is(err, ErrOnlyModelsCanApply):
 			response.Forbidden(w, "Only models can apply to castings")
-		case ErrCastingNotFound:
+		case errors.Is(err, ErrCastingNotFound):
 			response.NotFound(w, "Casting not found")
-		case ErrCastingNotActive:
+		case errors.Is(err, ErrCastingNotActive):
 			response.BadRequest(w, "Casting is not active")
-		case ErrAlreadyApplied:
+		case errors.Is(err, ErrAlreadyApplied):
 			response.Conflict(w, "You have already applied to this casting")
+		case errors.Is(err, ErrInsufficientCredits):
+			// B1: HTTP 402 Payment Required for insufficient credits
+			// ✅ FIXED: Added error code parameter
+			response.Error(w, http.StatusPaymentRequired, "INSUFFICIENT_CREDITS", "Insufficient credits to apply to this casting")
 		default:
 			response.InternalError(w)
 		}
@@ -115,10 +121,10 @@ func (h *Handler) ListByCasting(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 	responses, total, err := h.service.ListByCasting(r.Context(), userID, castingID, pagination)
 	if err != nil {
-		switch err {
-		case ErrCastingNotFound:
+		switch {
+		case errors.Is(err, ErrCastingNotFound):
 			response.NotFound(w, "Casting not found")
-		case ErrNotCastingOwner:
+		case errors.Is(err, ErrNotCastingOwner):
 			response.Forbidden(w, "Only the casting owner can view responses")
 		default:
 			response.InternalError(w)
@@ -163,12 +169,12 @@ func (h *Handler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 	resp, err := h.service.UpdateStatus(r.Context(), userID, responseID, Status(req.Status))
 	if err != nil {
-		switch err {
-		case ErrResponseNotFound:
+		switch {
+		case errors.Is(err, ErrResponseNotFound):
 			response.NotFound(w, "Response not found")
-		case ErrNotCastingOwner:
+		case errors.Is(err, ErrNotCastingOwner):
 			response.Forbidden(w, "Only the casting owner can update response status")
-		case ErrInvalidStatusTransition:
+		case errors.Is(err, ErrInvalidStatusTransition):
 			response.BadRequest(w, "Invalid status transition")
 		default:
 			response.InternalError(w)
@@ -200,8 +206,8 @@ func (h *Handler) ListMyApplications(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 	responses, total, err := h.service.ListMyApplications(r.Context(), userID, pagination)
 	if err != nil {
-		switch err {
-		case ErrProfileRequired:
+		switch {
+		case errors.Is(err, ErrProfileRequired):
 			response.BadRequest(w, "You need to create a profile first")
 		default:
 			response.InternalError(w)

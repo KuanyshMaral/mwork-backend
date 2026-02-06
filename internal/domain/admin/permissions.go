@@ -25,11 +25,15 @@ const (
 	PermManageSubscriptions Permission = "subscriptions.manage"
 	PermRefundPayments      Permission = "payments.refund"
 
+	// Credits (B3: New permission for admin credit grants)
+	PermGrantCredits Permission = "credits.grant"
+
 	// System
-	PermViewAnalytics  Permission = "analytics.view"
-	PermManageFeatures Permission = "features.manage"
-	PermManageAdmins   Permission = "admins.manage"
-	PermViewAuditLogs  Permission = "audit.view"
+	PermViewAnalytics    Permission = "analytics.view"
+	PermManageFeatures   Permission = "features.manage"
+	PermManageAdmins     Permission = "admins.manage"
+	PermViewAuditLogs    Permission = "audit.view"
+	PermReconcileCredits Permission = "credits.reconcile"
 )
 
 // RolePermissions maps roles to their permissions
@@ -41,13 +45,15 @@ var RolePermissions = map[Role][]Permission{
 		PermViewOrganizations,
 		PermViewContent, PermModerateContent, PermDeleteContent,
 		PermViewSubscriptions, PermManageSubscriptions, PermRefundPayments,
-		PermViewAnalytics, PermManageFeatures, PermManageAdmins, PermViewAuditLogs,
+		PermGrantCredits, // B3: SuperAdmin can grant credits
+		PermViewAnalytics, PermManageFeatures, PermManageAdmins, PermViewAuditLogs, PermReconcileCredits,
 	},
 	RoleAdmin: {
 		PermViewUsers, PermBanUsers, PermVerifyUsers,
 		PermViewContent, PermModerateContent, PermDeleteContent,
 		PermViewSubscriptions, PermManageSubscriptions,
-		PermViewAnalytics, PermManageFeatures, PermViewAuditLogs,
+		PermGrantCredits, // B3: Admin can grant credits
+		PermViewAnalytics, PermManageFeatures, PermViewAuditLogs, PermReconcileCredits,
 		PermViewOrganizations,
 		PermVerifyOrganizations,
 	},

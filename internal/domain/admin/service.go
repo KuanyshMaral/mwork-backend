@@ -279,6 +279,30 @@ func (s *Service) ListAuditLogs(ctx context.Context, filter AuditFilter) ([]*Aud
 	return s.repo.ListAuditLogs(ctx, filter)
 }
 
+// LogAdminAction logs an admin action
+// Wrapper method for credit handler audit logging
+func (s *Service) LogAdminAction(ctx context.Context, log AuditLog) error {
+	// Set timestamp if not set
+	if log.CreatedAt.IsZero() {
+		log.CreatedAt = time.Now()
+	}
+
+	// Set ID if not set
+	if log.ID == uuid.Nil {
+		log.ID = uuid.New()
+	}
+
+	// Get admin email if we have admin ID but no email
+	if log.AdminID.Valid && log.AdminEmail == "" {
+		admin, err := s.repo.GetAdminByID(ctx, log.AdminID.UUID)
+		if err == nil && admin != nil {
+			log.AdminEmail = admin.Email
+		}
+	}
+
+	return s.repo.CreateAuditLog(ctx, &log)
+}
+
 // logAction creates an audit log entry
 func (s *Service) logAction(ctx context.Context, adminID uuid.UUID, action, entityType string, entityID uuid.UUID, oldValue, newValue interface{}) {
 	admin, _ := s.repo.GetAdminByID(ctx, adminID)

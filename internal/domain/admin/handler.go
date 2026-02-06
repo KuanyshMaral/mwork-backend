@@ -15,16 +15,29 @@ import (
 
 // Handler handles admin HTTP requests
 type Handler struct {
-	service *Service
-	jwtSvc  *JWTService
+	service            *Service
+	jwtSvc             *JWTService
+	photoStudioHandler *PhotoStudioHandler
+	creditHandler      *CreditHandler // ✅ FIXED: Added credit handler
 }
 
 // NewHandler creates admin handler
-func NewHandler(service *Service, jwtSvc *JWTService) *Handler {
+func NewHandler(service *Service, jwtSvc *JWTService, photoStudioHandler *PhotoStudioHandler, creditHandler *CreditHandler) *Handler {
 	return &Handler{
-		service: service,
-		jwtSvc:  jwtSvc,
+		service:            service,
+		jwtSvc:             jwtSvc,
+		photoStudioHandler: photoStudioHandler,
+		creditHandler:      creditHandler, // ✅ FIXED: Initialize credit handler
 	}
+}
+
+// ResyncPhotoStudioUsers handles POST /admin/photostudio/resync
+func (h *Handler) ResyncPhotoStudioUsers(w http.ResponseWriter, r *http.Request) {
+	if h.photoStudioHandler == nil {
+		response.BadRequest(w, "photostudio sync is disabled")
+		return
+	}
+	h.photoStudioHandler.ResyncUsers(w, r)
 }
 
 // --- Authentication ---
