@@ -181,23 +181,35 @@ func (s *Service) RegisterAgency(ctx context.Context, req *AgencyRegisterRequest
 
 // Login authenticates user
 func (s *Service) Login(ctx context.Context, req *LoginRequest) (*AuthResponse, error) {
-	req.Email = normalizeEmail(req.Email)
+	log.Info().Str("email", req.Email).Msg("Login attempt")
+
 	// 1. Find user
 	u, err := s.userRepo.GetByEmail(ctx, req.Email)
-	if err != nil || u == nil {
+	if err != nil {
+		log.Error().Err(err).Str("email", req.Email).Msg("Database error during user lookup")
+		return nil, ErrInvalidCredentials
+	}
+	if u == nil {
+		log.Warn().Str("email", req.Email).Msg("User not found")
 		return nil, ErrInvalidCredentials
 	}
 
+	log.Info().Str("user_id", u.ID.String()).Str("email", u.Email).Msg("User found")
+
 	// 2. Verify password
-	if !password.Verify(req.Password, u.PasswordHash) {
+	passwordValid := password.Verify(req.Password, u.PasswordHash)
+	if !passwordValid {
+		log.Warn().Str("email", req.Email).Msg("Password verification failed")
 		return nil, ErrInvalidCredentials
 	}
 
 	// Check if banned
 	if u.IsBanned {
+		log.Warn().Str("email", req.Email).Msg("User is banned")
 		return nil, ErrUserBanned
 	}
 
+	log.Info().Str("email", req.Email).Msg("Login successful")
 	// 3. Generate tokens
 	return s.generateTokens(ctx, u)
 }
