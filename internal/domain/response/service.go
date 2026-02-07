@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -100,6 +101,10 @@ func (s *Service) Apply(ctx context.Context, userID uuid.UUID, castingID uuid.UU
 	existing, _ := s.repo.GetByModelAndCasting(ctx, prof.ID, castingID)
 	if existing != nil {
 		return nil, ErrAlreadyApplied
+	}
+
+	if isUrgentDifferentCity(cast, prof) {
+		return nil, ErrGeoBlocked
 	}
 
 	// B1: DEDUCT CREDIT BEFORE CREATING RESPONSE
@@ -218,8 +223,31 @@ func (s *Service) UpdateStatus(ctx context.Context, userID uuid.UUID, responseID
 	oldStatus := resp.Status
 
 	// Update status
-	if err := s.repo.UpdateStatus(ctx, responseID, newStatus); err != nil {
-		return nil, err
+	if newStatus == StatusAccepted && oldStatus != StatusAccepted {
+		tx, err := s.repo.BeginTx(ctx)
+		if err != nil {
+			return nil, err
+		}
+		defer tx.Rollback()
+
+		if err := s.repo.UpdateStatusTx(ctx, tx, responseID, newStatus); err != nil {
+			return nil, err
+		}
+
+		if _, _, err := s.castingRepo.IncrementAcceptedAndMaybeCloseTx(ctx, tx, cast.ID); err != nil {
+			if errors.Is(err, casting.ErrCastingFullOrClosed) {
+				return nil, ErrCastingFullOrClosed
+			}
+			return nil, err
+		}
+
+		if err := tx.Commit(); err != nil {
+			return nil, err
+		}
+	} else {
+		if err := s.repo.UpdateStatus(ctx, responseID, newStatus); err != nil {
+			return nil, err
+		}
 	}
 
 	resp.Status = newStatus
@@ -298,6 +326,20 @@ func (s *Service) UpdateStatus(ctx context.Context, userID uuid.UUID, responseID
 	}
 
 	return resp, nil
+}
+
+func isUrgentDifferentCity(cast *casting.Casting, prof *profile.ModelProfile) bool {
+	if cast == nil || prof == nil || !cast.DateFrom.Valid {
+		return false
+	}
+
+	if time.Until(cast.DateFrom.Time) >= 24*time.Hour {
+		return false
+	}
+
+	castingCity := strings.TrimSpace(cast.City)
+	modelCity := strings.TrimSpace(prof.GetCity())
+	return !strings.EqualFold(castingCity, modelCity)
 }
 
 // GetByID returns response by ID
