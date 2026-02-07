@@ -45,6 +45,10 @@ type Repository interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 	List(ctx context.Context, filter *Filter, sortBy SortBy, pagination *Pagination) ([]*Casting, int, error)
 	IncrementViewCount(ctx context.Context, id uuid.UUID) error
+	IncrementAcceptedAndMaybeClose(ctx context.Context, id uuid.UUID) (int, Status, error)
+	IncrementAcceptedAndMaybeCloseTx(ctx context.Context, tx *sqlx.Tx, id uuid.UUID) (int, Status, error)
+	IncrementResponseCount(ctx context.Context, id uuid.UUID, delta int) error
+	IncrementResponseCountTx(ctx context.Context, tx *sqlx.Tx, id uuid.UUID, delta int) error
 	ListByCreator(ctx context.Context, creatorID uuid.UUID, pagination *Pagination) ([]*Casting, int, error)
 	CountActiveByCreatorID(ctx context.Context, creatorID string) (int, error)
 }
@@ -223,6 +227,57 @@ func (r *repository) List(ctx context.Context, filter *Filter, sortBy SortBy, pa
 func (r *repository) IncrementViewCount(ctx context.Context, id uuid.UUID) error {
 	query := `UPDATE castings SET view_count = view_count + 1 WHERE id = $1`
 	_, err := r.db.ExecContext(ctx, query, id)
+	return err
+}
+
+func (r *repository) IncrementAcceptedAndMaybeClose(ctx context.Context, id uuid.UUID) (int, Status, error) {
+	return r.incrementAcceptedAndMaybeClose(ctx, r.db, id)
+}
+
+func (r *repository) IncrementAcceptedAndMaybeCloseTx(ctx context.Context, tx *sqlx.Tx, id uuid.UUID) (int, Status, error) {
+	return r.incrementAcceptedAndMaybeClose(ctx, tx, id)
+}
+
+func (r *repository) incrementAcceptedAndMaybeClose(ctx context.Context, execer sqlx.ExtContext, id uuid.UUID) (int, Status, error) {
+	query := `
+		UPDATE castings
+		SET accepted_models_count = accepted_models_count + 1,
+			status = CASE
+				WHEN required_models_count IS NOT NULL
+					AND accepted_models_count + 1 >= required_models_count
+				THEN 'closed'
+				ELSE status
+			END
+		WHERE id = $1
+		  AND status != 'closed'
+		  AND (required_models_count IS NULL OR accepted_models_count < required_models_count)
+		RETURNING accepted_models_count, status
+	`
+
+	var accepted int
+	var status Status
+	err := execer.QueryRowxContext(ctx, query, id).Scan(&accepted, &status)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, "", ErrCastingFullOrClosed
+		}
+		return 0, "", err
+	}
+
+	return accepted, status, nil
+}
+
+func (r *repository) IncrementResponseCount(ctx context.Context, id uuid.UUID, delta int) error {
+	return r.incrementResponseCount(ctx, r.db, id, delta)
+}
+
+func (r *repository) IncrementResponseCountTx(ctx context.Context, tx *sqlx.Tx, id uuid.UUID, delta int) error {
+	return r.incrementResponseCount(ctx, tx, id, delta)
+}
+
+func (r *repository) incrementResponseCount(ctx context.Context, execer sqlx.ExtContext, id uuid.UUID, delta int) error {
+	query := `UPDATE castings SET response_count = response_count + $2 WHERE id = $1`
+	_, err := execer.ExecContext(ctx, query, id, delta)
 	return err
 }
 
