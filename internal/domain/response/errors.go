@@ -12,4 +12,6 @@ var (
 	ErrNotCastingOwner         = errors.New("only the casting owner can manage responses")
 	ErrInvalidStatusTransition = errors.New("invalid status transition")
 	ErrInsufficientCredits     = errors.New("insufficient credits to apply") // B1: Added for credit system
+	ErrGeoBlocked              = errors.New("geo blocked for urgent casting")
+	ErrCastingFullOrClosed     = errors.New("casting is full or closed")
 )

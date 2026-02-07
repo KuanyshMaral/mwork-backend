@@ -22,10 +22,12 @@ type Repository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*Response, error)
 	GetByModelAndCasting(ctx context.Context, modelID, castingID uuid.UUID) (*Response, error)
 	UpdateStatus(ctx context.Context, id uuid.UUID, status Status) error
+	UpdateStatusTx(ctx context.Context, tx *sqlx.Tx, id uuid.UUID, status Status) error
 	Delete(ctx context.Context, id uuid.UUID) error
 	ListByCasting(ctx context.Context, castingID uuid.UUID, pagination *Pagination) ([]*Response, int, error)
 	ListByModel(ctx context.Context, modelID uuid.UUID, pagination *Pagination) ([]*Response, int, error)
 	CountMonthlyByUserID(ctx context.Context, userID uuid.UUID) (int, error)
+	BeginTx(ctx context.Context) (*sqlx.Tx, error)
 }
 
 type repository struct {
@@ -38,12 +40,18 @@ func NewRepository(db *sqlx.DB) Repository {
 }
 
 func (r *repository) Create(ctx context.Context, response *Response) error {
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
 	query := `
 		INSERT INTO casting_responses (id, casting_id, model_id, message, proposed_rate, status)
 		VALUES ($1, $2, $3, $4, $5, $6)
 	`
 
-	_, err := r.db.ExecContext(ctx, query,
+	_, err = tx.ExecContext(ctx, query,
 		response.ID,
 		response.CastingID,
 		response.ModelID,
@@ -51,8 +59,16 @@ func (r *repository) Create(ctx context.Context, response *Response) error {
 		response.ProposedRate,
 		response.Status,
 	)
+	if err != nil {
+		return err
+	}
 
-	return err
+	updateQuery := `UPDATE castings SET response_count = response_count + 1 WHERE id = $1`
+	if _, err := tx.ExecContext(ctx, updateQuery, response.CastingID); err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }
 
 func (r *repository) GetByID(ctx context.Context, id uuid.UUID) (*Response, error) {
@@ -92,6 +108,14 @@ func (r *repository) GetByModelAndCasting(ctx context.Context, modelID, castingI
 }
 
 func (r *repository) UpdateStatus(ctx context.Context, id uuid.UUID, status Status) error {
+	return r.updateStatus(ctx, r.db, id, status)
+}
+
+func (r *repository) UpdateStatusTx(ctx context.Context, tx *sqlx.Tx, id uuid.UUID, status Status) error {
+	return r.updateStatus(ctx, tx, id, status)
+}
+
+func (r *repository) updateStatus(ctx context.Context, execer sqlx.ExtContext, id uuid.UUID, status Status) error {
 	var query string
 	switch status {
 	case StatusAccepted:
@@ -101,7 +125,7 @@ func (r *repository) UpdateStatus(ctx context.Context, id uuid.UUID, status Stat
 	default:
 		query = `UPDATE casting_responses SET status = $2, updated_at = NOW() WHERE id = $1`
 	}
-	_, err := r.db.ExecContext(ctx, query, id, status)
+	_, err := execer.ExecContext(ctx, query, id, status)
 	return err
 }
 
@@ -180,4 +204,8 @@ func (r *repository) CountMonthlyByUserID(ctx context.Context, userID uuid.UUID)
 		return 0, fmt.Errorf("failed to count monthly responses: %w", err)
 	}
 	return count, nil
+}
+
+func (r *repository) BeginTx(ctx context.Context) (*sqlx.Tx, error) {
+	return r.db.BeginTxx(ctx, nil)
 }

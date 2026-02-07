@@ -78,8 +78,10 @@ type Casting struct {
 	ModerationStatus ModerationStatus `db:"moderation_status"`
 
 	// Stats
-	ViewCount     int `db:"view_count"`
-	ResponseCount int `db:"response_count"`
+	ViewCount           int           `db:"view_count"`
+	ResponseCount       int           `db:"response_count"`
+	RequiredModelsCount sql.NullInt32 `db:"required_models_count"`
+	AcceptedModelsCount int           `db:"accepted_models_count"`
 
 	// Joined data (not in DB, populated by queries)
 	CreatorName string `db:"-"`
