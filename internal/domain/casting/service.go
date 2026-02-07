@@ -66,6 +66,15 @@ func (s *Service) Create(ctx context.Context, userID uuid.UUID, req *CreateCasti
 		UpdatedAt:     now,
 	}
 
+	// Task 3: CASTING PRE-MODERATION
+	// Set moderation status based on employer verification
+	// Unverified employers must have their castings moderated before they go live
+	if u.IsCompanyVerified() {
+		casting.ModerationStatus = ModerationApproved
+	} else {
+		casting.ModerationStatus = ModerationPending
+	}
+
 	// Address
 	if req.Address != "" {
 		casting.Address = sql.NullString{String: req.Address, Valid: true}

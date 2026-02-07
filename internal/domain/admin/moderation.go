@@ -391,6 +391,69 @@ func (h *ModerationHandler) ListCastings(w http.ResponseWriter, r *http.Request)
 	response.OK(w, castings)
 }
 
+// ApproveCasting handles PATCH /admin/castings/{id}/approve
+// Task 3: Admin endpoint to approve castings
+func (h *ModerationHandler) ApproveCasting(w http.ResponseWriter, r *http.Request) {
+	castingID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		response.BadRequest(w, "Invalid casting ID")
+		return
+	}
+
+	adminID := GetAdminID(r.Context())
+
+	// Update moderation status to approved
+	_, err = h.db.ExecContext(r.Context(),
+		`UPDATE castings SET moderation_status = 'approved', moderated_at = NOW(), moderated_by = $2 WHERE id = $1`,
+		castingID, adminID)
+	if err != nil {
+		response.InternalError(w)
+		return
+	}
+
+	h.adminSvc.LogActionWithReason(r.Context(), adminID, "casting.approve", "casting", castingID, "Casting approved", nil, nil)
+
+	response.OK(w, map[string]string{"status": "approved"})
+}
+
+// RejectCasting handles PATCH /admin/castings/{id}/reject
+// Task 3: Admin endpoint to reject castings
+func (h *ModerationHandler) RejectCasting(w http.ResponseWriter, r *http.Request) {
+	castingID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		response.BadRequest(w, "Invalid casting ID")
+		return
+	}
+
+	var req struct {
+		Reason string `json:"reason" validate:"required,min=5,max=500"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.BadRequest(w, "Invalid JSON body")
+		return
+	}
+
+	if err := validator.Validate(req); err != nil {
+		response.ValidationError(w, err)
+		return
+	}
+
+	adminID := GetAdminID(r.Context())
+
+	// Update moderation status to rejected with note
+	_, err = h.db.ExecContext(r.Context(),
+		`UPDATE castings SET moderation_status = 'rejected', moderated_at = NOW(), moderated_by = $2, moderation_note = $3 WHERE id = $1`,
+		castingID, adminID, req.Reason)
+	if err != nil {
+		response.InternalError(w)
+		return
+	}
+
+	h.adminSvc.LogActionWithReason(r.Context(), adminID, "casting.reject", "casting", castingID, req.Reason, nil, req)
+
+	response.OK(w, map[string]string{"status": "rejected"})
+}
+
 // FeatureCasting handles PATCH /admin/castings/{id}/feature
 func (h *ModerationHandler) FeatureCasting(w http.ResponseWriter, r *http.Request) {
 	castingID, err := uuid.Parse(chi.URLParam(r, "id"))
@@ -818,6 +881,11 @@ func (h *ModerationHandler) Routes(jwtSvc *JWTService, adminSvc *Service) chi.Ro
 	r.Route("/castings", func(r chi.Router) {
 		r.Use(RequirePermission(PermViewContent))
 		r.Get("/", h.ListCastings)
+
+		// Task 3: Casting moderation endpoints
+		r.Patch("/{id}/approve", h.ApproveCasting)
+		r.Patch("/{id}/reject", h.RejectCasting)
+
 		r.Patch("/{id}/feature", h.FeatureCasting)
 	})
 

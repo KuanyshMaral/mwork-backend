@@ -20,6 +20,26 @@ type NotificationService interface {
 	NotifyResponseStatusChange(ctx context.Context, modelUserID uuid.UUID, castingTitle string, status string, castingID uuid.UUID, responseID uuid.UUID) error
 }
 
+// ChatServiceInterface interface for chat room operations
+// This interface matches chat.Service to enable auto-creation of chat rooms on response acceptance
+type ChatServiceInterface interface {
+	CreateOrGetRoom(ctx context.Context, userID uuid.UUID, req *ChatRoomRequest) (*ChatRoom, error)
+}
+
+// ChatRoomRequest is a DTO for creating chat rooms (to avoid import cycle with chat package)
+type ChatRoomRequest struct {
+	RecipientID uuid.UUID
+	CastingID   *uuid.UUID
+	Message     string
+}
+
+// ChatRoom is a DTO for chat room response (to avoid import cycle with chat package)
+type ChatRoom struct {
+	ID             uuid.UUID
+	Participant1ID uuid.UUID
+	Participant2ID uuid.UUID
+}
+
 // Service handles response business logic
 type Service struct {
 	repo         Repository
@@ -27,7 +47,8 @@ type Service struct {
 	modelRepo    profile.ModelRepository
 	employerRepo profile.EmployerRepository
 	notifService NotificationService
-	creditSvc    credit.Service // ✅ FIXED: Using standard credit.Service interface
+	creditSvc    credit.Service       // ✅ FIXED: Using standard credit.Service interface
+	chatSvc      ChatServiceInterface // Chat service for auto-creating rooms on acceptance
 }
 
 // NewService creates response service
@@ -48,6 +69,11 @@ func (s *Service) SetNotificationService(notifService NotificationService) {
 // SetCreditService sets the credit service (optional, to avoid circular dependency)
 func (s *Service) SetCreditService(creditSvc credit.Service) { // ✅ FIXED: Using credit.Service
 	s.creditSvc = creditSvc
+}
+
+// SetChatService sets the chat service (optional, to avoid circular dependency)
+func (s *Service) SetChatService(chatSvc ChatServiceInterface) {
+	s.chatSvc = chatSvc
 }
 
 // Apply applies to a casting
@@ -243,6 +269,31 @@ func (s *Service) UpdateStatus(ctx context.Context, userID uuid.UUID, responseID
 					resp.ID,
 				)
 			}
+		}()
+	}
+
+	// Task 1: AUTO-CREATE CHAT ROOM ON ACCEPTANCE
+	// When response is accepted, automatically create a chat room between employer and model
+	if s.chatSvc != nil && newStatus == StatusAccepted {
+		go func() {
+			// Use background context to avoid cancellation
+			bgCtx := context.Background()
+
+			// Get model's user ID
+			model, err := s.modelRepo.GetByID(bgCtx, resp.ModelID)
+			if err != nil || model == nil {
+				return
+			}
+
+			// Create chat room request using proper DTO
+			castingIDPtr := &cast.ID
+			chatReq := &ChatRoomRequest{
+				RecipientID: model.UserID,
+				CastingID:   castingIDPtr,
+			}
+
+			// Create or get existing room between employer and model
+			_, _ = s.chatSvc.CreateOrGetRoom(bgCtx, userID, chatReq)
 		}()
 	}
 
