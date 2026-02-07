@@ -36,8 +36,8 @@ func NewRepository(db *sqlx.DB) Repository {
 // Create creates a new user
 func (r *repository) Create(ctx context.Context, user *User) error {
 	query := `
-		INSERT INTO users (id, email, password_hash, role, email_verified, is_banned)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO users (id, email, password_hash, role, email_verified, is_banned, credit_balance)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`
 
 	_, err := r.db.ExecContext(ctx, query,
@@ -47,6 +47,7 @@ func (r *repository) Create(ctx context.Context, user *User) error {
 		user.Role,
 		user.EmailVerified,
 		user.IsBanned,
+		user.CreditBalance,
 	)
 
 	return err
@@ -95,7 +96,7 @@ func (r *repository) Update(ctx context.Context, user *User) error {
 	query := `
 		UPDATE users 
 		SET email = $2, password_hash = $3, 
-		    role = $4, email_verified = $5, is_banned = $6, updated_at = NOW()
+		    role = $4, email_verified = $5, is_banned = $6, credit_balance = $7, updated_at = NOW()
 		WHERE id = $1
 	`
 
@@ -106,6 +107,7 @@ func (r *repository) Update(ctx context.Context, user *User) error {
 		user.Role,
 		user.EmailVerified,
 		user.IsBanned,
+		user.CreditBalance,
 	)
 
 	return err
