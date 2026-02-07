@@ -140,7 +140,7 @@ func (s *Service) RegisterAgency(ctx context.Context, req *AgencyRegisterRequest
 		ID:            uuid.New(),
 		Email:         req.Email,
 		PasswordHash:  hash,
-		Role:          "agency", // Agency role
+		Role:          user.RoleAgency, // Agency role
 		EmailVerified: false,
 		CreatedAt:     now,
 		UpdatedAt:     now,

@@ -122,12 +122,17 @@ func (u *User) CanApplyToCasting() bool {
 	return u.IsModel()
 }
 
-// ValidRoles returns list of valid roles for registration
+// ValidRoles returns list of valid roles for public registration (model and employer only)
 func ValidRoles() []Role {
 	return []Role{RoleModel, RoleEmployer}
 }
 
-// IsValidRole checks if role is valid for registration
+// AllValidRoles returns all valid roles including admin and agency
+func AllValidRoles() []Role {
+	return []Role{RoleModel, RoleEmployer, RoleAgency, RoleAdmin}
+}
+
+// IsValidRole checks if role is valid for public registration
 func IsValidRole(role string) bool {
 	for _, r := range ValidRoles() {
 		if string(r) == role {
