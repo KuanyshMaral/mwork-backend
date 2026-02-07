@@ -18,6 +18,15 @@ const (
 	StatusClosed Status = "closed"
 )
 
+// ModerationStatus represents casting moderation status
+type ModerationStatus string
+
+const (
+	ModerationPending  ModerationStatus = "pending"
+	ModerationApproved ModerationStatus = "approved"
+	ModerationRejected ModerationStatus = "rejected"
+)
+
 // Requirements stored as JSONB in DB
 type Requirements struct {
 	Gender             string   `json:"gender,omitempty"`
@@ -64,6 +73,9 @@ type Casting struct {
 	// Status and promotion
 	Status     Status `db:"status"`
 	IsPromoted bool   `db:"is_promoted"`
+
+	// Task 3: Moderation fields
+	ModerationStatus ModerationStatus `db:"moderation_status"`
 
 	// Stats
 	ViewCount     int `db:"view_count"`

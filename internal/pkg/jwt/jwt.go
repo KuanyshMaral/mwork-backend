@@ -19,8 +19,9 @@ var (
 
 // Claims represents JWT claims
 type Claims struct {
-	UserID uuid.UUID `json:"user_id"`
-	Role   string    `json:"role"`
+	UserID   uuid.UUID `json:"user_id"`
+	Role     string    `json:"role"`
+	IsBanned bool      `json:"is_banned"` // Task 2: Add banned status to token
 	jwt.RegisteredClaims
 }
 
@@ -41,10 +42,11 @@ func NewService(secret string, accessTTL, refreshTTL time.Duration) *Service {
 }
 
 // GenerateAccessToken generates access token
-func (s *Service) GenerateAccessToken(userID uuid.UUID, role string) (string, error) {
+func (s *Service) GenerateAccessToken(userID uuid.UUID, role string, isBanned bool) (string, error) {
 	claims := Claims{
-		UserID: userID,
-		Role:   role,
+		UserID:   userID,
+		Role:     role,
+		IsBanned: isBanned,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(s.accessTTL)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

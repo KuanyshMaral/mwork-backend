@@ -185,6 +185,9 @@ func main() {
 	limitChecker := subscription.NewLimitChecker(subscriptionService)
 	chatService = chat.NewService(chatRepo, userRepo, chatHub, moderationService, limitChecker)
 
+	// Adapter for chat service to response service
+	chatServiceAdapter := &chatServiceAdapter{service: chatService}
+
 	adminRepo := admin.NewRepository(db)
 	adminService := admin.NewService(adminRepo)
 	adminJWTService := admin.NewJWTService(cfg.JWTSecret, 24*time.Hour)
@@ -194,6 +197,10 @@ func main() {
 
 	// Inject credit service into response service for B1 and B2
 	responseService.SetCreditService(creditService)
+
+	// TASK 1: Inject chat service into response service via adapter
+	// This enables auto-creation of chat rooms when responses are accepted
+	responseService.SetChatService(chatServiceAdapter)
 
 	// B4: Inject credit service into payment service for credit purchases
 	paymentService.SetCreditService(creditService)
@@ -434,6 +441,33 @@ func setupLogger(cfg *config.Config) {
 }
 
 // Adapter implementations to bridge interface mismatches
+
+// chatServiceAdapter adapts chat.Service to response.ChatServiceInterface
+type chatServiceAdapter struct {
+	service *chat.Service
+}
+
+func (a *chatServiceAdapter) CreateOrGetRoom(ctx context.Context, userID uuid.UUID, req *response.ChatRoomRequest) (*response.ChatRoom, error) {
+	// Convert response.ChatRoomRequest to chat.CreateRoomRequest
+	chatReq := &chat.CreateRoomRequest{
+		RecipientID: req.RecipientID,
+		CastingID:   req.CastingID,
+		Message:     req.Message,
+	}
+
+	// Call the actual chat service
+	room, err := a.service.CreateOrGetRoom(ctx, userID, chatReq)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert chat.Room to response.ChatRoom
+	return &response.ChatRoom{
+		ID:             room.ID,
+		Participant1ID: room.Participant1ID,
+		Participant2ID: room.Participant2ID,
+	}, nil
+}
 
 // authEmployerProfileAdapter adapts profile.EmployerRepository to auth.EmployerProfileRepository
 type authEmployerProfileAdapter struct {

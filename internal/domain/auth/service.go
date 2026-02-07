@@ -264,8 +264,8 @@ func (s *Service) GetCurrentUser(ctx context.Context, userID uuid.UUID) (*UserRe
 
 // generateTokens creates access and refresh tokens
 func (s *Service) generateTokens(ctx context.Context, u *user.User) (*AuthResponse, error) {
-	// Generate access token
-	accessToken, err := s.jwtService.GenerateAccessToken(u.ID, string(u.Role))
+	// Generate access token with banned status
+	accessToken, err := s.jwtService.GenerateAccessToken(u.ID, string(u.Role), u.IsBanned)
 	if err != nil {
 		return nil, err
 	}
