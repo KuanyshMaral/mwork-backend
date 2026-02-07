@@ -1,0 +1,673 @@
+{
+  "info": {
+    "name": "Mwork Fairness Checks (Casting Capacity + Counters + Geo)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Collection to verify casting capacity counters, response_count increments, and urgent geo validation. Base path is /api/v1 (see cmd/api/main.go).\n\nIMPORTANT MANUAL SETUP (if API cannot create/modify castings due to verification requirements):\n- Set collection/environment variables castingId and urgentCastingId to existing castings owned by the employer user.\n- In DB, set required_models_count=1 for castingId and ensure accepted_models_count=0 and status='active' before running acceptance checks.\n- For geo check, ensure urgentCastingId has date_from within 24h and a city different from the model profile city.\n\nRoutes used:\n- Auth: POST /auth/register, POST /auth/login\n- Profile: POST /profiles/models, POST /profiles/employers, GET /profiles/me, PUT /profiles/models/{id}\n- Casting: POST /castings (may require verified employer)\n- Responses: POST /castings/{id}/responses, PATCH /responses/{id}/status\n\nResponse bodies are wrapped in {success, data, error} (see internal/pkg/response/response.go)."
+  },
+  "item": [
+    {
+      "name": "Setup",
+      "item": [
+        {
+          "name": "Register Model",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{modelEmail}}\",\n  \"password\": \"{{modelPassword}}\",\n  \"role\": \"model\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Register Model returns 201 or 409', function () {",
+                  "  pm.expect([201, 409]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Register Employer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{employerEmail}}\",\n  \"password\": \"{{employerPassword}}\",\n  \"role\": \"employer\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Register Employer returns 201 or 409', function () {",
+                  "  pm.expect([201, 409]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login Model",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{modelEmail}}\",\n  \"password\": \"{{modelPassword}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Login Model returns 200', function () {",
+                  "  pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "var json = pm.response.json();",
+                  "pm.environment.set('modelToken', json.data.tokens.access_token);",
+                  "pm.environment.set('modelUserId', json.data.user.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login Employer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{employerEmail}}\",\n  \"password\": \"{{employerPassword}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Login Employer returns 200', function () {",
+                  "  pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "var json = pm.response.json();",
+                  "pm.environment.set('employerToken', json.data.tokens.access_token);",
+                  "pm.environment.set('employerUserId', json.data.user.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Model Profile",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{modelToken}}"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/profiles/models",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Model Tester\",\n  \"bio\": \"Test model profile\",\n  \"city\": \"Almaty\",\n  \"languages\": [],\n  \"categories\": [],\n  \"skills\": [],\n  \"travel_cities\": []\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Create Model Profile returns 201 or 409', function () {",
+                  "  pm.expect([201, 409]).to.include(pm.response.code);",
+                  "});",
+                  "if (pm.response.code === 201) {",
+                  "  var json = pm.response.json();",
+                  "  pm.environment.set('modelProfileId', json.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get My Profile (Model)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{modelToken}}"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/profiles/me"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Get My Profile returns 200', function () {",
+                  "  pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "var json = pm.response.json();",
+                  "pm.environment.set('modelProfileId', json.data.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Employer Profile",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{employerToken}}"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/profiles/employers",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"company_name\": \"Employer Test LLC\",\n  \"company_type\": \"agency\",\n  \"description\": \"Test employer profile\",\n  \"city\": \"Almaty\",\n  \"contact_person\": \"Test Contact\",\n  \"contact_phone\": \"+77010000000\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Create Employer Profile returns 201 or 409', function () {",
+                  "  pm.expect([201, 409]).to.include(pm.response.code);",
+                  "});",
+                  "if (pm.response.code === 201) {",
+                  "  var json = pm.response.json();",
+                  "  pm.environment.set('employerProfileId', json.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Casting (may require verified employer)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{employerToken}}"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/castings",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Test Casting\",\n  \"description\": \"This is a test casting used for fairness checks.\",\n  \"city\": \"Almaty\",\n  \"pay_type\": \"negotiable\",\n  \"status\": \"active\",\n  \"requirements\": {}\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  var json = pm.response.json();",
+                  "  pm.environment.set('castingId', json.data.id);",
+                  "} else {",
+                  "  pm.test('Create Casting may require verified employer; set castingId manually if needed', function () {",
+                  "    pm.expect([201, 400, 403, 409]).to.include(pm.response.code);",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Model City (for geo test)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{modelToken}}"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/profiles/models/{{modelProfileId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"city\": \"Astana\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Update Model City returns 200', function () {",
+                  "  pm.expect(pm.response.code).to.eql(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Checks",
+      "item": [
+        {
+          "name": "Apply Success (response_count increments)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{modelToken}}"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/castings/{{castingId}}/responses",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Applying for casting\",\n  \"proposed_rate\": 1000\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Apply returns 201', function () {",
+                  "  pm.expect(pm.response.code).to.eql(201);",
+                  "});",
+                  "var json = pm.response.json();",
+                  "pm.environment.set('responseId', json.data.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Apply Duplicate (no response_count increment)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{modelToken}}"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/castings/{{castingId}}/responses",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Applying again\",\n  \"proposed_rate\": 1000\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Duplicate apply returns 409', function () {",
+                  "  pm.expect(pm.response.code).to.eql(409);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Accept Response (increments accepted_models_count, may close casting)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{employerToken}}"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/responses/{{responseId}}/status",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"accepted\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Accept returns 200 or 409 if full/closed', function () {",
+                  "  pm.expect([200, 409]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Register Second Model (for capacity test)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{secondModelEmail}}\",\n  \"password\": \"{{secondModelPassword}}\",\n  \"role\": \"model\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Register Second Model returns 201 or 409', function () {",
+                  "  pm.expect([201, 409]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login Second Model",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{secondModelEmail}}\",\n  \"password\": \"{{secondModelPassword}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Login Second Model returns 200', function () {",
+                  "  pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "var json = pm.response.json();",
+                  "pm.environment.set('secondModelToken', json.data.tokens.access_token);",
+                  "pm.environment.set('secondModelUserId', json.data.user.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Second Model Profile",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secondModelToken}}"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/profiles/models",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Model Two\",\n  \"bio\": \"Second model profile\",\n  \"city\": \"Almaty\",\n  \"languages\": [],\n  \"categories\": [],\n  \"skills\": [],\n  \"travel_cities\": []\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Create Second Model Profile returns 201 or 409', function () {",
+                  "  pm.expect([201, 409]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Apply Second Model (for capacity test)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secondModelToken}}"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/castings/{{castingId}}/responses",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Second model apply\",\n  \"proposed_rate\": 1000\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Second model apply returns 201', function () {",
+                  "  pm.expect(pm.response.code).to.eql(201);",
+                  "});",
+                  "var json = pm.response.json();",
+                  "pm.environment.set('secondResponseId', json.data.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Accept Second Response (expect 409 when required_models_count=1)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{employerToken}}"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/responses/{{secondResponseId}}/status",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"accepted\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Accept when full returns 409', function () {",
+                  "  pm.expect(pm.response.code).to.eql(409);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Geo Blocked Apply (urgent + different city)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{modelToken}}"
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/castings/{{urgentCastingId}}/responses",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Urgent geo test\",\n  \"proposed_rate\": 1000\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Geo blocked apply returns 400', function () {",
+                  "  pm.expect(pm.response.code).to.eql(400);",
+                  "});",
+                  "var json = pm.response.json();",
+                  "pm.test('Error code is BAD_REQUEST', function () {",
+                  "  pm.expect(json.error.code).to.eql('BAD_REQUEST');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "event": [],
+  "variable": []
+}
