@@ -30,6 +30,7 @@ import (
 	"github.com/mwork/mwork-api/internal/domain/organization"
 	"github.com/mwork/mwork-api/internal/domain/payment"
 	"github.com/mwork/mwork-api/internal/domain/photo"
+	"github.com/mwork/mwork-api/internal/domain/photostudio_booking"
 	"github.com/mwork/mwork-api/internal/domain/profile"
 	"github.com/mwork/mwork-api/internal/domain/promotion"
 	"github.com/mwork/mwork-api/internal/domain/response"
@@ -125,13 +126,15 @@ func main() {
 	photoStudioTimeout := time.Duration(cfg.PhotoStudioTimeoutSeconds) * time.Second
 	photoStudioSyncEnabled := cfg.PhotoStudioSyncEnabled && cfg.PhotoStudioBaseURL != ""
 	var photoStudioClient auth.PhotoStudioClient
+	var photoStudioConcreteClient *photostudio.Client
 	if photoStudioSyncEnabled {
-		photoStudioClient = photostudio.NewClient(
+		photoStudioConcreteClient = photostudio.NewClient(
 			cfg.PhotoStudioBaseURL,
 			cfg.PhotoStudioToken,
 			photoStudioTimeout,
 			"MWork/1.0.0 photostudio-sync",
 		)
+		photoStudioClient = photoStudioConcreteClient
 	}
 
 	// ---------- Services ----------
@@ -245,6 +248,10 @@ func main() {
 	adminModerationHandler := admin.NewModerationHandler(db, adminService)
 	leadHandler := lead.NewHandler(leadService)
 	userAdminHandler := admin.NewUserHandler(db, adminService)
+
+	// PhotoStudio booking integration
+	photoStudioBookingService := photostudio_booking.NewService(photoStudioConcreteClient, photoStudioSyncEnabled)
+	photoStudioBookingHandler := photostudio_booking.NewHandler(photoStudioBookingService)
 
 	authMiddleware := middleware.Auth(jwtService)
 	responseLimitMiddleware := middleware.RequireResponseLimit(limitChecker, &responseLimitCounter{repo: responseRepo})
@@ -374,6 +381,9 @@ func main() {
 		r.Mount("/promotions", promotion.Routes(promotionHandler, authMiddleware))
 		r.Mount("/reviews", review.Routes(reviewHandler, authMiddleware))
 		r.Mount("/faq", faqHandler.Routes())
+
+		// PhotoStudio booking integration
+		r.Mount("/photostudio", photoStudioBookingHandler.Routes(authMiddleware))
 	})
 
 	r.Mount("/webhooks", paymentHandler.WebhookRoutes())
