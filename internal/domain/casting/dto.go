@@ -81,31 +81,33 @@ type CastingResponse struct {
 	// Requirements (from JSONB)
 	Requirements *Requirements `json:"requirements,omitempty"`
 
-	Status        string `json:"status"`
-	IsPromoted    bool   `json:"is_promoted"`
-	ViewCount     int    `json:"view_count"`
-	ResponseCount int    `json:"response_count"`
-	CreatedAt     string `json:"created_at"`
-	UpdatedAt     string `json:"updated_at"`
+	Status           string `json:"status"`
+	IsPromoted       bool   `json:"is_promoted"`
+	ModerationStatus string `json:"moderation_status"` // Task 3: Added moderation status
+	ViewCount        int    `json:"view_count"`
+	ResponseCount    int    `json:"response_count"`
+	CreatedAt        string `json:"created_at"`
+	UpdatedAt        string `json:"updated_at"`
 }
 
 // CastingResponseFromEntity converts entity to response DTO
 func CastingResponseFromEntity(c *Casting) *CastingResponse {
 	resp := &CastingResponse{
-		ID:            c.ID,
-		CreatorID:     c.CreatorID,
-		CreatorName:   c.CreatorName,
-		Title:         c.Title,
-		Description:   c.Description,
-		City:          c.City,
-		PayType:       c.PayType,
-		PayRange:      c.GetPayRange(),
-		Status:        string(c.Status),
-		IsPromoted:    c.IsPromoted,
-		ViewCount:     c.ViewCount,
-		ResponseCount: c.ResponseCount,
-		CreatedAt:     c.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:     c.UpdatedAt.Format(time.RFC3339),
+		ID:               c.ID,
+		CreatorID:        c.CreatorID,
+		CreatorName:      c.CreatorName,
+		Title:            c.Title,
+		Description:      c.Description,
+		City:             c.City,
+		PayType:          c.PayType,
+		PayRange:         c.GetPayRange(),
+		Status:           string(c.Status),
+		IsPromoted:       c.IsPromoted,
+		ModerationStatus: string(c.ModerationStatus), // Task 3: Include moderation status
+		ViewCount:        c.ViewCount,
+		ResponseCount:    c.ResponseCount,
+		CreatedAt:        c.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:        c.UpdatedAt.Format(time.RFC3339),
 	}
 
 	if c.Address.Valid {

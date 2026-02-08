@@ -47,6 +47,12 @@ func Auth(jwtService *jwt.Service) func(http.Handler) http.Handler {
 				return
 			}
 
+			// Task 2: BAN ENFORCEMENT - Check if user is banned
+			if claims.IsBanned {
+				response.Forbidden(w, "Your account has been banned")
+				return
+			}
+
 			// Add claims to context
 			ctx := context.WithValue(r.Context(), UserIDKey, claims.UserID)
 			ctx = context.WithValue(ctx, RoleKey, claims.Role)

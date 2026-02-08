@@ -30,6 +30,7 @@ import (
 	"github.com/mwork/mwork-api/internal/domain/organization"
 	"github.com/mwork/mwork-api/internal/domain/payment"
 	"github.com/mwork/mwork-api/internal/domain/photo"
+	"github.com/mwork/mwork-api/internal/domain/photostudio_booking"
 	"github.com/mwork/mwork-api/internal/domain/profile"
 	"github.com/mwork/mwork-api/internal/domain/promotion"
 	"github.com/mwork/mwork-api/internal/domain/response"
@@ -125,13 +126,15 @@ func main() {
 	photoStudioTimeout := time.Duration(cfg.PhotoStudioTimeoutSeconds) * time.Second
 	photoStudioSyncEnabled := cfg.PhotoStudioSyncEnabled && cfg.PhotoStudioBaseURL != ""
 	var photoStudioClient auth.PhotoStudioClient
+	var photoStudioConcreteClient *photostudio.Client
 	if photoStudioSyncEnabled {
-		photoStudioClient = photostudio.NewClient(
+		photoStudioConcreteClient = photostudio.NewClient(
 			cfg.PhotoStudioBaseURL,
 			cfg.PhotoStudioToken,
 			photoStudioTimeout,
 			"MWork/1.0.0 photostudio-sync",
 		)
+		photoStudioClient = photoStudioConcreteClient
 	}
 
 	// ---------- Services ----------
@@ -185,6 +188,9 @@ func main() {
 	limitChecker := subscription.NewLimitChecker(subscriptionService)
 	chatService = chat.NewService(chatRepo, userRepo, chatHub, moderationService, limitChecker)
 
+	// Adapter for chat service to response service
+	chatServiceAdapter := &chatServiceAdapter{service: chatService}
+
 	adminRepo := admin.NewRepository(db)
 	adminService := admin.NewService(adminRepo)
 	adminJWTService := admin.NewJWTService(cfg.JWTSecret, 24*time.Hour)
@@ -194,6 +200,10 @@ func main() {
 
 	// Inject credit service into response service for B1 and B2
 	responseService.SetCreditService(creditService)
+
+	// TASK 1: Inject chat service into response service via adapter
+	// This enables auto-creation of chat rooms when responses are accepted
+	responseService.SetChatService(chatServiceAdapter)
 
 	// B4: Inject credit service into payment service for credit purchases
 	paymentService.SetCreditService(creditService)
@@ -238,6 +248,10 @@ func main() {
 	adminModerationHandler := admin.NewModerationHandler(db, adminService)
 	leadHandler := lead.NewHandler(leadService)
 	userAdminHandler := admin.NewUserHandler(db, adminService)
+
+	// PhotoStudio booking integration
+	photoStudioBookingService := photostudio_booking.NewService(photoStudioConcreteClient, photoStudioSyncEnabled)
+	photoStudioBookingHandler := photostudio_booking.NewHandler(photoStudioBookingService)
 
 	authMiddleware := middleware.Auth(jwtService)
 	responseLimitMiddleware := middleware.RequireResponseLimit(limitChecker, &responseLimitCounter{repo: responseRepo})
@@ -367,6 +381,9 @@ func main() {
 		r.Mount("/promotions", promotion.Routes(promotionHandler, authMiddleware))
 		r.Mount("/reviews", review.Routes(reviewHandler, authMiddleware))
 		r.Mount("/faq", faqHandler.Routes())
+
+		// PhotoStudio booking integration
+		r.Mount("/photostudio", photoStudioBookingHandler.Routes(authMiddleware))
 	})
 
 	r.Mount("/webhooks", paymentHandler.WebhookRoutes())
@@ -434,6 +451,33 @@ func setupLogger(cfg *config.Config) {
 }
 
 // Adapter implementations to bridge interface mismatches
+
+// chatServiceAdapter adapts chat.Service to response.ChatServiceInterface
+type chatServiceAdapter struct {
+	service *chat.Service
+}
+
+func (a *chatServiceAdapter) CreateOrGetRoom(ctx context.Context, userID uuid.UUID, req *response.ChatRoomRequest) (*response.ChatRoom, error) {
+	// Convert response.ChatRoomRequest to chat.CreateRoomRequest
+	chatReq := &chat.CreateRoomRequest{
+		RecipientID: req.RecipientID,
+		CastingID:   req.CastingID,
+		Message:     req.Message,
+	}
+
+	// Call the actual chat service
+	room, err := a.service.CreateOrGetRoom(ctx, userID, chatReq)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert chat.Room to response.ChatRoom
+	return &response.ChatRoom{
+		ID:             room.ID,
+		Participant1ID: room.Participant1ID,
+		Participant2ID: room.Participant2ID,
+	}, nil
+}
 
 // authEmployerProfileAdapter adapts profile.EmployerRepository to auth.EmployerProfileRepository
 type authEmployerProfileAdapter struct {

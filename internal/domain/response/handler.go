@@ -81,6 +81,8 @@ func (h *Handler) Apply(w http.ResponseWriter, r *http.Request) {
 			response.BadRequest(w, "Casting is not active")
 		case errors.Is(err, ErrAlreadyApplied):
 			response.Conflict(w, "You have already applied to this casting")
+		case errors.Is(err, ErrGeoBlocked):
+			response.BadRequest(w, "You can’t apply to urgent castings (<24h) in a different city.")
 		case errors.Is(err, ErrInsufficientCredits):
 			// B1: HTTP 402 Payment Required for insufficient credits
 			// ✅ FIXED: Added error code parameter
@@ -176,6 +178,8 @@ func (h *Handler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 			response.Forbidden(w, "Only the casting owner can update response status")
 		case errors.Is(err, ErrInvalidStatusTransition):
 			response.BadRequest(w, "Invalid status transition")
+		case errors.Is(err, ErrCastingFullOrClosed):
+			response.Conflict(w, "Casting is full or closed")
 		default:
 			response.InternalError(w)
 		}
