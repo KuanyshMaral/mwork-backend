@@ -1,0 +1,451 @@
+{
+  "info": {
+    "name": "MWork + PhotoStudio API",
+    "_postman_id": "f74406b6-82e2-48cd-a67f-ba7d9305202f",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Collection for MWork Backend and PhotoStudio API integration endpoints (booking-focused)."
+  },
+  "item": [
+    {
+      "name": "MWork — Health/Auth",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{mwork_base_url}}/health",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Health check endpoint for MWork API."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Response has status ok', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.status).to.eql('ok');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{client_email}}\",\n  \"password\": \"{{client_password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{mwork_base_url}}/api/v1/auth/login",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Authenticate against MWork API and store access token."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "const token = (json && json.tokens && json.tokens.access_token) || json.access_token || json.token || (json.data && json.data.token) || json.jwt;",
+                  "if (token) {",
+                  "  pm.environment.set('mwork_token', token);",
+                  "}",
+                  "pm.test('Access token is present', function () {",
+                  "  pm.expect(token, 'access token').to.be.ok;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Me",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{mwork_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{mwork_base_url}}/api/v1/auth/me",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "me"
+              ]
+            },
+            "description": "Fetch current MWork user details."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('User id and email exist', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.id).to.be.ok;",
+                  "  pm.expect(json.email).to.be.ok;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "MWork → PhotoStudio Proxy",
+      "item": [
+        {
+          "name": "List studios",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{mwork_base_url}}/api/v1/photostudio/studios?city=Almaty&page=1&limit=12",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "photostudio",
+                "studios"
+              ],
+              "query": [
+                {
+                  "key": "city",
+                  "value": "Almaty"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "12"
+                }
+              ]
+            },
+            "description": "List PhotoStudio studios via MWork proxy."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test('Studios array is present', function () {",
+                  "  pm.expect(json.studios).to.be.an('array');",
+                  "});",
+                  "if (!pm.environment.get('studio_id') && json.studios && json.studios.length > 0) {",
+                  "  pm.environment.set('studio_id', json.studios[0].id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create booking",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{mwork_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"studio_id\": {{studio_id}},\n  \"room_id\": {{room_id}},\n  \"start_time\": \"{{start_time}}\",\n  \"end_time\": \"{{end_time}}\",\n  \"notes\": \"Postman test booking\"\n}"
+            },
+            "url": {
+              "raw": "{{mwork_base_url}}/api/v1/photostudio/bookings",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "photostudio",
+                "bookings"
+              ]
+            },
+            "description": "Create a PhotoStudio booking via MWork proxy."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const now = new Date();",
+                  "const start = new Date(now.getTime() + 24 * 60 * 60 * 1000);",
+                  "const end = new Date(now.getTime() + 26 * 60 * 60 * 1000);",
+                  "pm.environment.set('start_time', start.toISOString());",
+                  "pm.environment.set('end_time', end.toISOString());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200 or 201', function () {",
+                  "  pm.expect([200, 201]).to.include(pm.response.code);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "if (json.booking_id) {",
+                  "  pm.environment.set('booking_id', json.booking_id);",
+                  "}",
+                  "pm.test('Booking id exists', function () {",
+                  "  pm.expect(json.booking_id).to.be.ok;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "PhotoStudio — Health/Auth",
+      "item": [
+        {
+          "name": "Sync user (internal)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{photostudio_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mwork_user_id\": \"{{mwork_user_id}}\",\n  \"email\": \"{{client_email}}\",\n  \"role\": \"model\"\n}"
+            },
+            "url": {
+              "raw": "{{photostudio_base_url}}/internal/mwork/users/sync",
+              "host": [
+                "{{photostudio_base_url}}"
+              ],
+              "path": [
+                "internal",
+                "mwork",
+                "users",
+                "sync"
+              ]
+            },
+            "description": "Trigger PhotoStudio user sync (internal endpoint)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200 or 201', function () {",
+                  "  pm.expect([200, 201]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "PhotoStudio — Catalog/Booking",
+      "item": [
+        {
+          "name": "List studios",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{photostudio_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{photostudio_base_url}}/api/v1/studios?city=Almaty&page=1&limit=12",
+              "host": [
+                "{{photostudio_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "studios"
+              ],
+              "query": [
+                {
+                  "key": "city",
+                  "value": "Almaty"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "12"
+                }
+              ]
+            },
+            "description": "List PhotoStudio studios directly."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test('Studios array is present', function () {",
+                  "  pm.expect(json.data && json.data.studios).to.be.an('array');",
+                  "});",
+                  "if (!pm.environment.get('studio_id') && json.data && json.data.studios && json.data.studios.length > 0) {",
+                  "  pm.environment.set('studio_id', json.data.studios[0].id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create booking (internal)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{photostudio_token}}"
+              },
+              {
+                "key": "X-MWork-User-ID",
+                "value": "{{mwork_user_id}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"studio_id\": {{studio_id}},\n  \"room_id\": {{room_id}},\n  \"start_time\": \"{{start_time}}\",\n  \"end_time\": \"{{end_time}}\",\n  \"notes\": \"Postman test booking\"\n}"
+            },
+            "url": {
+              "raw": "{{photostudio_base_url}}/internal/mwork/bookings",
+              "host": [
+                "{{photostudio_base_url}}"
+              ],
+              "path": [
+                "internal",
+                "mwork",
+                "bookings"
+              ]
+            },
+            "description": "Create a booking directly in PhotoStudio (internal endpoint)."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const now = new Date();",
+                  "const start = new Date(now.getTime() + 24 * 60 * 60 * 1000);",
+                  "const end = new Date(now.getTime() + 26 * 60 * 60 * 1000);",
+                  "pm.environment.set('start_time', start.toISOString());",
+                  "pm.environment.set('end_time', end.toISOString());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200 or 201', function () {",
+                  "  pm.expect([200, 201]).to.include(pm.response.code);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "const bookingId = json && json.data && json.data.booking && json.data.booking.id;",
+                  "if (bookingId) {",
+                  "  pm.environment.set('booking_id', bookingId);",
+                  "}",
+                  "pm.test('Booking id exists', function () {",
+                  "  pm.expect(bookingId).to.be.ok;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
