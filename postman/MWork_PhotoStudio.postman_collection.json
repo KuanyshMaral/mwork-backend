@@ -15,7 +15,13 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{mwork_base_url}}/health"
+              "raw": "{{mwork_base_url}}/health",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "health"
+              ]
             },
             "description": "Health check endpoint for MWork API."
           },
@@ -38,7 +44,15 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/ping"
+              "raw": "{{mwork_base_url}}/api/v1/ping",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ping"
+              ]
             },
             "description": "Ping endpoint for MWork API."
           },
@@ -66,7 +80,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/auth/register"
+              "raw": "{{mwork_base_url}}/api/v1/auth/register",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "register"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -97,7 +120,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/auth/login"
+              "raw": "{{mwork_base_url}}/api/v1/auth/login",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -134,7 +166,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/auth/refresh"
+              "raw": "{{mwork_base_url}}/api/v1/auth/refresh",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "refresh"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -165,7 +206,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/auth/me"
+              "raw": "{{mwork_base_url}}/api/v1/auth/me",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "me"
+              ]
             },
             "description": "Fetch current user details."
           },
@@ -197,7 +247,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/auth/logout"
+              "raw": "{{mwork_base_url}}/api/v1/auth/logout",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "logout"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -228,7 +287,16 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/profiles/models"
+              "raw": "{{mwork_base_url}}/api/v1/profiles/models",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "profiles",
+                "models"
+              ]
             }
           },
           "event": [
@@ -249,7 +317,17 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/profiles/models/promoted"
+              "raw": "{{mwork_base_url}}/api/v1/profiles/models/promoted",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "profiles",
+                "models",
+                "promoted"
+              ]
             }
           },
           "event": [
@@ -270,7 +348,17 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/profiles/models/{profile_id}"
+              "raw": "{{mwork_base_url}}/api/v1/profiles/models/{profile_id}",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "profiles",
+                "models",
+                "{profile_id}"
+              ]
             }
           },
           "event": [
@@ -296,7 +384,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/profiles/me"
+              "raw": "{{mwork_base_url}}/api/v1/profiles/me",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "profiles",
+                "me"
+              ]
             }
           },
           "event": [
@@ -326,7 +423,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/profiles/models"
+              "raw": "{{mwork_base_url}}/api/v1/profiles/models",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "profiles",
+                "models"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -360,7 +466,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/profiles/employers"
+              "raw": "{{mwork_base_url}}/api/v1/profiles/employers",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "profiles",
+                "employers"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -394,7 +509,17 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/profiles/models/{profile_id}"
+              "raw": "{{mwork_base_url}}/api/v1/profiles/models/{profile_id}",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "profiles",
+                "models",
+                "{profile_id}"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -419,7 +544,17 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/profiles/{profile_id}/photos"
+              "raw": "{{mwork_base_url}}/api/v1/profiles/{profile_id}/photos",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "profiles",
+                "{profile_id}",
+                "photos"
+              ]
             }
           },
           "event": [
@@ -440,7 +575,17 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/profiles/{profile_id}/social-links"
+              "raw": "{{mwork_base_url}}/api/v1/profiles/{profile_id}/social-links",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "profiles",
+                "{profile_id}",
+                "social-links"
+              ]
             }
           },
           "event": [
@@ -470,7 +615,17 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/profiles/{profile_id}/social-links"
+              "raw": "{{mwork_base_url}}/api/v1/profiles/{profile_id}/social-links",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "profiles",
+                "{profile_id}",
+                "social-links"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -500,7 +655,18 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/profiles/{profile_id}/social-links/{platform}"
+              "raw": "{{mwork_base_url}}/api/v1/profiles/{profile_id}/social-links/{platform}",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "profiles",
+                "{profile_id}",
+                "social-links",
+                "{platform}"
+              ]
             }
           },
           "event": [
@@ -521,7 +687,17 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/profiles/{profile_id}/completeness"
+              "raw": "{{mwork_base_url}}/api/v1/profiles/{profile_id}/completeness",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "profiles",
+                "{profile_id}",
+                "completeness"
+              ]
             }
           },
           "event": [
@@ -542,7 +718,17 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/profiles/{profile_id}/reviews"
+              "raw": "{{mwork_base_url}}/api/v1/profiles/{profile_id}/reviews",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "profiles",
+                "{profile_id}",
+                "reviews"
+              ]
             }
           },
           "event": [
@@ -563,7 +749,18 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/profiles/{profile_id}/reviews/summary"
+              "raw": "{{mwork_base_url}}/api/v1/profiles/{profile_id}/reviews/summary",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "profiles",
+                "{profile_id}",
+                "reviews",
+                "summary"
+              ]
             }
           },
           "event": [
@@ -589,7 +786,15 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/castings"
+              "raw": "{{mwork_base_url}}/api/v1/castings",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "castings"
+              ]
             }
           },
           "event": [
@@ -610,7 +815,16 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/castings/{casting_id}"
+              "raw": "{{mwork_base_url}}/api/v1/castings/{casting_id}",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "castings",
+                "{casting_id}"
+              ]
             }
           },
           "event": [
@@ -640,7 +854,15 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/castings"
+              "raw": "{{mwork_base_url}}/api/v1/castings",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "castings"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -670,7 +892,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/castings/my"
+              "raw": "{{mwork_base_url}}/api/v1/castings/my",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "castings",
+                "my"
+              ]
             }
           },
           "event": [
@@ -700,7 +931,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/castings/{casting_id}"
+              "raw": "{{mwork_base_url}}/api/v1/castings/{casting_id}",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "castings",
+                "{casting_id}"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -734,7 +974,17 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/castings/{casting_id}/status"
+              "raw": "{{mwork_base_url}}/api/v1/castings/{casting_id}/status",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "castings",
+                "{casting_id}",
+                "status"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -764,7 +1014,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/castings/{casting_id}"
+              "raw": "{{mwork_base_url}}/api/v1/castings/{casting_id}",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "castings",
+                "{casting_id}"
+              ]
             }
           },
           "event": [
@@ -790,7 +1049,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/castings/saved"
+              "raw": "{{mwork_base_url}}/api/v1/castings/saved",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "castings",
+                "saved"
+              ]
             }
           },
           "event": [
@@ -816,7 +1084,17 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/castings/{casting_id}/save"
+              "raw": "{{mwork_base_url}}/api/v1/castings/{casting_id}/save",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "castings",
+                "{casting_id}",
+                "save"
+              ]
             }
           },
           "event": [
@@ -842,7 +1120,17 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/castings/{casting_id}/save"
+              "raw": "{{mwork_base_url}}/api/v1/castings/{casting_id}/save",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "castings",
+                "{casting_id}",
+                "save"
+              ]
             }
           },
           "event": [
@@ -868,7 +1156,17 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/castings/{casting_id}/save"
+              "raw": "{{mwork_base_url}}/api/v1/castings/{casting_id}/save",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "castings",
+                "{casting_id}",
+                "save"
+              ]
             }
           },
           "event": [
@@ -898,7 +1196,17 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/castings/{casting_id}/responses"
+              "raw": "{{mwork_base_url}}/api/v1/castings/{casting_id}/responses",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "castings",
+                "{casting_id}",
+                "responses"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -928,7 +1236,17 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/castings/{casting_id}/responses"
+              "raw": "{{mwork_base_url}}/api/v1/castings/{casting_id}/responses",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "castings",
+                "{casting_id}",
+                "responses"
+              ]
             }
           },
           "event": [
@@ -959,7 +1277,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/responses/my"
+              "raw": "{{mwork_base_url}}/api/v1/responses/my",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "responses",
+                "my"
+              ]
             }
           },
           "event": [
@@ -989,7 +1316,17 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/responses/{response_id}/status"
+              "raw": "{{mwork_base_url}}/api/v1/responses/{response_id}/status",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "responses",
+                "{response_id}",
+                "status"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -1028,7 +1365,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/uploads/presign"
+              "raw": "{{mwork_base_url}}/api/v1/uploads/presign",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "uploads",
+                "presign"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -1062,7 +1408,15 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/photos"
+              "raw": "{{mwork_base_url}}/api/v1/photos",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "photos"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -1092,7 +1446,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/photos/{photo_id}"
+              "raw": "{{mwork_base_url}}/api/v1/photos/{photo_id}",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "photos",
+                "{photo_id}"
+              ]
             }
           },
           "event": [
@@ -1118,7 +1481,17 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/photos/{photo_id}/avatar"
+              "raw": "{{mwork_base_url}}/api/v1/photos/{photo_id}/avatar",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "photos",
+                "{photo_id}",
+                "avatar"
+              ]
             }
           },
           "event": [
@@ -1148,7 +1521,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/photos/reorder"
+              "raw": "{{mwork_base_url}}/api/v1/photos/reorder",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "photos",
+                "reorder"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -1182,7 +1564,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/files/init"
+              "raw": "{{mwork_base_url}}/api/v1/files/init",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "files",
+                "init"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -1216,7 +1607,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/files/confirm"
+              "raw": "{{mwork_base_url}}/api/v1/files/confirm",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "files",
+                "confirm"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -1250,7 +1650,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/files/stage"
+              "raw": "{{mwork_base_url}}/api/v1/files/stage",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "files",
+                "stage"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -1280,7 +1689,17 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/files/{file_id}/commit"
+              "raw": "{{mwork_base_url}}/api/v1/files/{file_id}/commit",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "files",
+                "{file_id}",
+                "commit"
+              ]
             }
           },
           "event": [
@@ -1306,7 +1725,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/files/{file_id}"
+              "raw": "{{mwork_base_url}}/api/v1/files/{file_id}",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "files",
+                "{file_id}"
+              ]
             }
           },
           "event": [
@@ -1332,7 +1760,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/files/{file_id}"
+              "raw": "{{mwork_base_url}}/api/v1/files/{file_id}",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "files",
+                "{file_id}"
+              ]
             }
           },
           "event": [
@@ -1358,7 +1795,15 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/files"
+              "raw": "{{mwork_base_url}}/api/v1/files",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "files"
+              ]
             }
           },
           "event": [
@@ -1384,7 +1829,17 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/profiles/{profile_id}/experience"
+              "raw": "{{mwork_base_url}}/api/v1/profiles/{profile_id}/experience",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "profiles",
+                "{profile_id}",
+                "experience"
+              ]
             }
           },
           "event": [
@@ -1414,7 +1869,17 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/profiles/{profile_id}/experience"
+              "raw": "{{mwork_base_url}}/api/v1/profiles/{profile_id}/experience",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "profiles",
+                "{profile_id}",
+                "experience"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -1444,7 +1909,18 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/profiles/{profile_id}/experience/{experience_id}"
+              "raw": "{{mwork_base_url}}/api/v1/profiles/{profile_id}/experience/{experience_id}",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "profiles",
+                "{profile_id}",
+                "experience",
+                "{experience_id}"
+              ]
             }
           },
           "event": [
@@ -1479,7 +1955,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/chat/rooms"
+              "raw": "{{mwork_base_url}}/api/v1/chat/rooms",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "chat",
+                "rooms"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -1509,7 +1994,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/chat/rooms"
+              "raw": "{{mwork_base_url}}/api/v1/chat/rooms",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "chat",
+                "rooms"
+              ]
             }
           },
           "event": [
@@ -1535,7 +2029,18 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/chat/rooms/{chat_room_id}/messages"
+              "raw": "{{mwork_base_url}}/api/v1/chat/rooms/{chat_room_id}/messages",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "chat",
+                "rooms",
+                "{chat_room_id}",
+                "messages"
+              ]
             }
           },
           "event": [
@@ -1565,7 +2070,18 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/chat/rooms/{chat_room_id}/messages"
+              "raw": "{{mwork_base_url}}/api/v1/chat/rooms/{chat_room_id}/messages",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "chat",
+                "rooms",
+                "{chat_room_id}",
+                "messages"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -1595,7 +2111,18 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/chat/rooms/{chat_room_id}/read"
+              "raw": "{{mwork_base_url}}/api/v1/chat/rooms/{chat_room_id}/read",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "chat",
+                "rooms",
+                "{chat_room_id}",
+                "read"
+              ]
             }
           },
           "event": [
@@ -1621,7 +2148,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/chat/unread"
+              "raw": "{{mwork_base_url}}/api/v1/chat/unread",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "chat",
+                "unread"
+              ]
             }
           },
           "event": [
@@ -1652,7 +2188,15 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/notifications"
+              "raw": "{{mwork_base_url}}/api/v1/notifications",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications"
+              ]
             }
           },
           "event": [
@@ -1678,7 +2222,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/notifications/unread-count"
+              "raw": "{{mwork_base_url}}/api/v1/notifications/unread-count",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "unread-count"
+              ]
             }
           },
           "event": [
@@ -1704,7 +2257,17 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/notifications/{notification_id}/read"
+              "raw": "{{mwork_base_url}}/api/v1/notifications/{notification_id}/read",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "{notification_id}",
+                "read"
+              ]
             }
           },
           "event": [
@@ -1730,7 +2293,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/notifications/read-all"
+              "raw": "{{mwork_base_url}}/api/v1/notifications/read-all",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "read-all"
+              ]
             }
           },
           "event": [
@@ -1756,7 +2328,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/notifications/preferences"
+              "raw": "{{mwork_base_url}}/api/v1/notifications/preferences",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "preferences"
+              ]
             }
           },
           "event": [
@@ -1786,7 +2367,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/notifications/preferences"
+              "raw": "{{mwork_base_url}}/api/v1/notifications/preferences",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "preferences"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -1820,7 +2410,17 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/notifications/preferences/device"
+              "raw": "{{mwork_base_url}}/api/v1/notifications/preferences/device",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "preferences",
+                "device"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -1850,7 +2450,18 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/notifications/preferences/device/{device_token}"
+              "raw": "{{mwork_base_url}}/api/v1/notifications/preferences/device/{device_token}",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "preferences",
+                "device",
+                "{device_token}"
+              ]
             }
           },
           "event": [
@@ -1876,7 +2487,16 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/subscriptions/plans"
+              "raw": "{{mwork_base_url}}/api/v1/subscriptions/plans",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "subscriptions",
+                "plans"
+              ]
             }
           },
           "event": [
@@ -1902,7 +2522,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/subscriptions/current"
+              "raw": "{{mwork_base_url}}/api/v1/subscriptions/current",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "subscriptions",
+                "current"
+              ]
             }
           },
           "event": [
@@ -1928,7 +2557,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/subscriptions/limits"
+              "raw": "{{mwork_base_url}}/api/v1/subscriptions/limits",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "subscriptions",
+                "limits"
+              ]
             }
           },
           "event": [
@@ -1958,7 +2596,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/subscriptions/subscribe"
+              "raw": "{{mwork_base_url}}/api/v1/subscriptions/subscribe",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "subscriptions",
+                "subscribe"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -1988,7 +2635,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/subscriptions/cancel"
+              "raw": "{{mwork_base_url}}/api/v1/subscriptions/cancel",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "subscriptions",
+                "cancel"
+              ]
             }
           },
           "event": [
@@ -2019,7 +2675,15 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/payments"
+              "raw": "{{mwork_base_url}}/api/v1/payments",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "payments"
+              ]
             }
           },
           "event": [
@@ -2050,7 +2714,17 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/dashboard/model/stats"
+              "raw": "{{mwork_base_url}}/api/v1/dashboard/model/stats",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "dashboard",
+                "model",
+                "stats"
+              ]
             }
           },
           "event": [
@@ -2076,7 +2750,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/dashboard/employer"
+              "raw": "{{mwork_base_url}}/api/v1/dashboard/employer",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "dashboard",
+                "employer"
+              ]
             }
           },
           "event": [
@@ -2107,7 +2790,15 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/promotions"
+              "raw": "{{mwork_base_url}}/api/v1/promotions",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "promotions"
+              ]
             }
           },
           "event": [
@@ -2137,7 +2828,15 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/promotions"
+              "raw": "{{mwork_base_url}}/api/v1/promotions",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "promotions"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -2167,7 +2866,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/promotions/{promotion_id}"
+              "raw": "{{mwork_base_url}}/api/v1/promotions/{promotion_id}",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "promotions",
+                "{promotion_id}"
+              ]
             }
           },
           "event": [
@@ -2193,7 +2901,17 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/promotions/{promotion_id}/activate"
+              "raw": "{{mwork_base_url}}/api/v1/promotions/{promotion_id}/activate",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "promotions",
+                "{promotion_id}",
+                "activate"
+              ]
             }
           },
           "event": [
@@ -2219,7 +2937,17 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/promotions/{promotion_id}/pause"
+              "raw": "{{mwork_base_url}}/api/v1/promotions/{promotion_id}/pause",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "promotions",
+                "{promotion_id}",
+                "pause"
+              ]
             }
           },
           "event": [
@@ -2245,7 +2973,17 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/promotions/{promotion_id}/stats"
+              "raw": "{{mwork_base_url}}/api/v1/promotions/{promotion_id}/stats",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "promotions",
+                "{promotion_id}",
+                "stats"
+              ]
             }
           },
           "event": [
@@ -2280,7 +3018,15 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/reviews"
+              "raw": "{{mwork_base_url}}/api/v1/reviews",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reviews"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -2310,7 +3056,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/reviews/{review_id}"
+              "raw": "{{mwork_base_url}}/api/v1/reviews/{review_id}",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reviews",
+                "{review_id}"
+              ]
             }
           },
           "event": [
@@ -2336,7 +3091,15 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/faq"
+              "raw": "{{mwork_base_url}}/api/v1/faq",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "faq"
+              ]
             }
           },
           "event": [
@@ -2357,7 +3120,16 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/faq/categories"
+              "raw": "{{mwork_base_url}}/api/v1/faq/categories",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "faq",
+                "categories"
+              ]
             }
           },
           "event": [
@@ -2392,7 +3164,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/moderation/block"
+              "raw": "{{mwork_base_url}}/api/v1/moderation/block",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "moderation",
+                "block"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -2426,7 +3207,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/moderation/block"
+              "raw": "{{mwork_base_url}}/api/v1/moderation/block",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "moderation",
+                "block"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -2456,7 +3246,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/moderation/blocks"
+              "raw": "{{mwork_base_url}}/api/v1/moderation/blocks",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "moderation",
+                "blocks"
+              ]
             }
           },
           "event": [
@@ -2486,7 +3285,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/moderation/report"
+              "raw": "{{mwork_base_url}}/api/v1/moderation/report",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "moderation",
+                "report"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -2516,7 +3324,17 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/moderation/reports/mine"
+              "raw": "{{mwork_base_url}}/api/v1/moderation/reports/mine",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "moderation",
+                "reports",
+                "mine"
+              ]
             }
           },
           "event": [
@@ -2542,7 +3360,30 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/photostudio/studios?city=Almaty&page=1&limit=12"
+              "raw": "{{mwork_base_url}}/api/v1/photostudio/studios?city=Almaty&page=1&limit=12",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "photostudio",
+                "studios"
+              ],
+              "query": [
+                {
+                  "key": "city",
+                  "value": "Almaty"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "12"
+                }
+              ]
             }
           },
           "event": [
@@ -2575,7 +3416,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/photostudio/bookings"
+              "raw": "{{mwork_base_url}}/api/v1/photostudio/bookings",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "photostudio",
+                "bookings"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -2630,7 +3480,16 @@
               }
             ],
             "url": {
-              "raw": "{{photostudio_base_url}}/internal/mwork/users/sync"
+              "raw": "{{photostudio_base_url}}/internal/mwork/users/sync",
+              "host": [
+                "{{photostudio_base_url}}"
+              ],
+              "path": [
+                "internal",
+                "mwork",
+                "users",
+                "sync"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -2660,7 +3519,29 @@
               }
             ],
             "url": {
-              "raw": "{{photostudio_base_url}}/api/v1/studios?city=Almaty&page=1&limit=12"
+              "raw": "{{photostudio_base_url}}/api/v1/studios?city=Almaty&page=1&limit=12",
+              "host": [
+                "{{photostudio_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "studios"
+              ],
+              "query": [
+                {
+                  "key": "city",
+                  "value": "Almaty"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "12"
+                }
+              ]
             }
           },
           "event": [
@@ -2697,7 +3578,15 @@
               }
             ],
             "url": {
-              "raw": "{{photostudio_base_url}}/internal/mwork/bookings"
+              "raw": "{{photostudio_base_url}}/internal/mwork/bookings",
+              "host": [
+                "{{photostudio_base_url}}"
+              ],
+              "path": [
+                "internal",
+                "mwork",
+                "bookings"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -2749,7 +3638,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/v1/leads/employer"
+              "raw": "{{mwork_base_url}}/api/v1/leads/employer",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leads",
+                "employer"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -2784,7 +3682,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/admin/auth/login"
+              "raw": "{{mwork_base_url}}/api/admin/auth/login",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "auth",
+                "login"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -2818,7 +3725,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/admin/auth/me"
+              "raw": "{{mwork_base_url}}/api/admin/auth/me",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "auth",
+                "me"
+              ]
             }
           },
           "event": [
@@ -2844,7 +3760,15 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/admin/admins"
+              "raw": "{{mwork_base_url}}/api/admin/admins",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "admins"
+              ]
             }
           },
           "event": [
@@ -2874,7 +3798,15 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/admin/admins"
+              "raw": "{{mwork_base_url}}/api/admin/admins",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "admins"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -2908,7 +3840,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/admin/admins/{admin_id}"
+              "raw": "{{mwork_base_url}}/api/admin/admins/{admin_id}",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "admins",
+                "{admin_id}"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -2938,7 +3879,15 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/admin/features"
+              "raw": "{{mwork_base_url}}/api/admin/features",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "features"
+              ]
             }
           },
           "event": [
@@ -2968,7 +3917,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/admin/features/{feature_key}"
+              "raw": "{{mwork_base_url}}/api/admin/features/{feature_key}",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "features",
+                "{feature_key}"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -2998,7 +3956,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/admin/analytics/dashboard"
+              "raw": "{{mwork_base_url}}/api/admin/analytics/dashboard",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "analytics",
+                "dashboard"
+              ]
             }
           },
           "event": [
@@ -3024,7 +3991,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/admin/analytics/revenue"
+              "raw": "{{mwork_base_url}}/api/admin/analytics/revenue",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "analytics",
+                "revenue"
+              ]
             }
           },
           "event": [
@@ -3050,7 +4026,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/admin/audit/logs"
+              "raw": "{{mwork_base_url}}/api/admin/audit/logs",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "audit",
+                "logs"
+              ]
             }
           },
           "event": [
@@ -3076,7 +4061,15 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/admin/reports"
+              "raw": "{{mwork_base_url}}/api/admin/reports",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "reports"
+              ]
             }
           },
           "event": [
@@ -3106,7 +4099,17 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/admin/reports/{report_id}/status"
+              "raw": "{{mwork_base_url}}/api/admin/reports/{report_id}/status",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "reports",
+                "{report_id}",
+                "status"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -3136,7 +4139,15 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/admin/users"
+              "raw": "{{mwork_base_url}}/api/admin/users",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users"
+              ]
             }
           },
           "event": [
@@ -3166,7 +4177,17 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/admin/users/{user_id}/status"
+              "raw": "{{mwork_base_url}}/api/admin/users/{user_id}/status",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users",
+                "{user_id}",
+                "status"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -3200,7 +4221,18 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/admin/users/{user_id}/credits/grant"
+              "raw": "{{mwork_base_url}}/api/admin/users/{user_id}/credits/grant",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users",
+                "{user_id}",
+                "credits",
+                "grant"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -3230,7 +4262,17 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/admin/users/{user_id}/credits"
+              "raw": "{{mwork_base_url}}/api/admin/users/{user_id}/credits",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users",
+                "{user_id}",
+                "credits"
+              ]
             }
           },
           "event": [
@@ -3256,7 +4298,26 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/admin/photostudio/resync?limit=500&offset=0"
+              "raw": "{{mwork_base_url}}/api/admin/photostudio/resync?limit=500&offset=0",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "photostudio",
+                "resync"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "500"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
             }
           },
           "event": [
@@ -3286,7 +4347,15 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/admin/sql"
+              "raw": "{{mwork_base_url}}/api/admin/sql",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "sql"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -3321,7 +4390,15 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/admin/leads"
+              "raw": "{{mwork_base_url}}/api/admin/leads",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "leads"
+              ]
             }
           },
           "event": [
@@ -3347,7 +4424,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/admin/leads/stats"
+              "raw": "{{mwork_base_url}}/api/admin/leads/stats",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "leads",
+                "stats"
+              ]
             }
           },
           "event": [
@@ -3373,7 +4459,16 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/admin/leads/{lead_id}"
+              "raw": "{{mwork_base_url}}/api/admin/leads/{lead_id}",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "leads",
+                "{lead_id}"
+              ]
             }
           },
           "event": [
@@ -3403,7 +4498,17 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/admin/leads/{lead_id}/status"
+              "raw": "{{mwork_base_url}}/api/admin/leads/{lead_id}/status",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "leads",
+                "{lead_id}",
+                "status"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -3433,7 +4538,17 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/admin/leads/{lead_id}/contacted"
+              "raw": "{{mwork_base_url}}/api/admin/leads/{lead_id}/contacted",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "leads",
+                "{lead_id}",
+                "contacted"
+              ]
             }
           },
           "event": [
@@ -3463,7 +4578,17 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/admin/leads/{lead_id}/assign"
+              "raw": "{{mwork_base_url}}/api/admin/leads/{lead_id}/assign",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "leads",
+                "{lead_id}",
+                "assign"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -3493,7 +4618,17 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/admin/leads/{lead_id}/convert"
+              "raw": "{{mwork_base_url}}/api/admin/leads/{lead_id}/convert",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "leads",
+                "{lead_id}",
+                "convert"
+              ]
             }
           },
           "event": [
@@ -3519,7 +4654,17 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/admin/leads/{lead_id}/approve"
+              "raw": "{{mwork_base_url}}/api/admin/leads/{lead_id}/approve",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "leads",
+                "{lead_id}",
+                "approve"
+              ]
             }
           },
           "event": [
@@ -3549,7 +4694,17 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/api/admin/leads/{lead_id}/reject"
+              "raw": "{{mwork_base_url}}/api/admin/leads/{lead_id}/reject",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "leads",
+                "{lead_id}",
+                "reject"
+              ]
             },
             "body": {
               "mode": "raw",
@@ -3588,7 +4743,14 @@
               }
             ],
             "url": {
-              "raw": "{{mwork_base_url}}/webhooks/{payment_provider}"
+              "raw": "{{mwork_base_url}}/webhooks/{payment_provider}",
+              "host": [
+                "{{mwork_base_url}}"
+              ],
+              "path": [
+                "webhooks",
+                "{payment_provider}"
+              ]
             },
             "body": {
               "mode": "raw",
