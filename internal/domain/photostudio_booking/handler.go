@@ -2,6 +2,7 @@ package photostudio_booking
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -59,6 +60,7 @@ func (h *Handler) CreateBooking(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		response.InternalError(w)
+		fmt.Println(err.Error())
 		return
 	}
 
@@ -70,7 +72,7 @@ func (h *Handler) CreateBooking(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetStudios(w http.ResponseWriter, r *http.Request) {
 	// Parse query params
 	city := r.URL.Query().Get("city")
-	
+
 	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 	if page <= 0 {
 		page = 1
@@ -100,8 +102,8 @@ func isValidationError(err error) bool {
 		return false
 	}
 	// PhotoStudio returns VALIDATION_ERROR code
-	return containsString(err.Error(), "VALIDATION_ERROR") || 
-		   containsString(err.Error(), "end_time must be after start_time")
+	return containsString(err.Error(), "VALIDATION_ERROR") ||
+		containsString(err.Error(), "end_time must be after start_time")
 }
 
 func isConflictError(err error) bool {
@@ -109,13 +111,13 @@ func isConflictError(err error) bool {
 		return false
 	}
 	// PhotoStudio returns OVERBOOKING or NOT_AVAILABLE codes
-	return containsString(err.Error(), "OVERBOOKING") || 
-		   containsString(err.Error(), "NOT_AVAILABLE") ||
-		   containsString(err.Error(), "status=409")
+	return containsString(err.Error(), "OVERBOOKING") ||
+		containsString(err.Error(), "NOT_AVAILABLE") ||
+		containsString(err.Error(), "status=409")
 }
 
 func containsString(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && 
+	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) &&
 		(findSubstring(s, substr) >= 0))
 }
 
