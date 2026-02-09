@@ -8,6 +8,7 @@ import (
 	"github.com/mwork/mwork-api/internal/middleware"
 	"github.com/mwork/mwork-api/internal/pkg/response"
 	"github.com/mwork/mwork-api/internal/pkg/validator"
+	"github.com/rs/zerolog/log"
 )
 
 // Handler handles auth HTTP requests
@@ -62,6 +63,11 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 			case ErrEmailAlreadyExists:
 				response.Conflict(w, "Email already registered")
 			default:
+				log.Error().
+					Err(err).
+					Str("email", req.Email).
+					Str("role", "agency").
+					Msg("failed to register agency user")
 				response.InternalError(w)
 			}
 			return
@@ -91,6 +97,11 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 			case ErrInvalidRole:
 				response.BadRequest(w, "Role must be 'model' or 'employer'")
 			default:
+				log.Error().
+					Err(err).
+					Str("email", req.Email).
+					Str("role", req.Role).
+					Msg("failed to register user")
 				response.InternalError(w)
 			}
 			return
@@ -126,6 +137,10 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		case ErrUserBanned:
 			response.Forbidden(w, "Account is banned")
 		default:
+			log.Error().
+				Err(err).
+				Str("email", req.Email).
+				Msg("login failed with internal error")
 			response.InternalError(w)
 		}
 		return
