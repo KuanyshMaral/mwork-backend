@@ -6,7 +6,8 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }} # ghcr.io/<owner>/<repo>
+  # ВАЖНО: только lowercase!
+  IMAGE_NAME: kuanyshmaral/mwork-backend
 
 jobs:
   build-and-deploy:
@@ -35,7 +36,7 @@ jobs:
             type=raw,value=latest
             type=sha
 
-      - name: Build & push
+      - name: Build & push image
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -43,7 +44,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-      - name: Deploy via SSH (migrate then restart)
+      - name: Deploy on server (migrate -> restart)
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -56,20 +57,22 @@ jobs:
 
             cd /srv/apps/mwork-backend
 
+            # обновляем репо (нужно, чтобы migrations/ и compose были свежими)
             git reset --hard
             git pull origin main
 
-            # Тянем свежий образ API (и веб если хочешь)
-            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest || true
+            # тянем свежий образ API
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
 
-            # Если web тоже в compose — можно обновлять так:
+            # (опционально) тянем фронт, если он тоже в compose
             docker compose pull web || true
 
-            # 1) Миграции (ВАЖНО: без --no-deps)
+            # 1) миграции (если упадут — деплой остановится)
             docker compose run --rm migrate
 
-            # 2) Перезапуск API + web
+            # 2) рестарт API + web
             docker compose up -d api
-            docker compose up -d web
+            docker compose up -d web || true
 
+            # чистка старых образов
             docker image prune -f
