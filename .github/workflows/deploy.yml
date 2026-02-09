@@ -2,11 +2,11 @@ name: Deploy Backend
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  IMAGE_NAME: ${{ github.repository }} # ghcr.io/<owner>/<repo>
 
 jobs:
   build-and-deploy:
@@ -16,25 +16,26 @@ jobs:
       packages: write
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Log in to the Container registry
+      - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ secrets.GHCR_USERNAME }}
           password: ${{ secrets.GHCR_TOKEN }}
 
-      - name: Extract metadata (tags, labels) for Docker
+      - name: Extract Docker metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=latest
+            type=sha
 
-      - name: Build and push Docker image
+      - name: Build & push
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -42,27 +43,33 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-      - name: Deploy to Server via SSH
+      - name: Deploy via SSH (migrate then restart)
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
+            set -euo pipefail
+
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME }}" --password-stdin
-            
-            # Переходим в папку
+
             cd /srv/apps/mwork-backend
-            
-            # --- ВАЖНО: Скачиваем свежий docker-compose.yml из Гита ---
-            # (если попросит stash, то сбросим локальные изменения)
+
             git reset --hard
             git pull origin main
-            
-            # Скачиваем образ
-            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-            
-            # Перезапускаем API
-            docker compose up -d --no-deps --build api
-            
+
+            # Тянем свежий образ API (и веб если хочешь)
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest || true
+
+            # Если web тоже в compose — можно обновлять так:
+            docker compose pull web || true
+
+            # 1) Миграции (ВАЖНО: без --no-deps)
+            docker compose run --rm migrate
+
+            # 2) Перезапуск API + web
+            docker compose up -d api
+            docker compose up -d web
+
             docker image prune -f
