@@ -247,6 +247,97 @@ func (s *Service) UpdatePaymentByKaspiOrderID(ctx context.Context, kaspiOrderID 
 	return s.HandleWebhook(ctx, "kaspi", kaspiOrderID, status)
 }
 
+// UpdatePaymentByInvoiceID updates payment status by RoboKassa invoice ID
+// NEW: RoboKassa webhook handler with idempotency protection
+func (s *Service) UpdatePaymentByInvoiceID(ctx context.Context, invoiceID int64, status string) error {
+	if invoiceID <= 0 {
+		return fmt.Errorf("invalid invoice_id: must be > 0")
+	}
+
+	// Get payment by invoice ID
+	payment, err := s.repo.GetByInvoiceID(ctx, invoiceID)
+	if err != nil {
+		return fmt.Errorf("failed to get payment: %w", err)
+	}
+	if payment == nil {
+		log.Warn().Int64("invoice_id", invoiceID).Msg("Payment not found for invoice ID")
+		return ErrPaymentNotFound
+	}
+
+	// IDEMPOTENCY - If already paid, skip (RoboKassa may retry webhooks)
+	if payment.IsPaid() {
+		log.Info().Str("payment_id", payment.ID.String()).Int64("invoice_id", invoiceID).Msg("Payment already processed, skipping duplicate webhook")
+		return nil
+	}
+
+	// Validate status transition
+	if err := s.validateStatusTransition(string(payment.Status), status); err != nil {
+		return fmt.Errorf("invalid status transition: %w", err)
+	}
+
+	// Update payment status in database
+	newStatus := Status(status)
+	if err := s.repo.UpdateByInvoiceID(ctx, invoiceID, newStatus); err != nil {
+		return fmt.Errorf("failed to update payment: %w", err)
+	}
+
+	// Process post-success actions
+	if status == "completed" {
+		// Activate subscription if this is a subscription payment
+		if payment.SubscriptionID.Valid {
+			if err := s.subSvc.ActivateSubscription(ctx, payment.SubscriptionID.UUID); err != nil {
+				log.Error().Err(err).Str("subscription_id", payment.SubscriptionID.UUID.String()).Msg("Failed to activate subscription after payment")
+			}
+		} else if s.creditSvc != nil {
+			// Grant credits for credit purchase
+			creditAmount := s.determineCreditAmount(payment.Amount)
+			if creditAmount > 0 {
+				paymentIDStr := payment.ID.String()
+				creditMeta := credit.TransactionMeta{
+					RelatedEntityType: "payment",
+					RelatedEntityID:   payment.ID,
+					Description:       fmt.Sprintf("Purchase via RoboKassa: invoice %d", invoiceID),
+					PaymentID:         &paymentIDStr,
+				}
+
+				if err := s.creditSvc.Add(ctx, payment.UserID, creditAmount, credit.TransactionTypePurchase, creditMeta); err != nil {
+					log.Error().Err(err).Str("payment_id", payment.ID.String()).Msg("Failed to grant credits after payment")
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// GenerateInvoiceID generates next available invoice ID for RoboKassa
+// Uses PostgreSQL sequence for thread-safe ID generation
+func (s *Service) GenerateInvoiceID(ctx context.Context) (int64, error) {
+	invoiceID, err := s.repo.GetNextInvoiceID(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to generate invoice ID: %w", err)
+	}
+
+	if invoiceID < 1000 {
+		return 0, fmt.Errorf("invoice ID too small: %d (minimum 1000)", invoiceID)
+	}
+
+	return invoiceID, nil
+}
+
+// validateStatusTransition checks if status transition is valid
+func (s *Service) validateStatusTransition(currentStatus, newStatus string) error {
+	// Prevent invalid transitions
+	if currentStatus == string(StatusCompleted) && newStatus != string(StatusCompleted) {
+		return fmt.Errorf("cannot transition from completed to %s", newStatus)
+	}
+	if currentStatus == string(StatusFailed) && newStatus == string(StatusCompleted) {
+		return fmt.Errorf("cannot transition from failed to completed")
+	}
+	// Allow idempotent updates (same status)
+	return nil
+}
+
 // Errors
 var (
 	ErrPaymentNotFound = subscription.ErrPaymentFailed

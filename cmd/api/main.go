@@ -41,9 +41,10 @@ import (
 	"github.com/mwork/mwork-api/internal/middleware"
 	"github.com/mwork/mwork-api/internal/pkg/database"
 	"github.com/mwork/mwork-api/internal/pkg/jwt"
-	"github.com/mwork/mwork-api/internal/pkg/kaspi"
+	paymentpkg "github.com/mwork/mwork-api/internal/pkg/payment"
 	"github.com/mwork/mwork-api/internal/pkg/photostudio"
 	pkgresponse "github.com/mwork/mwork-api/internal/pkg/response"
+	"github.com/mwork/mwork-api/internal/pkg/robokassa"
 	"github.com/mwork/mwork-api/internal/pkg/storage"
 	"github.com/mwork/mwork-api/internal/pkg/upload"
 )
@@ -165,12 +166,8 @@ func main() {
 	// Adapter for subscription payment service
 	subscriptionPaymentService := &subscriptionPaymentAdapter{service: paymentService}
 
-	// Adapter for subscription kaspi client
-	subscriptionKaspiClient := &subscriptionKaspiAdapter{client: kaspi.NewClient(kaspi.Config{
-		BaseURL:    cfg.KaspiBaseURL,
-		MerchantID: cfg.KaspiMerchantID,
-		SecretKey:  cfg.KaspiSecretKey,
-	})}
+	// Setup payment provider factory
+	providerFactory := setupPaymentProviders(cfg)
 
 	// Update authService with authEmployerRepo
 	authService := auth.NewService(
@@ -228,11 +225,11 @@ func main() {
 	deviceRepo := notification.NewDeviceTokenRepository(db)
 	preferencesHandler := notification.NewPreferencesHandler(prefsRepo, deviceRepo)
 
-	subscriptionHandler := subscription.NewHandler(subscriptionService, subscriptionPaymentService, subscriptionKaspiClient, &subscription.Config{
-		FrontendURL: "http://localhost:3000",
-		BackendURL:  "http://localhost:8080",
+	subscriptionHandler := subscription.NewHandler(subscriptionService, subscriptionPaymentService, providerFactory, &subscription.Config{
+		FrontendURL: cfg.FrontendURL,
+		BackendURL:  cfg.BackendURL,
 	})
-	paymentHandler := payment.NewHandler(paymentService, cfg.KaspiSecretKey)
+	paymentHandler := payment.NewHandler(paymentService, providerFactory)
 
 	dashboardHandler := dashboard.NewHandler(dashboardRepo, dashboardSvc)
 	promotionHandler := promotion.NewHandler(promotionRepo)
@@ -533,34 +530,8 @@ func (a *subscriptionPaymentAdapter) CreatePayment(ctx context.Context, userID, 
 		UserID:         payment.UserID,
 		SubscriptionID: payment.SubscriptionID,
 		Amount:         payment.Amount,
-		KaspiOrderID:   payment.KaspiOrderID,
 		Status:         string(payment.Status),
 		CreatedAt:      payment.CreatedAt,
-	}, nil
-}
-
-type subscriptionKaspiAdapter struct {
-	client *kaspi.Client
-}
-
-func (a *subscriptionKaspiAdapter) CreatePayment(ctx context.Context, req subscription.KaspiPaymentRequest) (*subscription.KaspiPaymentResponse, error) {
-	kaspiReq := kaspi.CreatePaymentRequest{
-		Amount:      req.Amount,
-		OrderID:     req.OrderID,
-		Description: req.Description,
-		ReturnURL:   req.ReturnURL,
-		CallbackURL: req.CallbackURL,
-	}
-
-	resp, err := a.client.CreatePayment(ctx, kaspiReq)
-	if err != nil {
-		return nil, err
-	}
-
-	return &subscription.KaspiPaymentResponse{
-		PaymentID:  resp.PaymentID,
-		PaymentURL: resp.PaymentURL,
-		Status:     resp.Status,
 	}, nil
 }
 
@@ -632,4 +603,21 @@ func (a *modelProfileIDProvider) ProfileIDByUserID(ctx context.Context, userID u
 		return uuid.Nil, err
 	}
 	return modelProfile.ID, nil
+}
+
+// setupPaymentProviders creates and initializes the payment provider factory with all supported providers
+func setupPaymentProviders(cfg *config.Config) *paymentpkg.ProviderFactory {
+	factory := paymentpkg.NewProviderFactory()
+
+	// Register RoboKassa provider
+	roboConfig := robokassa.Config{
+		MerchantLogin: cfg.RoboKassaMerchantLogin,
+		Password1:     cfg.RoboKassaPassword1,
+		Password2:     cfg.RoboKassaPassword2,
+		TestMode:      cfg.RoboKassaTestMode,
+	}
+	roboProvider := paymentpkg.NewRoboKassaProvider(roboConfig)
+	factory.Register(paymentpkg.ProviderRoboKassa, roboProvider)
+
+	return factory
 }

@@ -43,7 +43,7 @@ services:
     volumes:
       - ./migrations:/migrations:ro
     env_file:
-      - ./.env.docker
+      - .env.docker.example
     environment:
       DATABASE_URL: ${DATABASE_URL:-}   # не обязательно, но ок
     entrypoint: ["/bin/sh", "-lc"]
@@ -60,7 +60,7 @@ services:
       migrate:
         condition: service_completed_successfully
     env_file:
-      - ./.env.docker
+      - .env.docker.example
     ports:
       - "8080:8080"
     restart: unless-stopped

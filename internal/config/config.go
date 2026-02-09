@@ -38,10 +38,20 @@ type Config struct {
 	// Email
 	ResendAPIKey string
 
-	// Kaspi Payment
+	// Kaspi Payment (DEPRECATED - use RoboKassa)
 	KaspiBaseURL    string
 	KaspiMerchantID string
 	KaspiSecretKey  string
+
+	// RoboKassa Payment
+	RoboKassaMerchantLogin string
+	RoboKassaPassword1     string
+	RoboKassaPassword2     string
+	RoboKassaTestMode      bool
+
+	// Payment URLs
+	FrontendURL string
+	BackendURL  string
 
 	// PhotoStudio
 	PhotoStudioBaseURL        string
@@ -88,10 +98,20 @@ func Load() *Config {
 		// Email
 		ResendAPIKey: getEnv("RESEND_API_KEY", ""),
 
-		// Kaspi Payment
+		// Kaspi Payment (DEPRECATED)
 		KaspiBaseURL:    getEnv("KASPI_BASE_URL", "https://api.kaspi.kz"),
 		KaspiMerchantID: getEnv("KASPI_MERCHANT_ID", ""),
 		KaspiSecretKey:  getEnv("KASPI_SECRET_KEY", ""),
+
+		// RoboKassa Payment
+		RoboKassaMerchantLogin: getEnv("ROBOKASSA_MERCHANT_LOGIN", ""),
+		RoboKassaPassword1:     getEnv("ROBOKASSA_PASSWORD1", ""),
+		RoboKassaPassword2:     getEnv("ROBOKASSA_PASSWORD2", ""),
+		RoboKassaTestMode:      parseBool(getEnv("ROBOKASSA_TEST_MODE", "false"), false),
+
+		// Payment URLs
+		FrontendURL: getEnv("FRONTEND_URL", "http://localhost:3000"),
+		BackendURL:  getEnv("BACKEND_URL", "http://localhost:8080"),
 
 		// PhotoStudio
 		PhotoStudioBaseURL:        getEnv("PHOTOSTUDIO_BASE_URL", ""),

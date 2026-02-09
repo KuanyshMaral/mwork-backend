@@ -1,8 +1,7 @@
 package payment
 
 import (
-	"encoding/json"
-	"io"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -10,21 +9,22 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/mwork/mwork-api/internal/middleware"
-	"github.com/mwork/mwork-api/internal/pkg/kaspi"
+	paymentpkg "github.com/mwork/mwork-api/internal/pkg/payment"
 	"github.com/mwork/mwork-api/internal/pkg/response"
+	"github.com/mwork/mwork-api/internal/pkg/robokassa"
 )
 
 // Handler handles payment HTTP requests
 type Handler struct {
-	service     *Service
-	kaspiSecret string
+	service         *Service
+	providerFactory *paymentpkg.ProviderFactory
 }
 
-// NewHandler creates payment handler
-func NewHandler(service *Service, kaspiSecret string) *Handler {
+// NewHandler creates payment handler with provider factory
+func NewHandler(service *Service, factory *paymentpkg.ProviderFactory) *Handler {
 	return &Handler{
-		service:     service,
-		kaspiSecret: kaspiSecret,
+		service:         service,
+		providerFactory: factory,
 	}
 }
 
@@ -54,159 +54,83 @@ func (h *Handler) GetHistory(w http.ResponseWriter, r *http.Request) {
 	response.OK(w, payments)
 }
 
-// KaspiWebhookPayload represents incoming webhook data
-type KaspiWebhookPayload struct {
-	EventType string  `json:"event_type"` // payment.success, payment.failed
-	OrderID   string  `json:"order_id"`
-	PaymentID string  `json:"payment_id"`
-	Amount    float64 `json:"amount"`
-	Status    string  `json:"status"`
-	Timestamp string  `json:"timestamp"`
-}
-
-// HandleKaspiWebhook processes payment status updates from Kaspi
-func (h *Handler) HandleKaspiWebhook(w http.ResponseWriter, r *http.Request) {
+// HandleRoboKassaWebhook processes payment webhooks from RoboKassa (ResultURL)
+// CRITICAL: This is called AFTER successful payment on RoboKassa gateway
+func (h *Handler) HandleRoboKassaWebhook(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// Read raw body for signature verification
-	body, err := io.ReadAll(r.Body)
+	// Parse form data (RoboKassa sends form-encoded data, not JSON)
+	if err := r.ParseForm(); err != nil {
+		log.Error().Err(err).Msg("Failed to parse form data")
+		response.Error(w, http.StatusBadRequest, "BAD_REQUEST", "failed to parse form")
+		return
+	}
+
+	// Parse webhook payload
+	payload, err := robokassa.ParseWebhookForm(r.Form)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to read webhook body")
-		response.Error(w, http.StatusBadRequest, "BAD_REQUEST", "failed to read body")
-		return
-	}
-	defer r.Body.Close()
-
-	// Verify signature
-	signature := r.Header.Get("X-Signature")
-	if signature == "" {
-		log.Warn().Msg("Webhook received without signature")
-		response.Error(w, http.StatusUnauthorized, "UNAUTHORIZED", "signature required")
+		log.Warn().Err(err).Msg("Failed to parse robokassa webhook")
+		response.Error(w, http.StatusBadRequest, "BAD_REQUEST", err.Error())
 		return
 	}
 
-	if !kaspi.VerifySignature(body, signature, h.kaspiSecret) {
+	// Get provider from factory
+	provider, err := h.providerFactory.Get("robokassa")
+	if err != nil {
+		log.Error().Err(err).Msg("RoboKassa provider not registered")
+		response.Error(w, http.StatusInternalServerError, "PROVIDER_ERROR", "robokassa not configured")
+		return
+	}
+
+	// Verify webhook signature using provider
+	signature := r.FormValue("SignatureValue")
+	if !provider.VerifyWebhook(payload, signature) {
 		log.Warn().
+			Str("invoice_id", fmt.Sprintf("%d", payload.InvId)).
 			Str("signature", signature).
 			Msg("Invalid webhook signature")
 		response.Error(w, http.StatusUnauthorized, "UNAUTHORIZED", "invalid signature")
 		return
 	}
 
-	// Parse JSON payload
-	var payload KaspiWebhookPayload
-	if err := json.Unmarshal(body, &payload); err != nil {
-		log.Error().Err(err).Msg("Failed to parse webhook payload")
-		response.Error(w, http.StatusBadRequest, "BAD_REQUEST", "invalid json")
-		return
-	}
-
-	// Validate required fields
-	if payload.OrderID == "" {
-		log.Warn().Msg("Webhook payload missing order_id")
-		response.Error(w, http.StatusBadRequest, "BAD_REQUEST", "order_id is required")
-		return
-	}
-	if payload.Status == "" {
-		log.Warn().Msg("Webhook payload missing status")
-		response.Error(w, http.StatusBadRequest, "BAD_REQUEST", "status is required")
-		return
-	}
-
-	// Map Kaspi status to internal status
-	var internalStatus string
-	switch payload.EventType {
-	case "payment.success":
-		internalStatus = "completed"
-	case "payment.failed":
-		internalStatus = "failed"
-	case "payment.pending":
-		internalStatus = "pending"
-	default:
-		// Try to infer from status field
-		switch payload.Status {
-		case "success", "completed", "paid":
-			internalStatus = "completed"
-		case "failed", "cancelled", "declined":
-			internalStatus = "failed"
-		case "pending":
-			internalStatus = "pending"
-		default:
-			log.Warn().
-				Str("event_type", payload.EventType).
-				Str("status", payload.Status).
-				Msg("Unknown webhook status")
-			response.Error(w, http.StatusBadRequest, "BAD_REQUEST", "unknown status")
-			return
-		}
-	}
-
 	log.Info().
-		Str("order_id", payload.OrderID).
-		Str("payment_id", payload.PaymentID).
-		Str("status", internalStatus).
-		Float64("amount", payload.Amount).
-		Msg("Processing Kaspi webhook")
+		Int64("invoice_id", payload.InvId).
+		Str("amount", payload.OutSum).
+		Msg("Processing RoboKassa webhook")
 
-	// Update payment status via service
-	if err := h.service.UpdatePaymentByKaspiOrderID(ctx, payload.OrderID, internalStatus); err != nil {
-		if err == ErrPaymentNotFound {
-			log.Warn().
-				Str("order_id", payload.OrderID).
-				Msg("Payment not found for webhook - idempotency, returning success")
-			response.JSON(w, http.StatusOK, map[string]string{"status": "processed"})
-			return
-		}
+	// Update payment status via service (idempotency handled inside)
+	if err := h.service.UpdatePaymentByInvoiceID(ctx, payload.InvId, "completed"); err != nil {
 		log.Error().
 			Err(err).
-			Str("order_id", payload.OrderID).
-			Msg("Failed to update payment status")
-		response.Error(w, http.StatusInternalServerError, "INTERNAL_ERROR", "internal error")
+			Int64("invoice_id", payload.InvId).
+			Msg("Failed to update payment")
+		response.Error(w, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to process webhook")
 		return
 	}
 
 	log.Info().
-		Str("order_id", payload.OrderID).
-		Str("status", internalStatus).
-		Msg("Webhook processed successfully")
+		Int64("invoice_id", payload.InvId).
+		Msg("RoboKassa webhook processed successfully")
 
-	response.JSON(w, http.StatusOK, map[string]string{"status": "processed"})
+	// RoboKassa expects HTTP 200 OK
+	response.JSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-// Webhook handles POST /webhooks/payment
-// This is called by payment providers (Kaspi, etc.)
-func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
-	provider := chi.URLParam(r, "provider")
+// WebhookHandler is generic webhook handler for any provider
+// Routes webhook to appropriate handler based on provider name
+func (h *Handler) WebhookHandler(w http.ResponseWriter, r *http.Request) {
+	providerName := chi.URLParam(r, "provider")
 
-	// Parse webhook data (structure varies by provider)
-	var data struct {
-		TransactionID string  `json:"transaction_id"`
-		ExternalID    string  `json:"external_id"`
-		Status        string  `json:"status"`
-		Amount        float64 `json:"amount"`
+	log.Info().Str("provider", providerName).Msg("Webhook received")
+
+	// Route to specific provider handler
+	switch providerName {
+	case "robokassa":
+		h.HandleRoboKassaWebhook(w, r)
+	default:
+		log.Warn().Str("provider", providerName).Msg("Unknown payment provider")
+		response.Error(w, http.StatusNotFound, "PROVIDER_NOT_FOUND", "unknown provider")
 	}
-
-	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
-		response.BadRequest(w, "Invalid webhook data")
-		return
-	}
-
-	// TODO: Verify webhook signature based on provider
-	// For Kaspi: verify HMAC signature
-	// For now, just process the webhook
-
-	externalID := data.ExternalID
-	if externalID == "" {
-		externalID = data.TransactionID
-	}
-
-	if err := h.service.HandleWebhook(r.Context(), provider, externalID, data.Status); err != nil {
-		// Don't expose internal errors to webhook caller
-		response.OK(w, map[string]string{"status": "error", "message": "payment not found"})
-		return
-	}
-
-	response.OK(w, map[string]string{"status": "ok"})
 }
 
 // Routes returns payment router
@@ -222,9 +146,9 @@ func (h *Handler) Routes(authMiddleware func(http.Handler) http.Handler) chi.Rou
 	return r
 }
 
-// WebhookRoutes returns webhook router (no auth, but signature verification)
+// WebhookRoutes returns webhook router (no auth)
 func (h *Handler) WebhookRoutes() chi.Router {
 	r := chi.NewRouter()
-	r.Post("/{provider}", h.Webhook)
+	r.Post("/{provider}", h.WebhookHandler)
 	return r
 }
