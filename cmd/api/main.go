@@ -65,7 +65,8 @@ func main() {
 
 	redis, err := database.NewRedis(cfg.RedisURL)
 	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to connect to Redis")
+		log.Warn().Err(err).Msg("Failed to connect to Redis - running without Redis...")
+		redis = nil
 	}
 	defer database.CloseRedis(redis)
 
