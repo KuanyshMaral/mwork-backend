@@ -77,19 +77,25 @@ func NewService(
 func (s *Service) Register(ctx context.Context, req *RegisterRequest) (*AuthResponse, error) {
 	req.Email = normalizeEmail(req.Email)
 	// 1. Check if email exists
-	existing, _ := s.userRepo.GetByEmail(ctx, req.Email)
+	existing, err := s.userRepo.GetByEmail(ctx, req.Email)
+	if err != nil {
+		log.Error().Err(err).Str("email", req.Email).Msg("failed to check existing user by email")
+		return nil, err
+	}
 	if existing != nil {
 		return nil, ErrEmailAlreadyExists
 	}
 
 	// 2. Validate role
 	if !user.IsValidRole(req.Role) {
+		log.Warn().Str("email", req.Email).Str("role", req.Role).Msg("invalid role in register request")
 		return nil, ErrInvalidRole
 	}
 
 	// 3. Hash password
 	hash, err := password.Hash(req.Password)
 	if err != nil {
+		log.Error().Err(err).Str("email", req.Email).Msg("failed to hash password during register")
 		return nil, err
 	}
 
@@ -106,6 +112,7 @@ func (s *Service) Register(ctx context.Context, req *RegisterRequest) (*AuthResp
 	}
 
 	if err := s.userRepo.Create(ctx, u); err != nil {
+		log.Error().Err(err).Str("email", req.Email).Str("user_id", u.ID.String()).Msg("failed to create user")
 		return nil, err
 	}
 
@@ -123,7 +130,11 @@ func (s *Service) Register(ctx context.Context, req *RegisterRequest) (*AuthResp
 func (s *Service) RegisterAgency(ctx context.Context, req *AgencyRegisterRequest) (*AuthResponse, error) {
 	req.Email = normalizeEmail(req.Email)
 	// 1. Check if email exists
-	existing, _ := s.userRepo.GetByEmail(ctx, req.Email)
+	existing, err := s.userRepo.GetByEmail(ctx, req.Email)
+	if err != nil {
+		log.Error().Err(err).Str("email", req.Email).Msg("failed to check existing agency by email")
+		return nil, err
+	}
 	if existing != nil {
 		return nil, ErrEmailAlreadyExists
 	}
@@ -131,6 +142,7 @@ func (s *Service) RegisterAgency(ctx context.Context, req *AgencyRegisterRequest
 	// 2. Hash password
 	hash, err := password.Hash(req.Password)
 	if err != nil {
+		log.Error().Err(err).Str("email", req.Email).Msg("failed to hash password during agency register")
 		return nil, err
 	}
 
@@ -147,6 +159,7 @@ func (s *Service) RegisterAgency(ctx context.Context, req *AgencyRegisterRequest
 	}
 
 	if err := s.userRepo.Create(ctx, u); err != nil {
+		log.Error().Err(err).Str("email", req.Email).Str("user_id", u.ID.String()).Msg("failed to create agency user")
 		return nil, err
 	}
 
@@ -164,6 +177,12 @@ func (s *Service) RegisterAgency(ctx context.Context, req *AgencyRegisterRequest
 	}
 
 	if err := s.employerProfRepo.Create(ctx, profile); err != nil {
+		log.Error().
+			Err(err).
+			Str("email", req.Email).
+			Str("user_id", u.ID.String()).
+			Str("profile_id", profile.ID.String()).
+			Msg("failed to create employer profile for agency")
 		// Rollback: delete user if profile creation fails
 		_ = s.userRepo.Delete(ctx, u.ID)
 		return nil, err
