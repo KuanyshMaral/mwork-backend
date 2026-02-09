@@ -44,7 +44,8 @@ services:
       - ./migrations:/migrations:ro
     env_file:
       - ./.env.docker
-    command: ["-path=/migrations", "-database", "${DATABASE_URL}", "up"]
+    entrypoint: ["/bin/sh", "-lc"]
+    command: 'migrate -path=/migrations -database "$DATABASE_URL" up'
     restart: "no"
 
   api:
