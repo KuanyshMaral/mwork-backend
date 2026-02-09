@@ -41,16 +41,14 @@ services:
       postgres:
         condition: service_healthy
     volumes:
-      - ./migrations:/migrations
+      - ./migrations:/migrations:ro
     env_file:
       - ./.env.docker
     command: ["-path=/migrations", "-database", "${DATABASE_URL}", "up"]
     restart: "no"
 
   api:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/kuanyshmaral/mwork-backend:latest
     depends_on:
       postgres:
         condition: service_healthy
@@ -64,7 +62,6 @@ services:
       - "8080:8080"
     restart: unless-stopped
 
-  # --- НОВЫЙ СЕРВИС: ФРОНТЕНД ---
   web:
     image: ghcr.io/kuanyshmaral/mwork-frontend:latest
     restart: unless-stopped
@@ -72,7 +69,6 @@ services:
       - "80:80"
     depends_on:
       - api
-    # Эта настройка обязательна, чтобы Nginx мог подключиться к host.docker.internal:8080
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
