@@ -46,8 +46,25 @@ import (
 	pkgresponse "github.com/mwork/mwork-api/internal/pkg/response"
 	"github.com/mwork/mwork-api/internal/pkg/storage"
 	"github.com/mwork/mwork-api/internal/pkg/upload"
+
+	_ "github.com/mwork/mwork-api/docs"
+	httpSwagger "github.com/swaggo/http-swagger"
 )
 
+// @title           MWork API
+// @version         1.0
+// @description     API server for model agency aggregator.
+// @termsOfService  http://swagger.io/terms/
+
+// @contact.name    API Support
+// @contact.email   support@swagger.io
+
+// @host            localhost:8080
+// @BasePath        /api/v1
+
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
 func main() {
 	cfg := config.Load()
 	setupLogger(cfg)
@@ -268,6 +285,12 @@ func main() {
 	r.Use(middleware.Recover)
 	r.Use(middleware.CORSHandler(cfg.AllowedOrigins))
 
+	// Swagger будет доступен по адресу: http://localhost:PORT/swagger/index.html
+	r.Get("/swagger/*", httpSwagger.Handler(
+		httpSwagger.URL("doc.json"), // URL указывающий на doc.json
+	))
+
+	// ======================
 	// WebSocket endpoint (before Compress)
 	r.Get("/ws", func(w http.ResponseWriter, r *http.Request) {
 		token := r.URL.Query().Get("token")
