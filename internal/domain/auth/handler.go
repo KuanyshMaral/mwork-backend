@@ -22,6 +22,18 @@ func NewHandler(service *Service) *Handler {
 }
 
 // Register handles POST /auth/register
+// @Summary Регистрация пользователя
+// @Description Создает аккаунт для model/employer или agency в зависимости от поля role.
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param request body RegisterRequest true "Данные регистрации"
+// @Success 201 {object} response.Response{data=AuthResponse}
+// @Failure 400 {object} response.Response
+// @Failure 409 {object} response.Response
+// @Failure 422 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /auth/register [post]
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	// First, parse role to determine request type
 	var roleCheck struct {
@@ -115,6 +127,19 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 }
 
 // Login handles POST /auth/login
+// @Summary Авторизация пользователя
+// @Description Выполняет вход пользователя по email/паролю и возвращает access/refresh токены.
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param request body LoginRequest true "Данные для входа"
+// @Success 200 {object} response.Response{data=AuthResponse}
+// @Failure 400 {object} response.Response
+// @Failure 401 {object} response.Response
+// @Failure 403 {object} response.Response
+// @Failure 422 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /auth/login [post]
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	var req LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -150,6 +175,17 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 }
 
 // Refresh handles POST /auth/refresh
+// @Summary Обновление токенов
+// @Description Обновляет access/refresh токены по валидному refresh token.
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param request body RefreshRequest true "Refresh token"
+// @Success 200 {object} response.Response{data=AuthResponse}
+// @Failure 400 {object} response.Response
+// @Failure 401 {object} response.Response
+// @Failure 422 {object} response.Response
+// @Router /auth/refresh [post]
 func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 	var req RefreshRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -174,6 +210,15 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 }
 
 // Logout handles POST /auth/logout
+// @Summary Выход пользователя
+// @Description Инвалидирует refresh token пользователя.
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param request body RefreshRequest true "Refresh token"
+// @Success 204 {string} string "No Content"
+// @Failure 400 {object} response.Response
+// @Router /auth/logout [post]
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	var req RefreshRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -188,6 +233,15 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 }
 
 // Me handles GET /auth/me
+// @Summary Текущий пользователь
+// @Description Возвращает данные авторизованного пользователя.
+// @Tags Auth
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} response.Response{data=UserResponse}
+// @Failure 401 {object} response.Response
+// @Failure 404 {object} response.Response
+// @Router /auth/me [get]
 func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 

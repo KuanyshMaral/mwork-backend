@@ -24,6 +24,17 @@ func NewHandler(svc *Service) *Handler {
 }
 
 // SubmitLead handles POST /leads/employer (public)
+// @Summary Создание лида работодателя
+// @Description Публичная форма создания лида работодателя.
+// @Tags Leads
+// @Accept json
+// @Produce json
+// @Param request body CreateLeadRequest true "Данные лида"
+// @Success 201 {object} response.Response{data=LeadSubmittedResponse}
+// @Failure 400 {object} response.Response
+// @Failure 422 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /leads/employer [post]
 func (h *Handler) SubmitLead(w http.ResponseWriter, r *http.Request) {
 	var req CreateLeadRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -67,6 +78,18 @@ func (h *Handler) SubmitLead(w http.ResponseWriter, r *http.Request) {
 }
 
 // List handles GET /admin/leads
+// @Summary Список лидов
+// @Description Возвращает список лидов для админской части.
+// @Tags Admin Leads
+// @Produce json
+// @Security BearerAuth
+// @Param limit query int false "Лимит"
+// @Param offset query int false "Смещение"
+// @Param status query string false "Статус"
+// @Success 200 {object} response.Response
+// @Failure 401 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /admin/leads [get]
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	limit := 50
 	offset := 0
@@ -106,6 +129,18 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetByID handles GET /admin/leads/{id}
+// @Summary Лид по ID
+// @Description Возвращает лид по идентификатору.
+// @Tags Admin Leads
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID лида"
+// @Success 200 {object} response.Response{data=LeadResponse}
+// @Failure 400 {object} response.Response
+// @Failure 401 {object} response.Response
+// @Failure 404 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /admin/leads/{id} [get]
 func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -127,6 +162,21 @@ func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
 }
 
 // UpdateStatus handles PATCH /admin/leads/{id}/status
+// @Summary Обновление статуса лида
+// @Description Обновляет статус лида в админской части.
+// @Tags Admin Leads
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID лида"
+// @Param request body UpdateStatusRequest true "Новый статус"
+// @Success 200 {object} response.Response
+// @Failure 400 {object} response.Response
+// @Failure 401 {object} response.Response
+// @Failure 404 {object} response.Response
+// @Failure 422 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /admin/leads/{id}/status [patch]
 func (h *Handler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -162,6 +212,18 @@ func (h *Handler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 // MarkContacted handles POST /admin/leads/{id}/contacted
+// @Summary Отметить лид как contacted
+// @Description Обновляет лид как контактированный.
+// @Tags Admin Leads
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID лида"
+// @Success 200 {object} response.Response
+// @Failure 400 {object} response.Response
+// @Failure 401 {object} response.Response
+// @Failure 404 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /admin/leads/{id}/contacted [post]
 func (h *Handler) MarkContacted(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -182,6 +244,20 @@ func (h *Handler) MarkContacted(w http.ResponseWriter, r *http.Request) {
 }
 
 // Assign handles POST /admin/leads/{id}/assign
+// @Summary Назначить ответственного по лиду
+// @Description Назначает администратора и приоритет для лида.
+// @Tags Admin Leads
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID лида"
+// @Param request body AssignRequest true "Назначение"
+// @Success 200 {object} response.Response
+// @Failure 400 {object} response.Response
+// @Failure 401 {object} response.Response
+// @Failure 404 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /admin/leads/{id}/assign [post]
 func (h *Handler) Assign(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -214,6 +290,20 @@ func (h *Handler) Assign(w http.ResponseWriter, r *http.Request) {
 }
 
 // Convert handles POST /admin/leads/{id}/convert
+// @Summary Конвертация лида в работодателя
+// @Description Создает пользователя и организацию на основе лида.
+// @Tags Admin Leads
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID лида"
+// @Param request body ConvertRequest true "Данные конвертации"
+// @Success 201 {object} response.Response
+// @Failure 400 {object} response.Response
+// @Failure 401 {object} response.Response
+// @Failure 404 {object} response.Response
+// @Failure 422 {object} response.Response
+// @Router /admin/leads/{id}/convert [post]
 func (h *Handler) Convert(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -256,6 +346,15 @@ func (h *Handler) Convert(w http.ResponseWriter, r *http.Request) {
 }
 
 // Stats handles GET /admin/leads/stats
+// @Summary Статистика лидов
+// @Description Возвращает агрегированную статистику по лидам для админской части.
+// @Tags Admin Leads
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} response.Response
+// @Failure 401 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /admin/leads/stats [get]
 func (h *Handler) Stats(w http.ResponseWriter, r *http.Request) {
 	stats, err := h.svc.GetStats(r.Context())
 	if err != nil {
@@ -267,6 +366,20 @@ func (h *Handler) Stats(w http.ResponseWriter, r *http.Request) {
 }
 
 // Reject handles POST /admin/leads/{id}/reject
+// @Summary Отклонение лида
+// @Description Устанавливает статус rejected для лида с причиной.
+// @Tags Admin Leads
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID лида"
+// @Param request body RejectLeadRequest true "Причина отклонения"
+// @Success 200 {object} response.Response
+// @Failure 400 {object} response.Response
+// @Failure 401 {object} response.Response
+// @Failure 404 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /admin/leads/{id}/reject [post]
 func (h *Handler) Reject(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -274,9 +387,7 @@ func (h *Handler) Reject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req struct {
-		Reason string `json:"reason"`
-	}
+	var req RejectLeadRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		response.BadRequest(w, "Invalid JSON body")
 		return
