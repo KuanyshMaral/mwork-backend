@@ -59,7 +59,6 @@ import (
 // @contact.name    API Support
 // @contact.email   support@swagger.io
 
-// @host            localhost:8080
 // @BasePath        /api/v1
 
 // @securityDefinitions.apikey BearerAuth
