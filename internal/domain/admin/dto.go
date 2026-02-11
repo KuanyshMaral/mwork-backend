@@ -87,6 +87,12 @@ type VerifyUserRequest struct {
 	IsIdentityVerified *bool `json:"is_identity_verified,omitempty"`
 }
 
+// UpdateUserStatusRequest for PATCH /admin/users/{id}/status
+type UpdateUserStatusRequest struct {
+	Status string `json:"status" validate:"required"`
+	Reason string `json:"reason,omitempty"`
+}
+
 // VerifyOrganizationRequest for PATCH /admin/moderation/organizations/{id}/verify
 type VerifyOrganizationRequest struct {
 	Status          string `json:"status" validate:"required,oneof=pending in_review verified rejected"`
