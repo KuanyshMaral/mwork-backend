@@ -45,6 +45,7 @@ type User struct {
 	PasswordHash  string    `db:"password_hash"`
 	Role          Role      `db:"role"`
 	EmailVerified bool      `db:"email_verified"`
+	IsVerified    bool      `db:"is_verified"`
 	IsBanned      bool      `db:"is_banned"`
 	CreditBalance int       `db:"credit_balance"`
 

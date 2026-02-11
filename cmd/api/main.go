@@ -191,16 +191,22 @@ func main() {
 		SecretKey:  cfg.KaspiSecretKey,
 	})}
 
+	verificationCodeRepo := auth.NewVerificationCodeRepository(db)
+	refreshTokenRepo := auth.NewRefreshTokenRepository(db)
+
 	// Update authService with authEmployerRepo
 	authService := auth.NewService(
 		userRepo,
 		authModelRepo,
 		jwtService,
-		redis,
+		refreshTokenRepo,
 		authEmployerRepo,
 		photoStudioClient,
 		photoStudioSyncEnabled,
 		photoStudioTimeout,
+		verificationCodeRepo,
+		cfg.VerificationCodePepper,
+		cfg.IsDevelopment(),
 	)
 
 	// Update services with proper dependencies
