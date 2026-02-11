@@ -28,6 +28,13 @@ func NewSocialLinksHandler(db *sqlx.DB, modelRepo ModelRepository) *SocialLinksH
 }
 
 // List handles GET /profiles/{id}/social-links
+// @Summary Список социальных ссылок профиля
+// @Tags Profile
+// @Produce json
+// @Param id path string true "ID профиля"
+// @Success 200 {object} response.Response{data=[]SocialLinkResponse}
+// @Failure 400,500 {object} response.Response
+// @Router /profiles/{id}/social-links [get]
 func (h *SocialLinksHandler) List(w http.ResponseWriter, r *http.Request) {
 	profileID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -50,6 +57,16 @@ func (h *SocialLinksHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 // Create handles POST /profiles/{id}/social-links
+// @Summary Добавить социальную ссылку профиля
+// @Tags Profile
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID профиля"
+// @Param request body SocialLinkRequest true "Данные социальной ссылки"
+// @Success 201 {object} response.Response{data=SocialLinkResponse}
+// @Failure 400,403,404,500 {object} response.Response
+// @Router /profiles/{id}/social-links [post]
 func (h *SocialLinksHandler) Create(w http.ResponseWriter, r *http.Request) {
 	profileID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -90,6 +107,15 @@ func (h *SocialLinksHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 // Delete handles DELETE /profiles/{id}/social-links/{platform}
+// @Summary Удалить социальную ссылку профиля
+// @Tags Profile
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID профиля"
+// @Param platform path string true "Платформа"
+// @Success 204 {string} string "No Content"
+// @Failure 400,403,404,500 {object} response.Response
+// @Router /profiles/{id}/social-links/{platform} [delete]
 func (h *SocialLinksHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	profileID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -129,6 +155,13 @@ func (h *SocialLinksHandler) Delete(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetCompleteness handles GET /profiles/{id}/completeness
+// @Summary Полнота профиля модели
+// @Tags Profile
+// @Produce json
+// @Param id path string true "ID профиля"
+// @Success 200 {object} response.Response{data=CompletenessResponse}
+// @Failure 400,404 {object} response.Response
+// @Router /profiles/{id}/completeness [get]
 func (h *SocialLinksHandler) GetCompleteness(w http.ResponseWriter, r *http.Request) {
 	profileID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {

@@ -103,6 +103,15 @@ func NewHandler(service *Service, hub *Hub, redisClient *redis.Client, allowedOr
 }
 
 // CreateRoom handles POST /chat/rooms
+// @Summary Создать или получить чат-комнату
+// @Tags Chat
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body CreateRoomRequest true "Данные для создания комнаты"
+// @Success 201 {object} response.Response{data=RoomResponse}
+// @Failure 400,403,404,422,429,500 {object} response.Response
+// @Router /chat/rooms [post]
 func (h *Handler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 	var req CreateRoomRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -141,6 +150,13 @@ func (h *Handler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 }
 
 // ListRooms handles GET /chat/rooms
+// @Summary Список чат-комнат
+// @Tags Chat
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} response.Response{data=[]RoomResponse}
+// @Failure 500 {object} response.Response
+// @Router /chat/rooms [get]
 func (h *Handler) ListRooms(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 
@@ -159,6 +175,16 @@ func (h *Handler) ListRooms(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetMessages handles GET /chat/rooms/{id}/messages
+// @Summary Получить сообщения комнаты
+// @Tags Chat
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID комнаты"
+// @Param limit query int false "Лимит"
+// @Param offset query int false "Смещение"
+// @Success 200 {object} response.Response{data=[]MessageResponse}
+// @Failure 400,403,404,500 {object} response.Response
+// @Router /chat/rooms/{id}/messages [get]
 func (h *Handler) GetMessages(w http.ResponseWriter, r *http.Request) {
 	roomID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -202,6 +228,16 @@ func (h *Handler) GetMessages(w http.ResponseWriter, r *http.Request) {
 }
 
 // SendMessage handles POST /chat/rooms/{id}/messages
+// @Summary Отправить сообщение
+// @Tags Chat
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID комнаты"
+// @Param request body SendMessageRequest true "Тело сообщения"
+// @Success 201 {object} response.Response{data=MessageResponse}
+// @Failure 400,403,404,422,429,500 {object} response.Response
+// @Router /chat/rooms/{id}/messages [post]
 func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 	roomID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -254,6 +290,14 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 }
 
 // MarkAsRead handles POST /chat/rooms/{id}/read
+// @Summary Отметить сообщения как прочитанные
+// @Tags Chat
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID комнаты"
+// @Success 200 {object} response.Response
+// @Failure 400,403,404,500 {object} response.Response
+// @Router /chat/rooms/{id}/read [post]
 func (h *Handler) MarkAsRead(w http.ResponseWriter, r *http.Request) {
 	roomID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -278,6 +322,12 @@ func (h *Handler) MarkAsRead(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetUnreadCount handles GET /chat/unread
+// @Summary Количество непрочитанных сообщений
+// @Tags Chat
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} response.Response
+// @Router /chat/unread [get]
 func (h *Handler) GetUnreadCount(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 	count, _ := h.service.GetUnreadCount(r.Context(), userID)
