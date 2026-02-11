@@ -216,8 +216,10 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 // @Accept json
 // @Produce json
 // @Param request body RefreshRequest true "Refresh token"
+// @Security BearerAuth
 // @Success 204 {string} string "No Content"
 // @Failure 400 {object} response.Response
+// @Failure 401 {object} response.Response
 // @Router /auth/logout [post]
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	var req RefreshRequest
