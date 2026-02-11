@@ -46,6 +46,16 @@ type ResetPasswordRequest struct {
 }
 
 // SendVerification handles POST /auth/send-verification
+// @Summary Отправка кода верификации email
+// @Description Отправляет код подтверждения на email текущего пользователя.
+// @Tags Auth
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} response.Response
+// @Failure 401 {object} response.Response
+// @Failure 404 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /auth/send-verification [post]
 // Sends a verification code to the authenticated user's email
 func (h *VerificationHandler) SendVerification(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
@@ -79,6 +89,18 @@ func (h *VerificationHandler) SendVerification(w http.ResponseWriter, r *http.Re
 }
 
 // VerifyEmail handles POST /auth/verify-email
+// @Summary Подтверждение email
+// @Description Проверяет код подтверждения и отмечает email как подтвержденный.
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body VerifyEmailRequest true "Код подтверждения"
+// @Success 200 {object} response.Response
+// @Failure 400 {object} response.Response
+// @Failure 401 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /auth/verify-email [post]
 // Verifies the email with the code
 func (h *VerificationHandler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
@@ -122,6 +144,15 @@ func (h *VerificationHandler) VerifyEmail(w http.ResponseWriter, r *http.Request
 }
 
 // ForgotPassword handles POST /auth/forgot-password
+// @Summary Запрос на сброс пароля
+// @Description Отправляет инструкцию по сбросу пароля на email.
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param request body ForgotPasswordRequest true "Email пользователя"
+// @Success 200 {object} response.Response
+// @Failure 400 {object} response.Response
+// @Router /auth/forgot-password [post]
 // Sends a password reset email
 func (h *VerificationHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 	var req ForgotPasswordRequest
@@ -160,6 +191,16 @@ func (h *VerificationHandler) ForgotPassword(w http.ResponseWriter, r *http.Requ
 }
 
 // ResetPassword handles POST /auth/reset-password
+// @Summary Сброс пароля
+// @Description Устанавливает новый пароль по reset token.
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param request body ResetPasswordRequest true "Токен и новый пароль"
+// @Success 200 {object} response.Response
+// @Failure 400 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /auth/reset-password [post]
 // Resets password using the token
 func (h *VerificationHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 	var req ResetPasswordRequest

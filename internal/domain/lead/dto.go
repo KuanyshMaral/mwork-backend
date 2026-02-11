@@ -46,6 +46,11 @@ type AssignRequest struct {
 	Priority int    `json:"priority,omitempty" validate:"omitempty,min=0,max=2"`
 }
 
+// RejectLeadRequest for rejecting lead
+type RejectLeadRequest struct {
+	Reason string `json:"reason" validate:"required"`
+}
+
 // ConvertRequest for converting lead to employer account
 type ConvertRequest struct {
 	// Organization details
