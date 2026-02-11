@@ -106,6 +106,39 @@ func (s *Service) CreateModelProfile(ctx context.Context, userID uuid.UUID, req 
 	return profile, nil
 }
 
+// EnsureModelProfile creates an empty model profile if it doesn't exist.
+func (s *Service) EnsureModelProfile(ctx context.Context, userID uuid.UUID) (*ModelProfile, error) {
+	existing, err := s.modelRepo.GetByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if existing != nil {
+		return existing, nil
+	}
+
+	now := time.Now()
+	profile := &ModelProfile{
+		ID:           uuid.New(),
+		UserID:       userID,
+		IsPublic:     true,
+		ProfileViews: 0,
+		Rating:       0,
+		TotalReviews: 0,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+	profile.SetLanguages(nil)
+	profile.SetCategories(nil)
+	profile.SetSkills(nil)
+	profile.SetTravelCities(nil)
+
+	if err := s.modelRepo.Create(ctx, profile); err != nil {
+		return nil, err
+	}
+
+	return profile, nil
+}
+
 // CreateEmployerProfile creates a new employer profile
 func (s *Service) CreateEmployerProfile(ctx context.Context, userID uuid.UUID, req *CreateEmployerProfileRequest) (*EmployerProfile, error) {
 	// Check if user exists and is employer
@@ -150,6 +183,36 @@ func (s *Service) CreateEmployerProfile(ctx context.Context, userID uuid.UUID, r
 	}
 	if req.ContactPhone != "" {
 		profile.ContactPhone = sql.NullString{String: req.ContactPhone, Valid: true}
+	}
+
+	if err := s.employerRepo.Create(ctx, profile); err != nil {
+		return nil, err
+	}
+
+	return profile, nil
+}
+
+// EnsureEmployerProfile creates an empty employer profile if it doesn't exist.
+func (s *Service) EnsureEmployerProfile(ctx context.Context, userID uuid.UUID) (*EmployerProfile, error) {
+	existing, err := s.employerRepo.GetByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if existing != nil {
+		return existing, nil
+	}
+
+	now := time.Now()
+	profile := &EmployerProfile{
+		ID:             uuid.New(),
+		UserID:         userID,
+		CompanyName:    "",
+		Rating:         0,
+		TotalReviews:   0,
+		CastingsPosted: 0,
+		IsVerified:     false,
+		CreatedAt:      now,
+		UpdatedAt:      now,
 	}
 
 	if err := s.employerRepo.Create(ctx, profile); err != nil {
@@ -268,6 +331,48 @@ func (s *Service) UpdateModelProfile(ctx context.Context, id uuid.UUID, userID u
 	profile.UpdatedAt = time.Now()
 
 	if err := s.modelRepo.Update(ctx, profile); err != nil {
+		return nil, err
+	}
+
+	return profile, nil
+}
+
+// UpdateEmployerProfile updates employer profile.
+func (s *Service) UpdateEmployerProfile(ctx context.Context, id uuid.UUID, userID uuid.UUID, req *UpdateEmployerProfileRequest) (*EmployerProfile, error) {
+	profile, err := s.employerRepo.GetByID(ctx, id)
+	if err != nil || profile == nil {
+		return nil, ErrProfileNotFound
+	}
+
+	if profile.UserID != userID {
+		return nil, ErrNotProfileOwner
+	}
+
+	if req.CompanyName != "" {
+		profile.CompanyName = req.CompanyName
+	}
+	if req.CompanyType != "" {
+		profile.CompanyType = sql.NullString{String: req.CompanyType, Valid: true}
+	}
+	if req.Description != "" {
+		profile.Description = sql.NullString{String: req.Description, Valid: true}
+	}
+	if req.Website != "" {
+		profile.Website = sql.NullString{String: req.Website, Valid: true}
+	}
+	if req.City != "" {
+		profile.City = sql.NullString{String: req.City, Valid: true}
+	}
+	if req.ContactPerson != "" {
+		profile.ContactPerson = sql.NullString{String: req.ContactPerson, Valid: true}
+	}
+	if req.ContactPhone != "" {
+		profile.ContactPhone = sql.NullString{String: req.ContactPhone, Valid: true}
+	}
+
+	profile.UpdatedAt = time.Now()
+
+	if err := s.employerRepo.Update(ctx, profile); err != nil {
 		return nil, err
 	}
 

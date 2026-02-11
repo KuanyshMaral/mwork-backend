@@ -59,6 +59,26 @@ type fakePhotoStudioClient struct {
 	err    error
 }
 
+type fakeModelProfileRepo struct{}
+
+func (f *fakeModelProfileRepo) Create(ctx context.Context, profile *ModelProfile) error {
+	return nil
+}
+
+func (f *fakeModelProfileRepo) GetByUserID(ctx context.Context, userID uuid.UUID) (*ModelProfile, error) {
+	return nil, nil
+}
+
+type fakeEmployerProfileRepo struct{}
+
+func (f *fakeEmployerProfileRepo) Create(ctx context.Context, profile *EmployerProfile) error {
+	return nil
+}
+
+func (f *fakeEmployerProfileRepo) GetByUserID(ctx context.Context, userID uuid.UUID) (*EmployerProfile, error) {
+	return nil, nil
+}
+
 func (f *fakePhotoStudioClient) SyncUser(ctx context.Context, payload photostudio.SyncUserPayload) error {
 	if f.called != nil {
 		f.called <- payload
@@ -73,9 +93,10 @@ func TestRegisterIgnoresPhotoStudioError(t *testing.T) {
 
 	svc := NewService(
 		repo,
+		&fakeModelProfileRepo{},
 		jwtService,
 		nil,
-		nil,
+		&fakeEmployerProfileRepo{},
 		&fakePhotoStudioClient{called: called, err: errors.New("boom")},
 		true,
 		50*time.Millisecond,
@@ -107,9 +128,10 @@ func TestRegisterSkipsPhotoStudioWhenDisabled(t *testing.T) {
 
 	svc := NewService(
 		repo,
+		&fakeModelProfileRepo{},
 		jwtService,
 		nil,
-		nil,
+		&fakeEmployerProfileRepo{},
 		&fakePhotoStudioClient{called: called},
 		false,
 		50*time.Millisecond,
