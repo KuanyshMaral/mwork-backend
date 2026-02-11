@@ -19,6 +19,7 @@ import (
 // Service handles authentication business logic
 type Service struct {
 	userRepo               user.Repository
+	modelProfRepo          ModelProfileRepository
 	jwtService             *jwt.Service
 	redis                  *redis.Client // nil if Redis disabled
 	employerProfRepo       EmployerProfileRepository
@@ -27,9 +28,24 @@ type Service struct {
 	photoStudioTimeout     time.Duration
 }
 
+// ModelProfileRepository defines model profile operations needed by auth
+type ModelProfileRepository interface {
+	Create(ctx context.Context, profile *ModelProfile) error
+	GetByUserID(ctx context.Context, userID uuid.UUID) (*ModelProfile, error)
+}
+
 // EmployerProfileRepository defines employer profile operations needed by auth
 type EmployerProfileRepository interface {
 	Create(ctx context.Context, profile *EmployerProfile) error
+	GetByUserID(ctx context.Context, userID uuid.UUID) (*EmployerProfile, error)
+}
+
+// ModelProfile represents a model profile entity
+type ModelProfile struct {
+	ID        uuid.UUID
+	UserID    uuid.UUID
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 // EmployerProfile represents an employer profile entity
@@ -52,6 +68,7 @@ type PhotoStudioClient interface {
 // NewService creates auth service
 func NewService(
 	userRepo user.Repository,
+	modelProfRepo ModelProfileRepository,
 	jwtService *jwt.Service,
 	redis *redis.Client,
 	employerProfRepo EmployerProfileRepository,
@@ -64,6 +81,7 @@ func NewService(
 	}
 	return &Service{
 		userRepo:               userRepo,
+		modelProfRepo:          modelProfRepo,
 		jwtService:             jwtService,
 		redis:                  redis,
 		employerProfRepo:       employerProfRepo,
@@ -228,9 +246,55 @@ func (s *Service) Login(ctx context.Context, req *LoginRequest) (*AuthResponse, 
 		return nil, ErrUserBanned
 	}
 
+	if err := s.ensureProfileExists(ctx, u); err != nil {
+		log.Error().Err(err).Str("user_id", u.ID.String()).Str("role", string(u.Role)).Msg("failed to ensure profile exists on login")
+		return nil, err
+	}
+
 	log.Info().Str("email", req.Email).Msg("Login successful")
 	// 3. Generate tokens
 	return s.generateTokens(ctx, u)
+}
+
+func (s *Service) ensureProfileExists(ctx context.Context, u *user.User) error {
+	now := time.Now()
+
+	if u.IsModel() {
+		existing, err := s.modelProfRepo.GetByUserID(ctx, u.ID)
+		if err != nil {
+			return err
+		}
+		if existing != nil {
+			return nil
+		}
+
+		return s.modelProfRepo.Create(ctx, &ModelProfile{
+			ID:        uuid.New(),
+			UserID:    u.ID,
+			CreatedAt: now,
+			UpdatedAt: now,
+		})
+	}
+
+	if u.IsEmployer() || u.IsAgency() {
+		existing, err := s.employerProfRepo.GetByUserID(ctx, u.ID)
+		if err != nil {
+			return err
+		}
+		if existing != nil {
+			return nil
+		}
+
+		return s.employerProfRepo.Create(ctx, &EmployerProfile{
+			ID:          uuid.New(),
+			UserID:      u.ID,
+			CompanyName: "",
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		})
+	}
+
+	return nil
 }
 
 // Refresh refreshes access token using refresh token
