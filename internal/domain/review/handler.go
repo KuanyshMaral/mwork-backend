@@ -30,6 +30,15 @@ func NewHandler(repo *Repository) *Handler {
 }
 
 // Create handles POST /reviews
+// @Summary Создать отзыв
+// @Tags Review
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body CreateRequest true "Данные отзыва"
+// @Success 201 {object} response.Response{data=ReviewResponse}
+// @Failure 400,401,409,500 {object} response.Response
+// @Router /reviews [post]
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 	if userID == uuid.Nil {
@@ -85,6 +94,15 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 // ListByProfile handles GET /profiles/{id}/reviews
+// @Summary Список отзывов профиля
+// @Tags Review
+// @Produce json
+// @Param id path string true "ID профиля"
+// @Param page query int false "Страница"
+// @Param limit query int false "Лимит"
+// @Success 200 {object} response.Response{data=[]ReviewResponse}
+// @Failure 400,500 {object} response.Response
+// @Router /profiles/{id}/reviews [get]
 func (h *Handler) ListByProfile(w http.ResponseWriter, r *http.Request) {
 	profileID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -133,6 +151,13 @@ func (h *Handler) ListByProfile(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetSummary handles GET /profiles/{id}/reviews/summary
+// @Summary Сводка рейтинга профиля
+// @Tags Review
+// @Produce json
+// @Param id path string true "ID профиля"
+// @Success 200 {object} response.Response{data=ProfileRatingSummary}
+// @Failure 400,500 {object} response.Response
+// @Router /profiles/{id}/reviews/summary [get]
 func (h *Handler) GetSummary(w http.ResponseWriter, r *http.Request) {
 	profileID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -162,6 +187,14 @@ func (h *Handler) GetSummary(w http.ResponseWriter, r *http.Request) {
 }
 
 // Delete handles DELETE /reviews/{id}
+// @Summary Удалить отзыв
+// @Tags Review
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID отзыва"
+// @Success 204 {string} string "No Content"
+// @Failure 400,401,403,404,500 {object} response.Response
+// @Router /reviews/{id} [delete]
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	reviewID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {

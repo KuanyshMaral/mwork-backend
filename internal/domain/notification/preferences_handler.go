@@ -40,6 +40,13 @@ func (h *PreferencesHandler) Routes(authMiddleware func(http.Handler) http.Handl
 }
 
 // GetPreferences handles GET /api/v1/notifications/preferences
+// @Summary Получить настройки уведомлений
+// @Tags Notification
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} response.Response
+// @Failure 401,500 {object} response.Response
+// @Router /notifications/preferences [get]
 func (h *PreferencesHandler) GetPreferences(w http.ResponseWriter, r *http.Request) {
 	userID := getUserIDFromContext(r.Context())
 	if userID == uuid.Nil {
@@ -74,6 +81,15 @@ type UpdatePreferencesRequest struct {
 }
 
 // UpdatePreferences handles PUT /api/v1/notifications/preferences
+// @Summary Обновить настройки уведомлений
+// @Tags Notification
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body UpdatePreferencesRequest true "Настройки"
+// @Success 200 {object} response.Response
+// @Failure 400,401,500 {object} response.Response
+// @Router /notifications/preferences [put]
 func (h *PreferencesHandler) UpdatePreferences(w http.ResponseWriter, r *http.Request) {
 	userID := getUserIDFromContext(r.Context())
 	if userID == uuid.Nil {
@@ -147,6 +163,15 @@ type RegisterDeviceRequest struct {
 }
 
 // RegisterDevice handles POST /api/v1/notifications/preferences/device
+// @Summary Зарегистрировать push-токен устройства
+// @Tags Notification
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body RegisterDeviceRequest true "Данные устройства"
+// @Success 200 {object} response.Response
+// @Failure 400,401,500 {object} response.Response
+// @Router /notifications/preferences/device [post]
 func (h *PreferencesHandler) RegisterDevice(w http.ResponseWriter, r *http.Request) {
 	userID := getUserIDFromContext(r.Context())
 	if userID == uuid.Nil {
@@ -183,6 +208,14 @@ func (h *PreferencesHandler) RegisterDevice(w http.ResponseWriter, r *http.Reque
 }
 
 // UnregisterDevice handles DELETE /api/v1/notifications/preferences/device/{token}
+// @Summary Удалить push-токен устройства
+// @Tags Notification
+// @Produce json
+// @Security BearerAuth
+// @Param token path string true "FCM токен"
+// @Success 200 {object} response.Response
+// @Failure 400,401,500 {object} response.Response
+// @Router /notifications/preferences/device/{token} [delete]
 func (h *PreferencesHandler) UnregisterDevice(w http.ResponseWriter, r *http.Request) {
 	token := chi.URLParam(r, "token")
 	if token == "" {
