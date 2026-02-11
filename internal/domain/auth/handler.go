@@ -2,6 +2,7 @@ package auth
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 
@@ -35,6 +36,8 @@ func NewHandler(service *Service) *Handler {
 // @Failure 500 {object} response.Response
 // @Router /auth/register [post]
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
+	requestID := middleware.GetRequestID(r.Context())
+
 	// First, parse role to determine request type
 	var roleCheck struct {
 		Role string `json:"role"`
@@ -64,19 +67,20 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 
 		// Validate agency fields
 		if errors := validator.Validate(&req); errors != nil {
-			response.ValidationError(w, errors)
+			response.ErrorWithDetails(w, http.StatusBadRequest, "VALIDATION_ERROR", "Validation failed", errors)
 			return
 		}
 
 		// Register agency user
 		result, err := h.service.RegisterAgency(r.Context(), &req)
 		if err != nil {
-			switch err {
-			case ErrEmailAlreadyExists:
-				response.Conflict(w, "Email already registered")
+			switch {
+			case errors.Is(err, ErrEmailAlreadyExists):
+				response.Error(w, http.StatusConflict, "EMAIL_ALREADY_EXISTS", "Email already registered")
 			default:
 				log.Error().
 					Err(err).
+					Str("request_id", requestID).
 					Str("email", req.Email).
 					Str("role", "agency").
 					Msg("failed to register agency user")
@@ -96,21 +100,22 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 
 		// Validate request
 		if errors := validator.Validate(&req); errors != nil {
-			response.ValidationError(w, errors)
+			response.ErrorWithDetails(w, http.StatusBadRequest, "VALIDATION_ERROR", "Validation failed", errors)
 			return
 		}
 
 		// Register user
 		result, err := h.service.Register(r.Context(), &req)
 		if err != nil {
-			switch err {
-			case ErrEmailAlreadyExists:
-				response.Conflict(w, "Email already registered")
-			case ErrInvalidRole:
+			switch {
+			case errors.Is(err, ErrEmailAlreadyExists):
+				response.Error(w, http.StatusConflict, "EMAIL_ALREADY_EXISTS", "Email already registered")
+			case errors.Is(err, ErrInvalidRole):
 				response.BadRequest(w, "Role must be 'model' or 'employer'")
 			default:
 				log.Error().
 					Err(err).
+					Str("request_id", requestID).
 					Str("email", req.Email).
 					Str("role", req.Role).
 					Msg("failed to register user")

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -50,8 +51,11 @@ func (r *repository) Create(ctx context.Context, user *User) error {
 		user.IsBanned,
 		user.CreditBalance,
 	)
+	if err != nil {
+		return fmt.Errorf("user repository create: %w", err)
+	}
 
-	return err
+	return nil
 }
 
 // GetByID returns user by ID
@@ -111,8 +115,11 @@ func (r *repository) Update(ctx context.Context, user *User) error {
 		user.IsBanned,
 		user.CreditBalance,
 	)
+	if err != nil {
+		return fmt.Errorf("user repository update: %w", err)
+	}
 
-	return err
+	return nil
 }
 
 // UpdateEmailVerified updates email verified status
