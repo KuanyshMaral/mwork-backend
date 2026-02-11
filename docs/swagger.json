@@ -1333,14 +1333,14 @@
                 }
             }
         },
-        "/profiles/employer": {
-            "post": {
+        "/profiles/employers/{id}": {
+            "put": {
                 "security": [
                     {
                         "BearerAuth": []
                     }
                 ],
-                "description": "Создает профиль работодателя для текущего пользователя с ролью employer.",
+                "description": "Обновляет профиль работодателя. Доступно только владельцу профиля.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1350,21 +1350,28 @@
                 "tags": [
                     "Profiles"
                 ],
-                "summary": "Создание профиля работодателя",
+                "summary": "Обновление профиля работодателя",
                 "parameters": [
                     {
-                        "description": "Данные профиля работодателя",
+                        "type": "string",
+                        "description": "ID профиля",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Обновление профиля работодателя",
                         "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_domain_profile.CreateEmployerProfileRequest"
+                            "$ref": "#/definitions/internal_domain_profile.UpdateEmployerProfileRequest"
                         }
                     }
                 ],
                 "responses": {
-                    "201": {
-                        "description": "Created",
+                    "200": {
+                        "description": "OK",
                         "schema": {
                             "allOf": [
                                 {
@@ -1393,8 +1400,14 @@
                             "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
                         }
                     },
-                    "409": {
-                        "description": "Conflict",
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
                         }
@@ -1444,87 +1457,6 @@
                     },
                     "404": {
                         "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    }
-                }
-            }
-        },
-        "/profiles/model": {
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Создает профиль модели для текущего пользователя с ролью model.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Profiles"
-                ],
-                "summary": "Создание профиля модели",
-                "parameters": [
-                    {
-                        "description": "Данные профиля модели",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/internal_domain_profile.CreateModelProfileRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/internal_domain_profile.ModelProfileResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    },
-                    "409": {
-                        "description": "Conflict",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    },
-                    "422": {
-                        "description": "Unprocessable Entity",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
                         }
@@ -1715,98 +1647,6 @@
                     },
                     "404": {
                         "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    }
-                }
-            },
-            "put": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Обновляет профиль модели. Доступно только владельцу профиля.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Profiles"
-                ],
-                "summary": "Обновление профиля модели",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "ID профиля",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Обновление профиля модели",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/internal_domain_profile.UpdateModelProfileRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/internal_domain_profile.ModelProfileResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    },
-                    "422": {
-                        "description": "Unprocessable Entity",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
                         }
@@ -2312,133 +2152,6 @@
                 }
             }
         },
-        "internal_domain_profile.CreateEmployerProfileRequest": {
-            "type": "object",
-            "required": [
-                "company_name"
-            ],
-            "properties": {
-                "city": {
-                    "type": "string",
-                    "maxLength": 100,
-                    "minLength": 2
-                },
-                "company_name": {
-                    "type": "string",
-                    "maxLength": 200,
-                    "minLength": 2
-                },
-                "company_type": {
-                    "type": "string",
-                    "maxLength": 100
-                },
-                "contact_person": {
-                    "type": "string",
-                    "maxLength": 200
-                },
-                "contact_phone": {
-                    "type": "string",
-                    "maxLength": 20
-                },
-                "description": {
-                    "type": "string",
-                    "maxLength": 2000
-                }
-            }
-        },
-        "internal_domain_profile.CreateModelProfileRequest": {
-            "type": "object",
-            "required": [
-                "city",
-                "name"
-            ],
-            "properties": {
-                "accept_remote_work": {
-                    "type": "boolean"
-                },
-                "age": {
-                    "type": "integer",
-                    "maximum": 100,
-                    "minimum": 18
-                },
-                "barter_accepted": {
-                    "type": "boolean"
-                },
-                "bio": {
-                    "type": "string",
-                    "maxLength": 2000
-                },
-                "categories": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "city": {
-                    "type": "string",
-                    "maxLength": 100,
-                    "minLength": 2
-                },
-                "experience": {
-                    "type": "integer",
-                    "maximum": 50,
-                    "minimum": 0
-                },
-                "gender": {
-                    "type": "string",
-                    "enum": [
-                        "male",
-                        "female",
-                        "other"
-                    ]
-                },
-                "height": {
-                    "type": "number",
-                    "maximum": 250,
-                    "minimum": 100
-                },
-                "hourly_rate": {
-                    "type": "number",
-                    "minimum": 0
-                },
-                "languages": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "name": {
-                    "type": "string",
-                    "maxLength": 100,
-                    "minLength": 2
-                },
-                "skills": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "travel_cities": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "visibility": {
-                    "type": "string",
-                    "enum": [
-                        "public",
-                        "link_only",
-                        "hidden"
-                    ]
-                },
-                "weight": {
-                    "type": "number",
-                    "maximum": 200,
-                    "minimum": 30
-                }
-            }
-        },
         "internal_domain_profile.EmployerProfileResponse": {
             "type": "object",
             "properties": {
@@ -2584,95 +2297,38 @@
                 }
             }
         },
-        "internal_domain_profile.UpdateModelProfileRequest": {
+        "internal_domain_profile.UpdateEmployerProfileRequest": {
             "type": "object",
             "properties": {
-                "accept_remote_work": {
-                    "type": "boolean"
-                },
-                "age": {
-                    "type": "integer",
-                    "maximum": 100,
-                    "minimum": 18
-                },
-                "barter_accepted": {
-                    "type": "boolean"
-                },
-                "bio": {
-                    "type": "string",
-                    "maxLength": 2000
-                },
-                "categories": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
                 "city": {
                     "type": "string",
                     "maxLength": 100,
                     "minLength": 2
                 },
-                "experience": {
-                    "type": "integer",
-                    "maximum": 50,
-                    "minimum": 0
-                },
-                "gender": {
+                "company_name": {
                     "type": "string",
-                    "enum": [
-                        "male",
-                        "female",
-                        "other"
-                    ]
-                },
-                "height": {
-                    "type": "number",
-                    "maximum": 250,
-                    "minimum": 100
-                },
-                "hourly_rate": {
-                    "type": "number",
-                    "minimum": 0
-                },
-                "is_public": {
-                    "type": "boolean"
-                },
-                "languages": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "name": {
-                    "type": "string",
-                    "maxLength": 100,
+                    "maxLength": 200,
                     "minLength": 2
                 },
-                "skills": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "travel_cities": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "visibility": {
+                "company_type": {
                     "type": "string",
-                    "enum": [
-                        "public",
-                        "link_only",
-                        "hidden"
-                    ]
+                    "maxLength": 100
                 },
-                "weight": {
-                    "type": "number",
-                    "maximum": 200,
-                    "minimum": 30
+                "contact_person": {
+                    "type": "string",
+                    "maxLength": 200
+                },
+                "contact_phone": {
+                    "type": "string",
+                    "maxLength": 20
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 2000
+                },
+                "website": {
+                    "type": "string",
+                    "maxLength": 500
                 }
             }
         }

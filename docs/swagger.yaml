@@ -340,99 +340,6 @@ definitions:
     required:
     - status
     type: object
-  internal_domain_profile.CreateEmployerProfileRequest:
-    properties:
-      city:
-        maxLength: 100
-        minLength: 2
-        type: string
-      company_name:
-        maxLength: 200
-        minLength: 2
-        type: string
-      company_type:
-        maxLength: 100
-        type: string
-      contact_person:
-        maxLength: 200
-        type: string
-      contact_phone:
-        maxLength: 20
-        type: string
-      description:
-        maxLength: 2000
-        type: string
-    required:
-    - company_name
-    type: object
-  internal_domain_profile.CreateModelProfileRequest:
-    properties:
-      accept_remote_work:
-        type: boolean
-      age:
-        maximum: 100
-        minimum: 18
-        type: integer
-      barter_accepted:
-        type: boolean
-      bio:
-        maxLength: 2000
-        type: string
-      categories:
-        items:
-          type: string
-        type: array
-      city:
-        maxLength: 100
-        minLength: 2
-        type: string
-      experience:
-        maximum: 50
-        minimum: 0
-        type: integer
-      gender:
-        enum:
-        - male
-        - female
-        - other
-        type: string
-      height:
-        maximum: 250
-        minimum: 100
-        type: number
-      hourly_rate:
-        minimum: 0
-        type: number
-      languages:
-        items:
-          type: string
-        type: array
-      name:
-        maxLength: 100
-        minLength: 2
-        type: string
-      skills:
-        items:
-          type: string
-        type: array
-      travel_cities:
-        items:
-          type: string
-        type: array
-      visibility:
-        enum:
-        - public
-        - link_only
-        - hidden
-        type: string
-      weight:
-        maximum: 200
-        minimum: 30
-        type: number
-    required:
-    - city
-    - name
-    type: object
   internal_domain_profile.EmployerProfileResponse:
     properties:
       castings_posted:
@@ -529,72 +436,31 @@ definitions:
       weight:
         type: number
     type: object
-  internal_domain_profile.UpdateModelProfileRequest:
+  internal_domain_profile.UpdateEmployerProfileRequest:
     properties:
-      accept_remote_work:
-        type: boolean
-      age:
-        maximum: 100
-        minimum: 18
-        type: integer
-      barter_accepted:
-        type: boolean
-      bio:
-        maxLength: 2000
-        type: string
-      categories:
-        items:
-          type: string
-        type: array
       city:
         maxLength: 100
         minLength: 2
         type: string
-      experience:
-        maximum: 50
-        minimum: 0
-        type: integer
-      gender:
-        enum:
-        - male
-        - female
-        - other
-        type: string
-      height:
-        maximum: 250
-        minimum: 100
-        type: number
-      hourly_rate:
-        minimum: 0
-        type: number
-      is_public:
-        type: boolean
-      languages:
-        items:
-          type: string
-        type: array
-      name:
-        maxLength: 100
+      company_name:
+        maxLength: 200
         minLength: 2
         type: string
-      skills:
-        items:
-          type: string
-        type: array
-      travel_cities:
-        items:
-          type: string
-        type: array
-      visibility:
-        enum:
-        - public
-        - link_only
-        - hidden
+      company_type:
+        maxLength: 100
         type: string
-      weight:
-        maximum: 200
-        minimum: 30
-        type: number
+      contact_person:
+        maxLength: 200
+        type: string
+      contact_phone:
+        maxLength: 20
+        type: string
+      description:
+        maxLength: 2000
+        type: string
+      website:
+        maxLength: 500
+        type: string
     type: object
 info:
   contact:
@@ -1434,24 +1300,28 @@ paths:
       summary: Создание лида работодателя
       tags:
       - Leads
-  /profiles/employer:
-    post:
+  /profiles/employers/{id}:
+    put:
       consumes:
       - application/json
-      description: Создает профиль работодателя для текущего пользователя с ролью
-        employer.
+      description: Обновляет профиль работодателя. Доступно только владельцу профиля.
       parameters:
-      - description: Данные профиля работодателя
+      - description: ID профиля
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Обновление профиля работодателя
         in: body
         name: request
         required: true
         schema:
-          $ref: '#/definitions/internal_domain_profile.CreateEmployerProfileRequest'
+          $ref: '#/definitions/internal_domain_profile.UpdateEmployerProfileRequest'
       produces:
       - application/json
       responses:
-        "201":
-          description: Created
+        "200":
+          description: OK
           schema:
             allOf:
             - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
@@ -1467,8 +1337,12 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "409":
-          description: Conflict
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "404":
+          description: Not Found
           schema:
             $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
         "422":
@@ -1481,7 +1355,7 @@ paths:
             $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
       security:
       - BearerAuth: []
-      summary: Создание профиля работодателя
+      summary: Обновление профиля работодателя
       tags:
       - Profiles
   /profiles/me:
@@ -1505,55 +1379,6 @@ paths:
       security:
       - BearerAuth: []
       summary: Мой профиль
-      tags:
-      - Profiles
-  /profiles/model:
-    post:
-      consumes:
-      - application/json
-      description: Создает профиль модели для текущего пользователя с ролью model.
-      parameters:
-      - description: Данные профиля модели
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/internal_domain_profile.CreateModelProfileRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            allOf:
-            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-            - properties:
-                data:
-                  $ref: '#/definitions/internal_domain_profile.ModelProfileResponse'
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "409":
-          description: Conflict
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "422":
-          description: Unprocessable Entity
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-      security:
-      - BearerAuth: []
-      summary: Создание профиля модели
       tags:
       - Profiles
   /profiles/models:
@@ -1647,63 +1472,6 @@ paths:
           schema:
             $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
       summary: Получение профиля модели
-      tags:
-      - Profiles
-    put:
-      consumes:
-      - application/json
-      description: Обновляет профиль модели. Доступно только владельцу профиля.
-      parameters:
-      - description: ID профиля
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Обновление профиля модели
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/internal_domain_profile.UpdateModelProfileRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-            - properties:
-                data:
-                  $ref: '#/definitions/internal_domain_profile.ModelProfileResponse'
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "422":
-          description: Unprocessable Entity
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-      security:
-      - BearerAuth: []
-      summary: Обновление профиля модели
       tags:
       - Profiles
   /profiles/models/promoted:
