@@ -59,7 +59,7 @@ import (
 // @contact.name    API Support
 // @contact.email   support@swagger.io
 
-// @BasePath        /api/v1
+// @BasePath        /api
 
 // @securityDefinitions.apikey BearerAuth
 // @in header
