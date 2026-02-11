@@ -84,23 +84,23 @@ func (h *Handler) GetModelByID(w http.ResponseWriter, r *http.Request) {
 	response.OK(w, ModelProfileResponseFromEntity(profile))
 }
 
-// UpdateModel handles PUT /profiles/models/{id}
-// @Summary Обновление профиля модели
-// @Description Обновляет профиль модели. Доступно только владельцу профиля.
+// UpdateEmployer handles PUT /profiles/employers/{id}
+// @Summary Обновление профиля работодателя
+// @Description Обновляет профиль работодателя. Доступно только владельцу профиля.
 // @Tags Profiles
 // @Accept json
 // @Produce json
 // @Security BearerAuth
 // @Param id path string true "ID профиля"
-// @Param request body UpdateModelProfileRequest true "Обновление профиля модели"
-// @Success 200 {object} response.Response{data=ModelProfileResponse}
+// @Param request body UpdateEmployerProfileRequest true "Обновление профиля работодателя"
+// @Success 200 {object} response.Response{data=EmployerProfileResponse}
 // @Failure 400 {object} response.Response
 // @Failure 401 {object} response.Response
 // @Failure 403 {object} response.Response
 // @Failure 404 {object} response.Response
 // @Failure 422 {object} response.Response
 // @Failure 500 {object} response.Response
-// @Router /profiles/models/{id} [put]
+// @Router /profiles/employers/{id} [put]
 func (h *Handler) UpdateModel(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
