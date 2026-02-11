@@ -1244,6 +1244,19 @@ curl -X POST "https://api.mwork.kz/api/v1/photos" \
 
 ---
 
+## 🛠️ Migration Recovery
+
+If a migration run stops with a dirty database state (for example after a partial run of `000045_add_user_credit_balance`), recover it with:
+
+```bash
+migrate -path /migrations -database "$DATABASE_URL" force 44
+migrate -path /migrations -database "$DATABASE_URL" up
+```
+
+Run this once to reset the dirty flag and continue applying pending migrations safely.
+
+---
+
 ## 📞 Support
 
 ### Documentation
