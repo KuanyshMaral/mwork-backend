@@ -59,7 +59,7 @@ import (
 // @contact.name    API Support
 // @contact.email   support@swagger.io
 
-// @BasePath        /api
+// @BasePath        /api/v1
 
 // @securityDefinitions.apikey BearerAuth
 // @in header
@@ -416,7 +416,7 @@ func main() {
 	r.Mount("/webhooks", paymentHandler.WebhookRoutes())
 	r.Mount("/api/v1/leads", leadHandler.PublicRoutes())
 
-	r.Route("/api/admin", func(r chi.Router) {
+	r.Route("/api/v1/admin", func(r chi.Router) {
 		r.Mount("/", adminHandler.Routes())
 		r.Mount("/moderation", adminModerationHandler.Routes(adminJWTService, adminService))
 

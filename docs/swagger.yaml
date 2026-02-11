@@ -1,4 +1,4 @@
-basePath: /api
+basePath: /api/v1
 definitions:
   github_com_mwork_mwork-api_internal_pkg_response.ErrorInfo:
     properties:
