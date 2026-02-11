@@ -24,94 +24,6 @@ func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
 }
 
-// CreateModel handles POST /profiles/model
-// @Summary Создание профиля модели
-// @Description Создает профиль модели для текущего пользователя с ролью model.
-// @Tags Profiles
-// @Accept json
-// @Produce json
-// @Security BearerAuth
-// @Param request body CreateModelProfileRequest true "Данные профиля модели"
-// @Success 201 {object} response.Response{data=ModelProfileResponse}
-// @Failure 400 {object} response.Response
-// @Failure 401 {object} response.Response
-// @Failure 409 {object} response.Response
-// @Failure 422 {object} response.Response
-// @Failure 500 {object} response.Response
-// @Router /profiles/model [post]
-func (h *Handler) CreateModel(w http.ResponseWriter, r *http.Request) {
-	var req CreateModelProfileRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.BadRequest(w, "Invalid JSON body")
-		return
-	}
-
-	if errors := validator.Validate(&req); errors != nil {
-		response.ValidationError(w, errors)
-		return
-	}
-
-	userID := middleware.GetUserID(r.Context())
-	profile, err := h.service.CreateModelProfile(r.Context(), userID, &req)
-	if err != nil {
-		switch err {
-		case ErrProfileAlreadyExists:
-			response.Conflict(w, "Profile already exists for this user")
-		case ErrInvalidProfileType:
-			response.BadRequest(w, "User role must be model")
-		default:
-			response.InternalError(w)
-		}
-		return
-	}
-
-	response.Created(w, ModelProfileResponseFromEntity(profile))
-}
-
-// CreateEmployer handles POST /profiles/employer
-// @Summary Создание профиля работодателя
-// @Description Создает профиль работодателя для текущего пользователя с ролью employer.
-// @Tags Profiles
-// @Accept json
-// @Produce json
-// @Security BearerAuth
-// @Param request body CreateEmployerProfileRequest true "Данные профиля работодателя"
-// @Success 201 {object} response.Response{data=EmployerProfileResponse}
-// @Failure 400 {object} response.Response
-// @Failure 401 {object} response.Response
-// @Failure 409 {object} response.Response
-// @Failure 422 {object} response.Response
-// @Failure 500 {object} response.Response
-// @Router /profiles/employer [post]
-func (h *Handler) CreateEmployer(w http.ResponseWriter, r *http.Request) {
-	var req CreateEmployerProfileRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.BadRequest(w, "Invalid JSON body")
-		return
-	}
-
-	if errors := validator.Validate(&req); errors != nil {
-		response.ValidationError(w, errors)
-		return
-	}
-
-	userID := middleware.GetUserID(r.Context())
-	profile, err := h.service.CreateEmployerProfile(r.Context(), userID, &req)
-	if err != nil {
-		switch err {
-		case ErrProfileAlreadyExists:
-			response.Conflict(w, "Profile already exists for this user")
-		case ErrInvalidProfileType:
-			response.BadRequest(w, "User role must be employer")
-		default:
-			response.InternalError(w)
-		}
-		return
-	}
-
-	response.Created(w, EmployerProfileResponseFromEntity(profile))
-}
-
 // GetMe handles GET /profiles/me
 // @Summary Мой профиль
 // @Description Возвращает профиль текущего пользователя (модель или работодатель).
@@ -140,7 +52,7 @@ func (h *Handler) GetMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response.NotFound(w, "Profile not found. Please create a profile first.")
+	response.NotFound(w, "Profile not found")
 }
 
 // GetModelByID handles GET /profiles/models/{id}
@@ -222,6 +134,42 @@ func (h *Handler) UpdateModel(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.OK(w, ModelProfileResponseFromEntity(profile))
+}
+
+// UpdateEmployer handles PUT /profiles/employers/{id}
+func (h *Handler) UpdateEmployer(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		response.BadRequest(w, "Invalid profile ID")
+		return
+	}
+
+	var req UpdateEmployerProfileRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.BadRequest(w, "Invalid JSON body")
+		return
+	}
+
+	if errors := validator.Validate(&req); errors != nil {
+		response.ValidationError(w, errors)
+		return
+	}
+
+	userID := middleware.GetUserID(r.Context())
+	profile, err := h.service.UpdateEmployerProfile(r.Context(), id, userID, &req)
+	if err != nil {
+		switch err {
+		case ErrProfileNotFound:
+			response.NotFound(w, "Profile not found")
+		case ErrNotProfileOwner:
+			response.Forbidden(w, "You can only edit your own profile")
+		default:
+			response.InternalError(w)
+		}
+		return
+	}
+
+	response.OK(w, EmployerProfileResponseFromEntity(profile))
 }
 
 // ListModels handles GET /profiles/models

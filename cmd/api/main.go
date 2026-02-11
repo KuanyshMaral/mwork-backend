@@ -166,6 +166,9 @@ func main() {
 	paymentService := payment.NewService(paymentRepo, nil)
 
 	// ---------- Adapters ----------
+	// Adapter for auth model profile repository
+	authModelRepo := &authModelProfileAdapter{repo: modelRepo}
+
 	// Adapter for auth employer profile repository
 	authEmployerRepo := &authEmployerProfileAdapter{repo: employerRepo}
 
@@ -191,6 +194,7 @@ func main() {
 	// Update authService with authEmployerRepo
 	authService := auth.NewService(
 		userRepo,
+		authModelRepo,
 		jwtService,
 		redis,
 		authEmployerRepo,
@@ -456,6 +460,47 @@ func main() {
 	log.Info().Msg("Server exited properly")
 }
 
+// authModelProfileAdapter adapts profile.ModelRepository to auth.ModelProfileRepository
+type authModelProfileAdapter struct {
+	repo profile.ModelRepository
+}
+
+func (a *authModelProfileAdapter) Create(ctx context.Context, authProfile *auth.ModelProfile) error {
+	modelProfile := &profile.ModelProfile{
+		ID:           authProfile.ID,
+		UserID:       authProfile.UserID,
+		IsPublic:     true,
+		ProfileViews: 0,
+		Rating:       0,
+		TotalReviews: 0,
+		CreatedAt:    authProfile.CreatedAt,
+		UpdatedAt:    authProfile.UpdatedAt,
+	}
+	modelProfile.SetLanguages(nil)
+	modelProfile.SetCategories(nil)
+	modelProfile.SetSkills(nil)
+	modelProfile.SetTravelCities(nil)
+
+	return a.repo.Create(ctx, modelProfile)
+}
+
+func (a *authModelProfileAdapter) GetByUserID(ctx context.Context, userID uuid.UUID) (*auth.ModelProfile, error) {
+	modelProfile, err := a.repo.GetByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if modelProfile == nil {
+		return nil, nil
+	}
+
+	return &auth.ModelProfile{
+		ID:        modelProfile.ID,
+		UserID:    modelProfile.UserID,
+		CreatedAt: modelProfile.CreatedAt,
+		UpdatedAt: modelProfile.UpdatedAt,
+	}, nil
+}
+
 func setupLogger(cfg *config.Config) {
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 
@@ -520,6 +565,40 @@ func (a *authEmployerProfileAdapter) Create(ctx context.Context, authProfile *au
 		UpdatedAt:     authProfile.UpdatedAt,
 	}
 	return a.repo.Create(ctx, employerProfile)
+}
+
+func (a *authEmployerProfileAdapter) GetByUserID(ctx context.Context, userID uuid.UUID) (*auth.EmployerProfile, error) {
+	employerProfile, err := a.repo.GetByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if employerProfile == nil {
+		return nil, nil
+	}
+
+	description := ""
+	if employerProfile.Description.Valid {
+		description = employerProfile.Description.String
+	}
+	website := ""
+	if employerProfile.Website.Valid {
+		website = employerProfile.Website.String
+	}
+	contactPerson := ""
+	if employerProfile.ContactPerson.Valid {
+		contactPerson = employerProfile.ContactPerson.String
+	}
+
+	return &auth.EmployerProfile{
+		ID:            employerProfile.ID,
+		UserID:        employerProfile.UserID,
+		CompanyName:   employerProfile.CompanyName,
+		Description:   description,
+		Website:       website,
+		ContactPerson: contactPerson,
+		CreatedAt:     employerProfile.CreatedAt,
+		UpdatedAt:     employerProfile.UpdatedAt,
+	}, nil
 }
 
 // Additional adapters for interface mismatches
