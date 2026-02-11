@@ -36,7 +36,8 @@ type Config struct {
 	R2PublicURL       string
 
 	// Email
-	ResendAPIKey string
+	ResendAPIKey           string
+	VerificationCodePepper string
 
 	// Kaspi Payment
 	KaspiBaseURL    string
@@ -86,7 +87,8 @@ func Load() *Config {
 		R2PublicURL:       getEnv("R2_PUBLIC_URL", ""),
 
 		// Email
-		ResendAPIKey: getEnv("RESEND_API_KEY", ""),
+		ResendAPIKey:           getEnv("RESEND_API_KEY", ""),
+		VerificationCodePepper: getEnv("VERIFICATION_CODE_PEPPER", "dev-only-change-me"),
 
 		// Kaspi Payment
 		KaspiBaseURL:    getEnv("KASPI_BASE_URL", "https://api.kaspi.kz"),

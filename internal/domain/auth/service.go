@@ -3,11 +3,12 @@ package auth
 
 import (
 	"context"
+	"crypto/sha256"
+	"database/sql"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog/log"
 
 	"github.com/mwork/mwork-api/internal/domain/user"
@@ -18,14 +19,25 @@ import (
 
 // Service handles authentication business logic
 type Service struct {
-	userRepo               user.Repository
-	modelProfRepo          ModelProfileRepository
-	jwtService             *jwt.Service
-	redis                  *redis.Client // nil if Redis disabled
-	employerProfRepo       EmployerProfileRepository
-	photoStudioClient      PhotoStudioClient
-	photoStudioSyncEnabled bool
-	photoStudioTimeout     time.Duration
+	userRepo                 user.Repository
+	modelProfRepo            ModelProfileRepository
+	jwtService               *jwt.Service
+	refreshTokenRepo         RefreshTokenStore
+	employerProfRepo         EmployerProfileRepository
+	photoStudioClient        PhotoStudioClient
+	photoStudioSyncEnabled   bool
+	photoStudioTimeout       time.Duration
+	verificationCodeRepo     *VerificationCodeRepository
+	verificationCodePepper   string
+	verificationCodeLogInDev bool
+}
+
+type RefreshTokenStore interface {
+	Create(ctx context.Context, rec *RefreshTokenRecord) error
+	GetByTokenHash(ctx context.Context, tokenHash string) (*RefreshTokenRecord, error)
+	MarkUsed(ctx context.Context, tokenHash string) error
+	RevokeByTokenHash(ctx context.Context, tokenHash string) error
+	RevokeAllByUserID(ctx context.Context, userID uuid.UUID) error
 }
 
 // ModelProfileRepository defines model profile operations needed by auth
@@ -70,24 +82,30 @@ func NewService(
 	userRepo user.Repository,
 	modelProfRepo ModelProfileRepository,
 	jwtService *jwt.Service,
-	redis *redis.Client,
+	refreshTokenRepo RefreshTokenStore,
 	employerProfRepo EmployerProfileRepository,
 	photoStudioClient PhotoStudioClient,
 	photoStudioSyncEnabled bool,
 	photoStudioTimeout time.Duration,
+	verificationCodeRepo *VerificationCodeRepository,
+	verificationCodePepper string,
+	verificationCodeLogInDev bool,
 ) *Service {
 	if photoStudioTimeout <= 0 {
 		photoStudioTimeout = 10 * time.Second
 	}
 	return &Service{
-		userRepo:               userRepo,
-		modelProfRepo:          modelProfRepo,
-		jwtService:             jwtService,
-		redis:                  redis,
-		employerProfRepo:       employerProfRepo,
-		photoStudioClient:      photoStudioClient,
-		photoStudioSyncEnabled: photoStudioSyncEnabled,
-		photoStudioTimeout:     photoStudioTimeout,
+		userRepo:                 userRepo,
+		modelProfRepo:            modelProfRepo,
+		jwtService:               jwtService,
+		refreshTokenRepo:         refreshTokenRepo,
+		employerProfRepo:         employerProfRepo,
+		photoStudioClient:        photoStudioClient,
+		photoStudioSyncEnabled:   photoStudioSyncEnabled,
+		photoStudioTimeout:       photoStudioTimeout,
+		verificationCodeRepo:     verificationCodeRepo,
+		verificationCodePepper:   verificationCodePepper,
+		verificationCodeLogInDev: verificationCodeLogInDev,
 	}
 }
 
@@ -297,41 +315,124 @@ func (s *Service) ensureProfileExists(ctx context.Context, u *user.User) error {
 	return nil
 }
 
+func (s *Service) RequestVerificationCode(ctx context.Context, userID uuid.UUID) (string, error) {
+	u, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil || u == nil {
+		return "", ErrUserNotFound
+	}
+
+	if u.IsVerified {
+		return "already_verified", nil
+	}
+
+	if s.verificationCodeRepo == nil {
+		return "", fmt.Errorf("verification code repository is not configured")
+	}
+
+	code := generateNumericCode(VerificationCodeLength)
+	hash := s.hashVerificationCode(code)
+	expiresAt := time.Now().Add(verificationCodeTTL)
+	if err := s.verificationCodeRepo.Upsert(ctx, userID, hash, expiresAt); err != nil {
+		return "", err
+	}
+
+	if s.verificationCodeLogInDev {
+		log.Info().Str("user_id", userID.String()).Str("verification_code", code).Msg("DEV verification code generated")
+	}
+
+	return "sent", nil
+}
+
+func (s *Service) ConfirmVerificationCode(ctx context.Context, userID uuid.UUID, code string) (string, error) {
+	if s.verificationCodeRepo == nil {
+		return "", fmt.Errorf("verification code repository is not configured")
+	}
+
+	rec, err := s.verificationCodeRepo.GetActiveByUserID(ctx, userID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", ErrInvalidVerificationCode
+		}
+		return "", err
+	}
+
+	now := time.Now()
+	if rec.UsedAt != nil || now.After(rec.ExpiresAt) || rec.Attempts >= verificationCodeMaxAttempts {
+		_ = s.verificationCodeRepo.Invalidate(ctx, userID)
+		return "", ErrInvalidVerificationCode
+	}
+
+	if rec.CodeHash != s.hashVerificationCode(code) {
+		attempts, incErr := s.verificationCodeRepo.IncrementAttempts(ctx, userID)
+		if incErr != nil {
+			return "", incErr
+		}
+		if attempts >= verificationCodeMaxAttempts {
+			_ = s.verificationCodeRepo.Invalidate(ctx, userID)
+		}
+		return "", ErrInvalidVerificationCode
+	}
+
+	if err := s.userRepo.UpdateEmailVerified(ctx, userID, true); err != nil {
+		return "", err
+	}
+	if err := s.verificationCodeRepo.MarkUsed(ctx, userID); err != nil {
+		return "", err
+	}
+
+	return "verified", nil
+}
+
+func (s *Service) hashVerificationCode(code string) string {
+	sum := sha256.Sum256([]byte(code + s.verificationCodePepper))
+	return fmt.Sprintf("%x", sum[:])
+}
+
 // Refresh refreshes access token using refresh token
 func (s *Service) Refresh(ctx context.Context, refreshToken string) (*AuthResponse, error) {
 	if refreshToken == "" {
 		return nil, ErrRefreshTokenRequired
 	}
+	if s.refreshTokenRepo == nil {
+		return nil, ErrInvalidRefreshToken
+	}
 
-	// 1. Validate refresh token in Redis (we store hash(refresh))
-	refreshHash := jwt.HashRefreshToken(refreshToken)
-	userID, err := s.getRefreshToken(ctx, refreshHash)
+	claims, err := s.jwtService.ValidateRefreshToken(refreshToken)
 	if err != nil {
 		return nil, ErrInvalidRefreshToken
 	}
 
-	// 2. Get user
-	u, err := s.userRepo.GetByID(ctx, userID)
+	refreshHash := jwt.HashRefreshToken(refreshToken)
+	rec, err := s.refreshTokenRepo.GetByTokenHash(ctx, refreshHash)
+	if err != nil {
+		return nil, ErrInvalidRefreshToken
+	}
+
+	now := time.Now()
+	if rec.UserID != claims.UserID || rec.JTI != claims.ID || rec.RevokedAt.Valid || rec.UsedAt.Valid || now.After(rec.ExpiresAt) {
+		_ = s.refreshTokenRepo.RevokeAllByUserID(ctx, rec.UserID)
+		return nil, ErrInvalidRefreshToken
+	}
+
+	if err := s.refreshTokenRepo.MarkUsed(ctx, refreshHash); err != nil {
+		return nil, ErrInvalidRefreshToken
+	}
+
+	u, err := s.userRepo.GetByID(ctx, rec.UserID)
 	if err != nil || u == nil {
 		return nil, ErrUserNotFound
 	}
 
-	// 3. Delete old refresh token (token rotation)
-	_ = s.deleteRefreshToken(ctx, refreshHash)
-
-	// 4. Generate new tokens
 	return s.generateTokens(ctx, u)
 }
 
 // Logout invalidates refresh token
 func (s *Service) Logout(ctx context.Context, refreshToken string) error {
-	if refreshToken == "" {
-		return nil // Nothing to logout
+	if refreshToken == "" || s.refreshTokenRepo == nil {
+		return nil
 	}
-
-	// delete by hash(refresh)
 	refreshHash := jwt.HashRefreshToken(refreshToken)
-	return s.deleteRefreshToken(ctx, refreshHash)
+	return s.refreshTokenRepo.RevokeByTokenHash(ctx, refreshHash)
 }
 
 // GetCurrentUser returns current user by ID
@@ -341,7 +442,7 @@ func (s *Service) GetCurrentUser(ctx context.Context, userID uuid.UUID) (*UserRe
 		return nil, ErrUserNotFound
 	}
 
-	resp := NewUserResponse(u.ID, u.Email, string(u.Role), u.EmailVerified, u.CreatedAt)
+	resp := NewUserResponse(u.ID, u.Email, string(u.Role), u.EmailVerified, u.IsVerified, u.CreatedAt)
 	return &resp, nil
 }
 
@@ -353,24 +454,34 @@ func (s *Service) generateTokens(ctx context.Context, u *user.User) (*AuthRespon
 		return nil, err
 	}
 
-	// Generate refresh token (32 bytes hex)
-	refreshToken, err := s.jwtService.GenerateRefreshToken()
+	// Generate signed refresh token
+	refreshToken, refreshJTI, refreshExpiresAt, err := s.jwtService.GenerateRefreshToken(u.ID)
 	if err != nil {
 		return nil, err
 	}
 
-	// Store hash(refresh) in Redis
+	if s.refreshTokenRepo == nil {
+		return nil, ErrInvalidRefreshToken
+	}
+
 	refreshHash := jwt.HashRefreshToken(refreshToken)
-	if err := s.storeRefreshToken(ctx, refreshHash, u.ID); err != nil {
+	if err := s.refreshTokenRepo.Create(ctx, &RefreshTokenRecord{
+		ID:        uuid.New(),
+		UserID:    u.ID,
+		TokenHash: refreshHash,
+		JTI:       refreshJTI,
+		ExpiresAt: refreshExpiresAt,
+	}); err != nil {
 		return nil, err
 	}
 
 	return &AuthResponse{
-		User: NewUserResponse(u.ID, u.Email, string(u.Role), u.EmailVerified, u.CreatedAt),
+		User: NewUserResponse(u.ID, u.Email, string(u.Role), u.EmailVerified, u.IsVerified, u.CreatedAt),
 		Tokens: TokensResponse{
 			AccessToken:  accessToken,
 			RefreshToken: refreshToken, // return raw refresh to client
 			ExpiresIn:    int(s.jwtService.GetAccessTTL().Seconds()),
+			TokenType:    "Bearer",
 		},
 	}, nil
 }
@@ -406,33 +517,6 @@ func (s *Service) syncPhotoStudioUser(payload photostudio.SyncUserPayload) {
 			Dur("duration", duration).
 			Msg("photostudio sync ok")
 	}(payload)
-}
-
-// Redis helpers (handle nil redis gracefully)
-func (s *Service) storeRefreshToken(ctx context.Context, token string, userID uuid.UUID) error {
-	if s.redis == nil {
-		return nil // Skip if Redis not configured
-	}
-	return s.redis.Set(ctx, "refresh:"+token, userID.String(), s.jwtService.GetRefreshTTL()).Err()
-}
-
-func (s *Service) getRefreshToken(ctx context.Context, token string) (uuid.UUID, error) {
-	if s.redis == nil {
-		// Without Redis, refresh tokens don't work
-		return uuid.Nil, ErrInvalidRefreshToken
-	}
-	val, err := s.redis.Get(ctx, "refresh:"+token).Result()
-	if err != nil {
-		return uuid.Nil, ErrInvalidRefreshToken
-	}
-	return uuid.Parse(val)
-}
-
-func (s *Service) deleteRefreshToken(ctx context.Context, token string) error {
-	if s.redis == nil {
-		return nil
-	}
-	return s.redis.Del(ctx, "refresh:"+token).Err()
 }
 
 // FindByEmail finds user by email address

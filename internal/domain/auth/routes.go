@@ -20,6 +20,8 @@ func (h *Handler) Routes(authMiddleware func(http.Handler) http.Handler) chi.Rou
 		r.Use(authMiddleware)
 		r.Post("/logout", h.Logout)
 		r.Get("/me", h.Me)
+		r.Post("/verify/request", h.RequestVerify)
+		r.Post("/verify/confirm", h.ConfirmVerify)
 	})
 
 	return r

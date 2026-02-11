@@ -46,6 +46,7 @@ type UserResponse struct {
 	Email         string    `json:"email"`
 	Role          string    `json:"role"`
 	EmailVerified bool      `json:"email_verified"`
+	IsVerified    bool      `json:"is_verified"`
 	CreatedAt     string    `json:"created_at"`
 }
 
@@ -54,15 +55,17 @@ type TokensResponse struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
 	ExpiresIn    int    `json:"expires_in"` // seconds until access token expires
+	TokenType    string `json:"token_type"`
 }
 
 // NewUserResponse creates UserResponse from user data
-func NewUserResponse(id uuid.UUID, email, role string, emailVerified bool, createdAt time.Time) UserResponse {
+func NewUserResponse(id uuid.UUID, email, role string, emailVerified, isVerified bool, createdAt time.Time) UserResponse {
 	return UserResponse{
 		ID:            id,
 		Email:         email,
 		Role:          role,
 		EmailVerified: emailVerified,
+		IsVerified:    isVerified,
 		CreatedAt:     createdAt.Format(time.RFC3339),
 	}
 }
