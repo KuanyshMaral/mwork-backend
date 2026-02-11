@@ -43,6 +43,19 @@ func (h *Handler) ResyncPhotoStudioUsers(w http.ResponseWriter, r *http.Request)
 // --- Authentication ---
 
 // Login handles POST /admin/auth/login
+// @Summary Вход администратора
+// @Description Авторизация администратора по email/паролю.
+// @Tags Admin Auth
+// @Accept json
+// @Produce json
+// @Param request body LoginRequest true "Данные администратора"
+// @Success 200 {object} response.Response{data=LoginResponse}
+// @Failure 400 {object} response.Response
+// @Failure 401 {object} response.Response
+// @Failure 403 {object} response.Response
+// @Failure 422 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /admin/auth/login [post]
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	var req LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -90,6 +103,15 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 }
 
 // Me handles GET /admin/auth/me
+// @Summary Текущий администратор
+// @Description Возвращает данные авторизованного администратора.
+// @Tags Admin Auth
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} response.Response{data=AdminResponse}
+// @Failure 401 {object} response.Response
+// @Failure 404 {object} response.Response
+// @Router /admin/auth/me [get]
 func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 	adminID := GetAdminID(r.Context())
 
@@ -318,6 +340,20 @@ func (h *Handler) ExecuteSql(w http.ResponseWriter, r *http.Request) {
 }
 
 // ListUsers handles GET /admin/users
+// @Summary Список пользователей (админ)
+// @Description Возвращает список пользователей с фильтрами и пагинацией для админ-панели.
+// @Tags Admin Users
+// @Produce json
+// @Security BearerAuth
+// @Param page query int false "Страница"
+// @Param limit query int false "Лимит"
+// @Param role query string false "Роль пользователя"
+// @Param status query string false "Статус пользователя"
+// @Param search query string false "Поиск"
+// @Success 200 {object} response.Response
+// @Failure 401 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /admin/users [get]
 func (h *Handler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("ListUsers called: %s %s\n", r.Method, r.URL.Path)
 
@@ -361,6 +397,20 @@ func (h *Handler) ListUsers(w http.ResponseWriter, r *http.Request) {
 }
 
 // UpdateUserStatus handles PATCH /admin/users/{id}/status
+// @Summary Изменение статуса пользователя
+// @Description Обновляет статус пользователя в админ-панели.
+// @Tags Admin Users
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID пользователя"
+// @Param request body UpdateUserStatusRequest true "Новый статус"
+// @Success 200 {object} response.Response
+// @Failure 400 {object} response.Response
+// @Failure 401 {object} response.Response
+// @Failure 422 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /admin/users/{id}/status [patch]
 func (h *Handler) UpdateUserStatus(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("UpdateUserStatus called: %s %s\n", r.Method, r.URL.Path)
 
@@ -370,10 +420,7 @@ func (h *Handler) UpdateUserStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req struct {
-		Status string `json:"status" validate:"required"`
-		Reason string `json:"reason,omitempty"`
-	}
+	var req UpdateUserStatusRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		response.BadRequest(w, "Invalid JSON body")
