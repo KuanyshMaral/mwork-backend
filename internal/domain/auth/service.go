@@ -12,6 +12,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/mwork/mwork-api/internal/domain/user"
+	"github.com/mwork/mwork-api/internal/middleware"
 	"github.com/mwork/mwork-api/internal/pkg/jwt"
 	"github.com/mwork/mwork-api/internal/pkg/password"
 	"github.com/mwork/mwork-api/internal/pkg/photostudio"
@@ -111,12 +112,14 @@ func NewService(
 
 // Register creates new user account
 func (s *Service) Register(ctx context.Context, req *RegisterRequest) (*AuthResponse, error) {
+	requestID := middleware.GetRequestID(ctx)
 	req.Email = normalizeEmail(req.Email)
 	// 1. Check if email exists
 	existing, err := s.userRepo.GetByEmail(ctx, req.Email)
 	if err != nil {
-		log.Error().Err(err).Str("email", req.Email).Msg("failed to check existing user by email")
-		return nil, err
+		wrappedErr := wrapRegisterError("check-user-by-email", err)
+		log.Error().Err(wrappedErr).Str("request_id", requestID).Str("email", req.Email).Msg("failed to check existing user by email")
+		return nil, wrappedErr
 	}
 	if existing != nil {
 		return nil, ErrEmailAlreadyExists
@@ -131,8 +134,9 @@ func (s *Service) Register(ctx context.Context, req *RegisterRequest) (*AuthResp
 	// 3. Hash password
 	hash, err := password.Hash(req.Password)
 	if err != nil {
-		log.Error().Err(err).Str("email", req.Email).Msg("failed to hash password during register")
-		return nil, err
+		wrappedErr := wrapRegisterError("hash-password", err)
+		log.Error().Err(wrappedErr).Str("request_id", requestID).Str("email", req.Email).Msg("failed to hash password during register")
+		return nil, wrappedErr
 	}
 
 	// 4. Create user
@@ -148,8 +152,16 @@ func (s *Service) Register(ctx context.Context, req *RegisterRequest) (*AuthResp
 	}
 
 	if err := s.userRepo.Create(ctx, u); err != nil {
-		log.Error().Err(err).Str("email", req.Email).Str("user_id", u.ID.String()).Msg("failed to create user")
-		return nil, err
+		wrappedErr := wrapRegisterError("create-user", err)
+		e := log.Error().Err(wrappedErr).Str("request_id", requestID).Str("email", req.Email).Str("user_id", u.ID.String())
+		if details := extractDBErrorDetails(err); details != nil {
+			e.Str("db_sqlstate", details.SQLState).Str("db_constraint", details.Constraint).Str("db_table", details.Table).Str("db_column", details.Column).Str("db_detail", details.Detail).Str("db_message", details.Message)
+		}
+		e.Msg("failed to create user")
+		if isEmailAlreadyExistsError(err) {
+			return nil, ErrEmailAlreadyExists
+		}
+		return nil, wrappedErr
 	}
 
 	s.syncPhotoStudioUser(photostudio.SyncUserPayload{
@@ -164,12 +176,14 @@ func (s *Service) Register(ctx context.Context, req *RegisterRequest) (*AuthResp
 
 // RegisterAgency creates new agency user account with employer profile
 func (s *Service) RegisterAgency(ctx context.Context, req *AgencyRegisterRequest) (*AuthResponse, error) {
+	requestID := middleware.GetRequestID(ctx)
 	req.Email = normalizeEmail(req.Email)
 	// 1. Check if email exists
 	existing, err := s.userRepo.GetByEmail(ctx, req.Email)
 	if err != nil {
-		log.Error().Err(err).Str("email", req.Email).Msg("failed to check existing agency by email")
-		return nil, err
+		wrappedErr := wrapRegisterError("check-agency-by-email", err)
+		log.Error().Err(wrappedErr).Str("request_id", requestID).Str("email", req.Email).Msg("failed to check existing agency by email")
+		return nil, wrappedErr
 	}
 	if existing != nil {
 		return nil, ErrEmailAlreadyExists
@@ -178,8 +192,9 @@ func (s *Service) RegisterAgency(ctx context.Context, req *AgencyRegisterRequest
 	// 2. Hash password
 	hash, err := password.Hash(req.Password)
 	if err != nil {
-		log.Error().Err(err).Str("email", req.Email).Msg("failed to hash password during agency register")
-		return nil, err
+		wrappedErr := wrapRegisterError("agency-hash-password", err)
+		log.Error().Err(wrappedErr).Str("request_id", requestID).Str("email", req.Email).Msg("failed to hash password during agency register")
+		return nil, wrappedErr
 	}
 
 	// 3. Create user with role='agency'
@@ -195,8 +210,16 @@ func (s *Service) RegisterAgency(ctx context.Context, req *AgencyRegisterRequest
 	}
 
 	if err := s.userRepo.Create(ctx, u); err != nil {
-		log.Error().Err(err).Str("email", req.Email).Str("user_id", u.ID.String()).Msg("failed to create agency user")
-		return nil, err
+		wrappedErr := wrapRegisterError("create-agency-user", err)
+		e := log.Error().Err(wrappedErr).Str("request_id", requestID).Str("email", req.Email).Str("user_id", u.ID.String())
+		if details := extractDBErrorDetails(err); details != nil {
+			e.Str("db_sqlstate", details.SQLState).Str("db_constraint", details.Constraint).Str("db_table", details.Table).Str("db_column", details.Column).Str("db_detail", details.Detail).Str("db_message", details.Message)
+		}
+		e.Msg("failed to create agency user")
+		if isEmailAlreadyExistsError(err) {
+			return nil, ErrEmailAlreadyExists
+		}
+		return nil, wrappedErr
 	}
 
 	// 4. Create employer profile for agency
@@ -213,15 +236,20 @@ func (s *Service) RegisterAgency(ctx context.Context, req *AgencyRegisterRequest
 	}
 
 	if err := s.employerProfRepo.Create(ctx, profile); err != nil {
-		log.Error().
-			Err(err).
+		wrappedErr := wrapRegisterError("create-agency-profile", err)
+		e := log.Error().
+			Err(wrappedErr).
+			Str("request_id", requestID).
 			Str("email", req.Email).
 			Str("user_id", u.ID.String()).
-			Str("profile_id", profile.ID.String()).
-			Msg("failed to create employer profile for agency")
+			Str("profile_id", profile.ID.String())
+		if details := extractDBErrorDetails(err); details != nil {
+			e.Str("db_sqlstate", details.SQLState).Str("db_constraint", details.Constraint).Str("db_table", details.Table).Str("db_column", details.Column).Str("db_detail", details.Detail).Str("db_message", details.Message)
+		}
+		e.Msg("failed to create employer profile for agency")
 		// Rollback: delete user if profile creation fails
 		_ = s.userRepo.Delete(ctx, u.ID)
-		return nil, err
+		return nil, wrappedErr
 	}
 
 	s.syncPhotoStudioUser(photostudio.SyncUserPayload{
@@ -472,7 +500,13 @@ func (s *Service) generateTokens(ctx context.Context, u *user.User) (*AuthRespon
 		JTI:       refreshJTI,
 		ExpiresAt: refreshExpiresAt,
 	}); err != nil {
-		return nil, err
+		wrappedErr := wrapRegisterError("create-refresh-token", err)
+		e := log.Error().Err(wrappedErr).Str("request_id", middleware.GetRequestID(ctx)).Str("user_id", u.ID.String())
+		if details := extractDBErrorDetails(err); details != nil {
+			e.Str("db_sqlstate", details.SQLState).Str("db_constraint", details.Constraint).Str("db_table", details.Table).Str("db_column", details.Column).Str("db_detail", details.Detail).Str("db_message", details.Message)
+		}
+		e.Msg("failed to persist refresh token")
+		return nil, wrappedErr
 	}
 
 	return &AuthResponse{

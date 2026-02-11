@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/lib/pq"
+
 	"github.com/google/uuid"
 
 	"github.com/mwork/mwork-api/internal/domain/user"
@@ -144,6 +146,40 @@ func (r *fakeRefreshRepo) RevokeAllByUserID(ctx context.Context, userID uuid.UUI
 		}
 	}
 	return nil
+}
+
+type conflictOnCreateUserRepo struct{ fakeUserRepo }
+
+func (f *conflictOnCreateUserRepo) Create(ctx context.Context, u *user.User) error {
+	return &pq.Error{Code: pq.ErrorCode("23505"), Constraint: "users_email_key", Table: "users", Column: "email", Message: "duplicate key value violates unique constraint \"users_email_key\""}
+}
+
+func TestRegisterSuccess(t *testing.T) {
+	repo := &fakeUserRepo{}
+	jwtService := jwt.NewService("secret", time.Minute, time.Hour)
+	svc := NewService(repo, &fakeModelProfileRepo{}, jwtService, newFakeRefreshRepo(), &fakeEmployerProfileRepo{}, nil, false, 50*time.Millisecond, nil, "pepper", false)
+
+	resp, err := svc.Register(context.Background(), &RegisterRequest{Email: "new@example.com", Password: "password123", Role: "model"})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if resp == nil {
+		t.Fatal("expected auth response")
+	}
+	if repo.created == nil {
+		t.Fatal("expected user to be created")
+	}
+}
+
+func TestRegisterMapsDuplicateEmailToDomainError(t *testing.T) {
+	repo := &conflictOnCreateUserRepo{}
+	jwtService := jwt.NewService("secret", time.Minute, time.Hour)
+	svc := NewService(repo, &fakeModelProfileRepo{}, jwtService, newFakeRefreshRepo(), &fakeEmployerProfileRepo{}, nil, false, 50*time.Millisecond, nil, "pepper", false)
+
+	_, err := svc.Register(context.Background(), &RegisterRequest{Email: "duplicate@example.com", Password: "password123", Role: "model"})
+	if !errors.Is(err, ErrEmailAlreadyExists) {
+		t.Fatalf("expected ErrEmailAlreadyExists, got %v", err)
+	}
 }
 
 func TestRegisterIgnoresPhotoStudioError(t *testing.T) {
