@@ -284,9 +284,8 @@ func main() {
 
 	r.Use(chimw.RealIP)
 	r.Use(middleware.RequestID)
-	r.Use(middleware.Logger)
-	r.Use(middleware.Recover)
 	r.Use(middleware.CORSHandler(cfg.AllowedOrigins))
+	r.Use(chimw.Compress(5))
 
 	// Swagger будет доступен по адресу: http://localhost:PORT/swagger/index.html
 	r.Get("/swagger/*", httpSwagger.Handler(
@@ -294,18 +293,13 @@ func main() {
 	))
 
 	// ======================
-	// WebSocket endpoint (before Compress)
+	// WebSocket endpoint
 	r.Get("/ws", func(w http.ResponseWriter, r *http.Request) {
 		token := r.URL.Query().Get("token")
 		if token != "" {
 			r.Header.Set("Authorization", "Bearer "+token)
 		}
 		authMiddleware(http.HandlerFunc(chatHandler.WebSocket)).ServeHTTP(w, r)
-	})
-
-	// Compress for everything else
-	r.Group(func(r chi.Router) {
-		r.Use(chimw.Compress(5))
 	})
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -428,10 +422,10 @@ func main() {
 		r.Mount("/leads", leadHandler.AdminRoutes(adminJWTService, adminService))
 		r.Mount("/users", userAdminHandler.Routes(adminJWTService, adminService))
 	})
-
+	rootHandler := middleware.Logger(middleware.Recover(r))
 	server := &http.Server{
 		Addr:         ":" + cfg.Port,
-		Handler:      r,
+		Handler:      rootHandler,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,

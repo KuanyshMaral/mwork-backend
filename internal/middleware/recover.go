@@ -24,7 +24,6 @@ func Recover(next http.Handler) http.Handler {
 				// Log the panic with stack trace
 				log.Error().
 					Interface("error", err).
-					Str("stack", string(debug.Stack())).
 					Str("stack", stack).
 					Str("method", r.Method).
 					Str("path", r.URL.Path).

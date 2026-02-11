@@ -13,7 +13,6 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// Logger is a middleware that logs HTTP requests
 const maxLoggedErrorBody = 2048
 
 // Logger is a middleware that logs HTTP requests.
@@ -24,46 +23,36 @@ func Logger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 
-		// Wrap response writer to capture status code
 		wrapped := &responseWriter{
 			ResponseWriter: w,
 			statusCode:     http.StatusOK,
 		}
 
-		// Process request
 		next.ServeHTTP(wrapped, r)
-
-		// Log request details
 		duration := time.Since(start)
-		event := logEventByStatus(wrapped.statusCode)
+		statusForLog := statusForLog(wrapped)
+		event := logEventByStatus(statusForLog)
 		event.Str("request_id", r.Header.Get("X-Request-ID"))
 		event.Str("method", r.Method)
 		event.Str("path", r.URL.Path)
 		event.Str("query", r.URL.RawQuery)
-		event.Int("status", wrapped.statusCode)
+		event.Int("status", statusForLog)
 		event.Dur("duration", duration)
 		event.Str("ip", getClientIP(r))
 		event.Str("user_agent", r.UserAgent())
 
-		if wrapped.statusCode >= http.StatusBadRequest {
-			addErrorDetails(event, wrapped)
+		if statusForLog >= http.StatusBadRequest {
+			addErrorDetails(event, statusForLog, wrapped)
 		}
 
 		if wrapped.panicErr != nil {
 			event.Interface("panic_error", wrapped.panicErr)
 			event.Str("panic_stack", wrapped.panicStack)
+			event.Bool("panic_after_headers_sent", wrapped.headerWritten)
 		}
 
-		log.Info().
-			Str("method", r.Method).
-			Str("path", r.URL.Path).
-			Str("query", r.URL.RawQuery).
-			Int("status", wrapped.statusCode).
-			Dur("duration", duration).
-			Str("ip", getClientIP(r)).
-			Str("user_agent", r.UserAgent()).
-			Msg("HTTP Request")
 		event.Msg("HTTP request completed")
+
 	})
 }
 
@@ -79,23 +68,32 @@ func logEventByStatus(statusCode int) *zerolog.Event {
 	}
 }
 
-func addErrorDetails(event *zerolog.Event, wrapped *responseWriter) {
-	event.Str("status_text", http.StatusText(wrapped.statusCode))
-	event.Str("error_reason", errorReason(wrapped.statusCode))
+func addErrorDetails(event *zerolog.Event, status int, wrapped *responseWriter) {
+	event.Str("status_text", http.StatusText(status))
+	event.Str("error_reason", errorReason(status))
 	event.Str("response_body", wrapped.bodyPreview())
+}
+
+func statusForLog(wrapped *responseWriter) int {
+	if wrapped.panicErr != nil && wrapped.statusCode < http.StatusInternalServerError {
+		return http.StatusInternalServerError
+	}
+	return wrapped.statusCode
 }
 
 // responseWriter wraps http.ResponseWriter to capture status code and response body.
 type responseWriter struct {
 	http.ResponseWriter
-	statusCode int
-	body       strings.Builder
-	panicErr   interface{}
-	panicStack string
+	statusCode    int
+	headerWritten bool
+	body          strings.Builder
+	panicErr      interface{}
+	panicStack    string
 }
 
 func (rw *responseWriter) WriteHeader(code int) {
 	rw.statusCode = code
+	rw.headerWritten = true
 	rw.ResponseWriter.WriteHeader(code)
 }
 
@@ -103,6 +101,7 @@ func (rw *responseWriter) Write(p []byte) (int, error) {
 	if rw.statusCode == 0 {
 		rw.statusCode = http.StatusOK
 	}
+	rw.headerWritten = true
 
 	if rw.body.Len() < maxLoggedErrorBody {
 		remaining := maxLoggedErrorBody - rw.body.Len()
