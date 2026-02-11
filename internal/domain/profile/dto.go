@@ -6,7 +6,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// CreateModelProfileRequest for POST /profiles/model
+// CreateModelProfileRequest defines model profile payload (used for service-level profile creation).
 type CreateModelProfileRequest struct {
 	Name             string   `json:"name" validate:"required,min=2,max=100"`
 	Bio              string   `json:"bio" validate:"max=2000"`
@@ -26,7 +26,7 @@ type CreateModelProfileRequest struct {
 	Visibility       string   `json:"visibility" validate:"omitempty,oneof=public link_only hidden"`
 }
 
-// UpdateModelProfileRequest for PUT /profiles/model/{id}
+// UpdateModelProfileRequest for PUT /profiles/models/{id}
 type UpdateModelProfileRequest struct {
 	Name             string   `json:"name" validate:"omitempty,min=2,max=100"`
 	Bio              string   `json:"bio" validate:"max=2000"`
@@ -47,7 +47,7 @@ type UpdateModelProfileRequest struct {
 	TravelCities     []string `json:"travel_cities"`
 }
 
-// CreateEmployerProfileRequest for POST /profiles/employer
+// CreateEmployerProfileRequest defines employer profile payload (used for service-level profile creation).
 type CreateEmployerProfileRequest struct {
 	CompanyName   string `json:"company_name" validate:"required,min=2,max=200"`
 	CompanyType   string `json:"company_type" validate:"omitempty,max=100"`
@@ -57,7 +57,7 @@ type CreateEmployerProfileRequest struct {
 	ContactPhone  string `json:"contact_phone" validate:"omitempty,max=20"`
 }
 
-// UpdateEmployerProfileRequest for PUT /profiles/employer/{id}
+// UpdateEmployerProfileRequest for PUT /profiles/employers/{id}
 type UpdateEmployerProfileRequest struct {
 	CompanyName   string `json:"company_name" validate:"omitempty,min=2,max=200"`
 	CompanyType   string `json:"company_type" validate:"omitempty,max=100"`
