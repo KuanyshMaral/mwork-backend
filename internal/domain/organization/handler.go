@@ -27,6 +27,13 @@ func NewHandler(service *Service) *Handler {
 
 // Get returns organization by ID
 // GET /organizations/{id}
+// @Summary Получить организацию
+// @Tags Organization
+// @Produce json
+// @Param id path string true "ID организации"
+// @Success 200 {object} response.Response{data=Response}
+// @Failure 400,404 {object} response.Response
+// @Router /organizations/{id} [get]
 func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -45,6 +52,13 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 
 // GetCastings returns public castings from an organization
 // GET /organizations/{id}/castings
+// @Summary Публичные кастинги организации
+// @Tags Organization
+// @Produce json
+// @Param id path string true "ID организации"
+// @Success 200 {object} response.Response
+// @Failure 400,404 {object} response.Response
+// @Router /organizations/{id}/castings [get]
 func (h *Handler) GetCastings(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -69,6 +83,14 @@ func (h *Handler) GetCastings(w http.ResponseWriter, r *http.Request) {
 
 // GetMembers returns organization members
 // GET /organizations/{id}/members
+// @Summary Участники организации
+// @Tags Organization
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID организации"
+// @Success 200 {object} response.Response
+// @Failure 400,401,403,500 {object} response.Response
+// @Router /organizations/{id}/members [get]
 func (h *Handler) GetMembers(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -108,6 +130,16 @@ func (h *Handler) GetMembers(w http.ResponseWriter, r *http.Request) {
 
 // InviteMember invites a new member to organization
 // POST /organizations/{id}/members/invite
+// @Summary Пригласить участника в организацию
+// @Tags Organization
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID организации"
+// @Param request body AddMemberRequest true "Данные участника"
+// @Success 201 {object} response.Response{data=MemberResponse}
+// @Failure 400,401,403,404,409,500 {object} response.Response
+// @Router /organizations/{id}/members/invite [post]
 func (h *Handler) InviteMember(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -152,6 +184,17 @@ func (h *Handler) InviteMember(w http.ResponseWriter, r *http.Request) {
 
 // UpdateMemberRole updates a member's role
 // PATCH /organizations/{id}/members/{memberId}
+// @Summary Обновить роль участника
+// @Tags Organization
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID организации"
+// @Param memberId path string true "ID участника"
+// @Param request body UpdateMemberRoleRequest true "Новая роль"
+// @Success 200 {object} response.Response
+// @Failure 400,401,403,404,500 {object} response.Response
+// @Router /organizations/{id}/members/{memberId} [patch]
 func (h *Handler) UpdateMemberRole(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -199,6 +242,15 @@ func (h *Handler) UpdateMemberRole(w http.ResponseWriter, r *http.Request) {
 
 // RemoveMember removes a member from organization
 // DELETE /organizations/{id}/members/{memberId}
+// @Summary Удалить участника из организации
+// @Tags Organization
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID организации"
+// @Param memberId path string true "ID участника"
+// @Success 200 {object} response.Response
+// @Failure 400,401,403,404,500 {object} response.Response
+// @Router /organizations/{id}/members/{memberId} [delete]
 func (h *Handler) RemoveMember(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -237,6 +289,14 @@ func (h *Handler) RemoveMember(w http.ResponseWriter, r *http.Request) {
 
 // Follow allows a user to follow an organization
 // POST /organizations/{id}/follow
+// @Summary Подписаться на организацию
+// @Tags Organization
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID организации"
+// @Success 200 {object} response.Response
+// @Failure 400,401,404,409,500 {object} response.Response
+// @Router /organizations/{id}/follow [post]
 func (h *Handler) Follow(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -267,6 +327,14 @@ func (h *Handler) Follow(w http.ResponseWriter, r *http.Request) {
 
 // Unfollow allows a user to unfollow an organization
 // DELETE /organizations/{id}/follow
+// @Summary Отписаться от организации
+// @Tags Organization
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID организации"
+// @Success 200 {object} response.Response
+// @Failure 400,401,500 {object} response.Response
+// @Router /organizations/{id}/follow [delete]
 func (h *Handler) Unfollow(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -290,6 +358,14 @@ func (h *Handler) Unfollow(w http.ResponseWriter, r *http.Request) {
 
 // CheckFollowing checks if user is following an organization
 // GET /organizations/{id}/follow/check
+// @Summary Проверить подписку на организацию
+// @Tags Organization
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID организации"
+// @Success 200 {object} response.Response
+// @Failure 400,401,500 {object} response.Response
+// @Router /organizations/{id}/follow/check [get]
 func (h *Handler) CheckFollowing(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
