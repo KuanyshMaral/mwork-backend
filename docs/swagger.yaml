@@ -281,6 +281,12 @@ definitions:
       role:
         type: string
     type: object
+  internal_domain_auth.VerifyConfirmRequest:
+    properties:
+      code:
+        pattern: ^\d{6}$
+        type: string
+    type: object
   internal_domain_auth.VerifyEmailRequest:
     properties:
       code:
@@ -2358,6 +2364,12 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
       summary: Выход пользователя
       tags:
       - Auth
@@ -2527,6 +2539,71 @@ paths:
       security:
       - BearerAuth: []
       summary: Отправка кода верификации email
+      tags:
+      - Auth
+  /auth/verify/request:
+    post:
+      description: Отправляет код верификации пользователю, если аккаунт ещё не подтвержден.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: "status: already_verified|sent"
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  additionalProperties:
+                    type: string
+                  type: object
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Запрос кода верификации
+      tags:
+      - Auth
+  /auth/verify/confirm:
+    post:
+      consumes:
+      - application/json
+      description: Проверяет 6-значный код верификации и подтверждает аккаунт.
+      parameters:
+      - description: Код подтверждения
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_domain_auth.VerifyConfirmRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: "status: verified"
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  additionalProperties:
+                    type: string
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Подтверждение верификации
       tags:
       - Auth
   /auth/verify-email:
