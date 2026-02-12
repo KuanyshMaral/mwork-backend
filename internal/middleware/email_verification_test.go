@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -48,6 +49,37 @@ func TestRequireVerifiedEmailBlocksUnverifiedProtectedEndpoint(t *testing.T) {
 	}))
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/profiles/me", nil)
+	req = req.WithContext(context.WithValue(req.Context(), UserIDKey, uid))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d", w.Code)
+	}
+
+	var body map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("failed to decode response body: %v", err)
+	}
+	errObj, ok := body["error"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected error object in response, got: %v", body)
+	}
+	if code, _ := errObj["code"].(string); code != "EMAIL_NOT_VERIFIED" {
+		t.Fatalf("expected EMAIL_NOT_VERIFIED, got %q", code)
+	}
+}
+
+func TestRequireVerifiedEmailBlocksUnverifiedCastingCreate(t *testing.T) {
+	uid := uuid.New()
+	repo := &fakeEmailGuardUserRepo{byID: &user.User{ID: uid, EmailVerified: false}}
+	guard := RequireVerifiedEmail(repo, nil)
+
+	h := guard(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusCreated)
+	}))
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/castings", nil)
 	req = req.WithContext(context.WithValue(req.Context(), UserIDKey, uid))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
