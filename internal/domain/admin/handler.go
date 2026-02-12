@@ -293,6 +293,13 @@ func (h *Handler) UpdateFeature(w http.ResponseWriter, r *http.Request) {
 // --- Analytics ---
 
 // GetStats returns admin dashboard statistics
+// @Summary Статистика админ-панели
+// @Tags Admin Analytics
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} response.Response
+// @Failure 401,403,500 {object} response.Response
+// @Router /admin/analytics/stats [get]
 func (h *Handler) GetStats(w http.ResponseWriter, r *http.Request) {
 	stats, err := h.service.GetStats(r.Context())
 	if err != nil {

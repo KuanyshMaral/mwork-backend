@@ -24,7 +24,15 @@ func NewHandler(service *Service) *Handler {
 }
 
 // BlockUser blocks a user
-// POST /moderation/block
+// @Summary Заблокировать пользователя
+// @Tags Moderation
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body BlockUserRequest true "ID пользователя для блокировки"
+// @Success 200 {object} response.Response
+// @Failure 400,401,500 {object} response.Response
+// @Router /moderation/block [post]
 func (h *Handler) BlockUser(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 
@@ -55,7 +63,15 @@ func (h *Handler) BlockUser(w http.ResponseWriter, r *http.Request) {
 }
 
 // UnblockUser unblocks a user
-// DELETE /moderation/block
+// @Summary Разблокировать пользователя
+// @Tags Moderation
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body BlockUserRequest true "ID пользователя для разблокировки"
+// @Success 200 {object} response.Response
+// @Failure 400,401,404,500 {object} response.Response
+// @Router /moderation/block [delete]
 func (h *Handler) UnblockUser(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 
@@ -82,6 +98,14 @@ func (h *Handler) UnblockUser(w http.ResponseWriter, r *http.Request) {
 	response.OK(w, map[string]string{"message": "User unblocked successfully"})
 }
 
+
+// @Summary Список заблокированных пользователей
+// @Tags Moderation
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} response.Response
+// @Failure 401,500 {object} response.Response
+// @Router /moderation/blocks [get]
 // ListBlocks lists blocked users
 // GET /moderation/blocks
 func (h *Handler) ListBlocks(w http.ResponseWriter, r *http.Request) {
@@ -96,6 +120,16 @@ func (h *Handler) ListBlocks(w http.ResponseWriter, r *http.Request) {
 	response.OK(w, blocks)
 }
 
+
+// @Summary Создать жалобу
+// @Tags Moderation
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body CreateReportRequest true "Данные жалобы"
+// @Success 201 {object} response.Response
+// @Failure 400,401,404,422,500 {object} response.Response
+// @Router /moderation/report [post]
 // CreateReport creates a new report
 // POST /moderation/report
 func (h *Handler) CreateReport(w http.ResponseWriter, r *http.Request) {
@@ -129,7 +163,13 @@ func (h *Handler) CreateReport(w http.ResponseWriter, r *http.Request) {
 }
 
 // ListMyReports lists reports created by current user
-// GET /moderation/reports/mine
+// @Summary Мои жалобы
+// @Tags Moderation
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} response.Response
+// @Failure 401,500 {object} response.Response
+// @Router /moderation/reports/mine [get]
 func (h *Handler) ListMyReports(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 
@@ -142,6 +182,17 @@ func (h *Handler) ListMyReports(w http.ResponseWriter, r *http.Request) {
 	response.OK(w, reports)
 }
 
+// ListMyReports lists reports created by current user
+// @Summary Все жалобы (админ)
+// @Tags Moderation Admin
+// @Produce json
+// @Security BearerAuth
+// @Param limit query int false "Лимит"
+// @Param offset query int false "Смещение"
+// @Param status query string false "Статус (pending|resolved|rejected)"
+// @Success 200 {object} response.Response
+// @Failure 400,401,403,500 {object} response.Response
+// @Router /admin/reports [get]ports/mine
 // ListReports lists all reports (admin only)
 // GET /admin/reports
 func (h *Handler) ListReports(w http.ResponseWriter, r *http.Request) {
@@ -173,7 +224,16 @@ func (h *Handler) ListReports(w http.ResponseWriter, r *http.Request) {
 }
 
 // ResolveReport resolves a report (admin only)
-// POST /admin/reports/{id}/resolve
+// @Summary Разрешить жалобу (админ)
+// @Tags Moderation Admin
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID жалобы"
+// @Param request body ResolveReportRequest true "Решение жалобы"
+// @Success 200 {object} response.Response
+// @Failure 400,401,403,404,422,500 {object} response.Response
+// @Router /admin/reports/{id}/resolve [post]
 func (h *Handler) ResolveReport(w http.ResponseWriter, r *http.Request) {
 	reportID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
