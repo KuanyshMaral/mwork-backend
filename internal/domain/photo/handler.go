@@ -23,6 +23,15 @@ func NewHandler(service *Service) *Handler {
 }
 
 // Presign handles POST /uploads/presign
+// @Summary Получить presigned URL для загрузки фото
+// @Tags Photo
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body PresignRequest true "Параметры загрузки"
+// @Success 200 {object} response.Response
+// @Failure 400,403,500 {object} response.Response
+// @Router /uploads/presign [post]
 func (h *Handler) Presign(w http.ResponseWriter, r *http.Request) {
 	var req PresignRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -55,6 +64,15 @@ func (h *Handler) Presign(w http.ResponseWriter, r *http.Request) {
 }
 
 // ConfirmUpload handles POST /photos
+// @Summary Подтвердить загрузку фото
+// @Tags Photo
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body ConfirmUploadRequest true "Данные загрузки"
+// @Success 201 {object} response.Response{data=PhotoResponse}
+// @Failure 400,500 {object} response.Response
+// @Router /photos [post]
 func (h *Handler) ConfirmUpload(w http.ResponseWriter, r *http.Request) {
 	var req ConfirmUploadRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -85,6 +103,13 @@ func (h *Handler) ConfirmUpload(w http.ResponseWriter, r *http.Request) {
 }
 
 // ListByProfile handles GET /profiles/{id}/photos
+// @Summary Список фото профиля
+// @Tags Photo
+// @Produce json
+// @Param id path string true "ID профиля"
+// @Success 200 {object} response.Response{data=[]PhotoResponse}
+// @Failure 400,500 {object} response.Response
+// @Router /profiles/{id}/photos [get]
 func (h *Handler) ListByProfile(w http.ResponseWriter, r *http.Request) {
 	profileID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -106,6 +131,14 @@ func (h *Handler) ListByProfile(w http.ResponseWriter, r *http.Request) {
 	response.OK(w, items)
 }
 
+// @Summary Удалить фото
+// @Tags Photo
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID фото"
+// @Success 204 {string} string "No Content"
+// @Failure 400,403,404,500 {object} response.Response
+// @Router /photos/{id} [delete]
 // Delete handles DELETE /photos/{id}
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	photoID, err := uuid.Parse(chi.URLParam(r, "id"))
@@ -130,6 +163,14 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	response.NoContent(w)
 }
 
+// @Summary Установить аватар профиля
+// @Tags Photo
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID фото"
+// @Success 200 {object} response.Response{data=PhotoResponse}
+// @Failure 400,403,404,500 {object} response.Response
+// @Router /photos/{id}/avatar [patch]
 // SetAvatar handles PATCH /photos/{id}/avatar
 func (h *Handler) SetAvatar(w http.ResponseWriter, r *http.Request) {
 	photoID, err := uuid.Parse(chi.URLParam(r, "id"))
@@ -155,6 +196,15 @@ func (h *Handler) SetAvatar(w http.ResponseWriter, r *http.Request) {
 	response.OK(w, PhotoResponseFromEntity(photo))
 }
 
+// @Summary Изменить порядок фото
+// @Tags Photo
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body ReorderRequest true "Новый порядок фото"
+// @Success 200 {object} response.Response
+// @Failure 400,500 {object} response.Response
+// @Router /photos/reorder [patch]
 // Reorder handles PATCH /photos/reorder
 func (h *Handler) Reorder(w http.ResponseWriter, r *http.Request) {
 	var req ReorderRequest

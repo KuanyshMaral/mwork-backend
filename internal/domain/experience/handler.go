@@ -25,6 +25,16 @@ func NewHandler(repo Repository, profileRepo profile.ModelRepository) *Handler {
 }
 
 // Create adds new work experience
+// @Summary Добавить опыт работы
+// @Tags Experience
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID профиля"
+// @Param request body CreateRequest true "Данные опыта"
+// @Success 201 {object} response.Response{data=Entity}
+// @Failure 400,401,403,404,422,500 {object} response.Response
+// @Router /profiles/{id}/experience [post]
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	var req CreateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -91,6 +101,13 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 // List returns all experiences for profile
+// @Summary Список опыта работы профиля
+// @Tags Experience
+// @Produce json
+// @Param id path string true "ID профиля"
+// @Success 200 {object} response.Response{data=[]Entity}
+// @Failure 400,500 {object} response.Response
+// @Router /profiles/{id}/experience [get]
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	profileID := chi.URLParam(r, "id")
 	if profileID == "" {
@@ -108,6 +125,15 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	response.OK(w, experiences)
 }
 
+// @Summary Удалить опыт работы
+// @Tags Experience
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID профиля"
+// @Param expId path string true "ID опыта"
+// @Success 204 {string} string "No Content"
+// @Failure 400,401,403,404,500 {object} response.Response
+// @Router /profiles/{id}/experience/{expId} [delete]
 // Delete removes work experience
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	expID := chi.URLParam(r, "expId")

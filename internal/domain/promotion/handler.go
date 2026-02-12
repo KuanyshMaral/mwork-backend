@@ -28,7 +28,13 @@ func NewHandler(repo *Repository) *Handler {
 }
 
 // List returns user's promotions
-// GET /api/v1/promotions
+// @Summary Список промоций пользователя
+// @Tags Promotion
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} response.Response{data=map[string]interface{}}
+// @Failure 401,500 {object} response.Response
+// @Router /promotions [get]
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 	if userID == uuid.Nil {
@@ -54,7 +60,13 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 // Get returns a specific promotion
-// GET /api/v1/promotions/{id}
+// @Summary Получить промоцию
+// @Tags Promotion
+// @Produce json
+// @Param id path string true "ID промоции"
+// @Success 200 {object} response.Response{data=Response}
+// @Failure 400,404,500 {object} response.Response
+// @Router /promotions/{id} [get]
 func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -76,7 +88,15 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 }
 
 // Create creates a new promotion
-// POST /api/v1/promotions
+// @Summary Создать промоцию
+// @Tags Promotion
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body CreateRequest true "Данные промоции"
+// @Success 201 {object} response.Response{data=Response}
+// @Failure 400,401,422,500 {object} response.Response
+// @Router /promotions [post]
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	profileID := middleware.GetUserID(r.Context())
 	if profileID == uuid.Nil {
@@ -129,6 +149,15 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	response.Created(w, promo.ToResponse())
 }
 
+
+// @Summary Активировать промоцию
+// @Tags Promotion
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID промоции"
+// @Success 200 {object} response.Response{data=Response}
+// @Failure 400,401,404,500 {object} response.Response
+// @Router /promotions/{id}/activate [post]
 // Activate activates a promotion
 // POST /api/v1/promotions/{id}/activate
 func (h *Handler) Activate(w http.ResponseWriter, r *http.Request) {
@@ -168,6 +197,15 @@ func (h *Handler) Activate(w http.ResponseWriter, r *http.Request) {
 	response.OK(w, promo.ToResponse())
 }
 
+
+// @Summary Паузировать промоцию
+// @Tags Promotion
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID промоции"
+// @Success 200 {object} response.Response{data=Response}
+// @Failure 400,401,404,500 {object} response.Response
+// @Router /promotions/{id}/pause [post]
 // Pause pauses an active promotion
 // POST /api/v1/promotions/{id}/pause
 func (h *Handler) Pause(w http.ResponseWriter, r *http.Request) {
@@ -190,7 +228,14 @@ func (h *Handler) Pause(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetStats returns promotion statistics
-// GET /api/v1/promotions/{id}/stats
+// @Summary Статистика промоции
+// @Tags Promotion
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID промоции"
+// @Success 200 {object} response.Response
+// @Failure 400,401,404,500 {object} response.Response
+// @Router /promotions/{id}/stats [get]
 func (h *Handler) GetStats(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {

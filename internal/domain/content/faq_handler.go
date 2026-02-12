@@ -29,6 +29,13 @@ func NewFAQHandler(db *sqlx.DB) *FAQHandler {
 }
 
 // List handles GET /faq
+// @Summary Список часто задаваемых вопросов
+// @Tags FAQ
+// @Produce json
+// @Param category query string false "Категория"
+// @Success 200 {object} response.Response{data=map[string]interface{}}
+// @Failure 500 {object} response.Response
+// @Router /faq [get]
 func (h *FAQHandler) List(w http.ResponseWriter, r *http.Request) {
 	category := r.URL.Query().Get("category")
 
@@ -70,6 +77,12 @@ func (h *FAQHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetCategories handles GET /faq/categories
+// @Summary Список категорий вопросов
+// @Tags FAQ
+// @Produce json
+// @Success 200 {object} response.Response{data=[]string}
+// @Failure 500 {object} response.Response
+// @Router /faq/categories [get]
 func (h *FAQHandler) GetCategories(w http.ResponseWriter, r *http.Request) {
 	var categories []string
 	err := h.db.SelectContext(r.Context(), &categories, `

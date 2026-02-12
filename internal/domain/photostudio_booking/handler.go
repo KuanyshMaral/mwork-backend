@@ -25,6 +25,15 @@ func NewHandler(service *Service) *Handler {
 }
 
 // CreateBooking handles POST /api/v1/photostudio/bookings
+// @Summary Создать бронирование фотостудии
+// @Tags PhotoStudio
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body CreateBookingRequest true "Данные бронирования"
+// @Success 201 {object} response.Response
+// @Failure 400,401,409,422,500 {object} response.Response
+// @Router /photostudio/bookings [post]
 // Requires authentication - extracts UserID from context.
 func (h *Handler) CreateBooking(w http.ResponseWriter, r *http.Request) {
 	// Extract authenticated user ID from context
@@ -68,6 +77,15 @@ func (h *Handler) CreateBooking(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetStudios handles GET /api/v1/photostudio/studios
+// @Summary Список фотостудий
+// @Tags PhotoStudio
+// @Produce json
+// @Param city query string false "Город"
+// @Param page query int false "Страница"
+// @Param limit query int false "Лимит"
+// @Success 200 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /photostudio/studios [get]
 // Public endpoint - no authentication required.
 func (h *Handler) GetStudios(w http.ResponseWriter, r *http.Request) {
 	// Parse query params

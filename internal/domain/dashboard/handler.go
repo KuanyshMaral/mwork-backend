@@ -24,7 +24,13 @@ func NewHandler(repo *Repository, svc *Service) *Handler {
 }
 
 // GetModelStats returns aggregated stats for model dashboard
-// GET /api/v1/dashboard/model/stats
+// @Summary Статистика модели
+// @Tags Dashboard
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} response.Response
+// @Failure 401,500 {object} response.Response
+// @Router /dashboard/model/stats [get]
 func (h *Handler) GetModelStats(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 	if userID == uuid.Nil {
@@ -41,6 +47,14 @@ func (h *Handler) GetModelStats(w http.ResponseWriter, r *http.Request) {
 	response.OK(w, stats)
 }
 
+// GetEmployerStats returns aggregated stats for employer dashboard
+// @Summary Статистика работодателя
+// @Tags Dashboard
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} response.Response{data=map[string]interface{}}
+// @Failure 401,500 {object} response.Response
+// @Router /dashboard/employer/stats [get]
 func (h *Handler) GetEmployerStats(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 	if userID == uuid.Nil {
