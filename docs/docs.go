@@ -1895,7 +1895,7 @@ const docTemplate = `{
         },
         "/auth/register": {
             "post": {
-                "description": "Создает аккаунт для model/employer или agency в зависимости от поля role.",
+                "description": "Создает аккаунт для model.",
                 "consumes": [
                     "application/json"
                 ],
@@ -8886,8 +8886,7 @@ const docTemplate = `{
             "type": "object",
             "required": [
                 "email",
-                "password",
-                "role"
+                "password"
             ],
             "properties": {
                 "email": {
@@ -8898,13 +8897,6 @@ const docTemplate = `{
                     "type": "string",
                     "maxLength": 128,
                     "minLength": 8
-                },
-                "role": {
-                    "type": "string",
-                    "enum": [
-                        "model",
-                        "employer"
-                    ]
                 }
             }
         },

@@ -10,7 +10,6 @@ import (
 type RegisterRequest struct {
 	Email    string `json:"email" validate:"required,email,max=255"`
 	Password string `json:"password" validate:"required,min=8,max=128"`
-	Role     string `json:"role" validate:"required,oneof=model employer"`
 }
 
 // AgencyRegisterRequest represents agency registration data

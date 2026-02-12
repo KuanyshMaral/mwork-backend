@@ -144,13 +144,7 @@ func (s *Service) Register(ctx context.Context, req *RegisterRequest) (*Register
 		return nil, ErrEmailAlreadyExists
 	}
 
-	// 2. Validate role
-	if !user.IsValidRole(req.Role) {
-		log.Warn().Str("email", req.Email).Str("role", req.Role).Msg("invalid role in register request")
-		return nil, ErrInvalidRole
-	}
-
-	// 3. Hash password
+	// 2. Hash password
 	hash, err := password.Hash(req.Password)
 	if err != nil {
 		wrappedErr := wrapRegisterError("hash-password", err)
@@ -158,13 +152,13 @@ func (s *Service) Register(ctx context.Context, req *RegisterRequest) (*Register
 		return nil, wrappedErr
 	}
 
-	// 4. Create user
+	// 3. Create user
 	now := time.Now()
 	u := &user.User{
 		ID:            uuid.New(),
 		Email:         req.Email,
 		PasswordHash:  hash,
-		Role:          user.Role(req.Role),
+		Role:          user.RoleModel,
 		EmailVerified: false,
 		CreatedAt:     now,
 		UpdatedAt:     now,
@@ -284,7 +278,7 @@ func (s *Service) RegisterAgency(ctx context.Context, req *AgencyRegisterRequest
 		Role:        string(u.Role),
 	})
 
-	// 5. Send verification code
+	// 4. Send verification code
 	if _, err := s.RequestVerificationCode(ctx, u.ID); err != nil {
 		return nil, err
 	}
