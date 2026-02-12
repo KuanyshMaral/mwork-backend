@@ -321,8 +321,14 @@ definitions:
       creator_name:
         type: string
       date_from:
+        description: RFC3339 datetime, example: 2026-05-10T10:00:00Z
+        example: "2026-05-10T10:00:00Z"
+        format: date-time
         type: string
       date_to:
+        description: RFC3339 datetime, example: 2026-05-10T18:00:00Z
+        example: "2026-05-10T18:00:00Z"
+        format: date-time
         type: string
       description:
         type: string
@@ -368,8 +374,14 @@ definitions:
       cover_image_url:
         type: string
       date_from:
+        description: RFC3339 datetime, example: 2026-05-10T10:00:00Z
+        example: "2026-05-10T10:00:00Z"
+        format: date-time
         type: string
       date_to:
+        description: RFC3339 datetime, example: 2026-05-10T18:00:00Z
+        example: "2026-05-10T18:00:00Z"
+        format: date-time
         type: string
       description:
         maxLength: 5000
@@ -415,6 +427,10 @@ definitions:
       experience_required:
         type: boolean
       gender:
+        enum:
+        - male
+        - female
+        - other
         type: string
       height_max:
         type: number
@@ -434,6 +450,10 @@ definitions:
       experience_required:
         type: boolean
       gender:
+        enum:
+        - male
+        - female
+        - other
         type: string
       height_max:
         type: number
@@ -456,8 +476,14 @@ definitions:
       cover_image_url:
         type: string
       date_from:
+        description: RFC3339 datetime, example: 2026-05-10T10:00:00Z
+        example: "2026-05-10T10:00:00Z"
+        format: date-time
         type: string
       date_to:
+        description: RFC3339 datetime, example: 2026-05-10T18:00:00Z
+        example: "2026-05-10T18:00:00Z"
+        format: date-time
         type: string
       description:
         maxLength: 5000
