@@ -281,6 +281,22 @@ func main() {
 	photoStudioBookingHandler := photostudio_booking.NewHandler(photoStudioBookingService)
 
 	authMiddleware := middleware.Auth(jwtService)
+	emailVerificationWhitelist := []string{
+		"/api/v1/auth/login",
+		"/api/v1/auth/register",
+		"/api/v1/auth/refresh",
+		"/api/v1/auth/logout",
+		"/api/v1/auth/verify/request",
+		"/api/v1/auth/verify/confirm",
+		"/health",
+		"/healthz",
+		"/swagger",
+		"/docs",
+	}
+	emailVerifiedMiddleware := middleware.RequireVerifiedEmail(userRepo, emailVerificationWhitelist)
+	authWithVerifiedEmailMiddleware := func(next http.Handler) http.Handler {
+		return authMiddleware(emailVerifiedMiddleware(next))
+	}
 	responseLimitMiddleware := middleware.RequireResponseLimit(limitChecker, &responseLimitCounter{repo: responseRepo})
 	chatLimitMiddleware := middleware.RequireChatLimit(limitChecker)
 	photoLimitMiddleware := middleware.RequirePhotoLimit(limitChecker, &photoLimitCounter{repo: photoRepo}, &modelProfileIDProvider{repo: modelRepo})
@@ -305,7 +321,7 @@ func main() {
 		if token != "" {
 			r.Header.Set("Authorization", "Bearer "+token)
 		}
-		authMiddleware(http.HandlerFunc(chatHandler.WebSocket)).ServeHTTP(w, r)
+		authWithVerifiedEmailMiddleware(http.HandlerFunc(chatHandler.WebSocket)).ServeHTTP(w, r)
 	})
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -320,32 +336,32 @@ func main() {
 			pkgresponse.OK(w, map[string]string{"message": "pong"})
 		})
 
-		r.Mount("/auth", authHandler.Routes(authMiddleware))
-		r.Mount("/profiles", profileHandler.Routes(authMiddleware))
-		r.Mount("/castings", castingHandler.Routes(authMiddleware))
+		r.Mount("/auth", authHandler.Routes(authWithVerifiedEmailMiddleware))
+		r.Mount("/profiles", profileHandler.Routes(authWithVerifiedEmailMiddleware))
+		r.Mount("/castings", castingHandler.Routes(authWithVerifiedEmailMiddleware))
 
 		r.Route("/castings/saved", func(r chi.Router) {
-			r.Use(authMiddleware)
+			r.Use(authWithVerifiedEmailMiddleware)
 			r.Get("/", savedCastingsHandler.ListSaved)
 		})
 		r.Route("/castings/{id}/save", func(r chi.Router) {
-			r.Use(authMiddleware)
+			r.Use(authWithVerifiedEmailMiddleware)
 			r.Post("/", savedCastingsHandler.Save)
 			r.Delete("/", savedCastingsHandler.Unsave)
 			r.Get("/", savedCastingsHandler.CheckSaved)
 		})
 
 		r.Route("/castings/{id}/responses", func(r chi.Router) {
-			r.Use(authMiddleware)
+			r.Use(authWithVerifiedEmailMiddleware)
 			r.With(responseLimitMiddleware).Post("/", responseHandler.Apply)
 			r.Get("/", responseHandler.ListByCasting)
 		})
-		r.Mount("/responses", responseHandler.Routes(authMiddleware))
+		r.Mount("/responses", responseHandler.Routes(authWithVerifiedEmailMiddleware))
 
 		// legacy uploads/photos
-		r.Mount("/uploads", photoHandler.UploadRoutes(authMiddleware))
+		r.Mount("/uploads", photoHandler.UploadRoutes(authWithVerifiedEmailMiddleware))
 		r.Route("/photos", func(r chi.Router) {
-			r.Use(authMiddleware)
+			r.Use(authWithVerifiedEmailMiddleware)
 			r.With(photoLimitMiddleware).Post("/", photoHandler.ConfirmUpload)
 			r.Delete("/{id}", photoHandler.Delete)
 			r.Patch("/{id}/avatar", photoHandler.SetAvatar)
@@ -354,7 +370,7 @@ func main() {
 
 		// NEW: 2-phase file uploads
 		r.Route("/files", func(r chi.Router) {
-			r.Use(authMiddleware)
+			r.Use(authWithVerifiedEmailMiddleware)
 
 			// New 2-phase endpoints
 			r.Post("/init", uploadHandler.Init)
@@ -370,12 +386,12 @@ func main() {
 
 		r.Get("/profiles/{id}/photos", photoHandler.ListByProfile)
 
-		r.Mount("/", experienceHandler.Routes(authMiddleware))
+		r.Mount("/", experienceHandler.Routes(authWithVerifiedEmailMiddleware))
 
 		r.Route("/profiles/{id}/social-links", func(r chi.Router) {
 			r.Get("/", socialLinksHandler.List)
 			r.Group(func(r chi.Router) {
-				r.Use(authMiddleware)
+				r.Use(authWithVerifiedEmailMiddleware)
 				r.Post("/", socialLinksHandler.Create)
 				r.Delete("/{platform}", socialLinksHandler.Delete)
 			})
@@ -387,7 +403,7 @@ func main() {
 		r.Get("/profiles/{id}/reviews/summary", reviewHandler.GetSummary)
 
 		r.Route("/chat", func(r chi.Router) {
-			r.Use(authMiddleware)
+			r.Use(authWithVerifiedEmailMiddleware)
 			r.With(chatLimitMiddleware).Post("/rooms", chatHandler.CreateRoom)
 			r.Get("/rooms", chatHandler.ListRooms)
 
@@ -397,20 +413,20 @@ func main() {
 
 			r.Get("/unread", chatHandler.GetUnreadCount)
 		})
-		r.Mount("/moderation", moderationHandler.Routes(authMiddleware))
-		r.Mount("/notifications", notificationHandler.Routes(authMiddleware))
-		r.Mount("/notifications/preferences", preferencesHandler.Routes(authMiddleware))
+		r.Mount("/moderation", moderationHandler.Routes(authWithVerifiedEmailMiddleware))
+		r.Mount("/notifications", notificationHandler.Routes(authWithVerifiedEmailMiddleware))
+		r.Mount("/notifications/preferences", preferencesHandler.Routes(authWithVerifiedEmailMiddleware))
 
-		r.Mount("/subscriptions", subscriptionHandler.Routes(authMiddleware))
-		r.Mount("/payments", paymentHandler.Routes(authMiddleware))
+		r.Mount("/subscriptions", subscriptionHandler.Routes(authWithVerifiedEmailMiddleware))
+		r.Mount("/payments", paymentHandler.Routes(authWithVerifiedEmailMiddleware))
 
-		r.Mount("/dashboard", dashboard.Routes(dashboardHandler, authMiddleware))
-		r.Mount("/promotions", promotion.Routes(promotionHandler, authMiddleware))
-		r.Mount("/reviews", review.Routes(reviewHandler, authMiddleware))
+		r.Mount("/dashboard", dashboard.Routes(dashboardHandler, authWithVerifiedEmailMiddleware))
+		r.Mount("/promotions", promotion.Routes(promotionHandler, authWithVerifiedEmailMiddleware))
+		r.Mount("/reviews", review.Routes(reviewHandler, authWithVerifiedEmailMiddleware))
 		r.Mount("/faq", faqHandler.Routes())
 
 		// PhotoStudio booking integration
-		r.Mount("/photostudio", photoStudioBookingHandler.Routes(authMiddleware))
+		r.Mount("/photostudio", photoStudioBookingHandler.Routes(authWithVerifiedEmailMiddleware))
 	})
 
 	r.Mount("/webhooks", paymentHandler.WebhookRoutes())
