@@ -286,6 +286,36 @@ definitions:
       code:
         type: string
     type: object
+  internal_domain_auth.VerifyConfirmBody:
+    properties:
+      code:
+        example: "123456"
+        pattern: ^\d{6}$
+        type: string
+      email:
+        example: user@example.com
+        type: string
+    required:
+    - code
+    - email
+    type: object
+  internal_domain_auth.VerifyRequestBody:
+    properties:
+      email:
+        example: user@example.com
+        type: string
+    required:
+    - email
+    type: object
+  internal_domain_auth.VerifyRequestStatusData:
+    properties:
+      status:
+        enum:
+        - already_verified
+        - sent
+        example: sent
+        type: string
+    type: object
   internal_domain_auth.VerifyEmailRequest:
     properties:
       code:
@@ -2648,12 +2678,12 @@ paths:
       - application/json
       description: Подтверждает email по паре email+code.
       parameters:
-      - description: Email и код подтверждения
+      - description: Email and verification code
         in: body
         name: request
         required: true
         schema:
-          $ref: '#/definitions/internal_domain_auth.VerifyConfirmPublicRequest'
+          $ref: '#/definitions/internal_domain_auth.VerifyConfirmBody'
       produces:
       - application/json
       responses:
@@ -2688,7 +2718,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/internal_domain_auth.VerifyRequestPublicRequest'
+          $ref: '#/definitions/internal_domain_auth.VerifyRequestBody'
       produces:
       - application/json
       responses:
@@ -2699,9 +2729,7 @@ paths:
             - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
             - properties:
                 data:
-                  additionalProperties:
-                    type: string
-                  type: object
+                  $ref: '#/definitions/internal_domain_auth.VerifyRequestStatusData'
               type: object
         "400":
           description: Bad Request

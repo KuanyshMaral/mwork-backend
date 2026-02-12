@@ -24,12 +24,12 @@ type VerifyConfirmRequest struct {
 // @Tags Auth
 // @Accept json
 // @Produce json
-// @Param request body VerifyRequestPublicRequest true "Email"
-// @Success 200 {object} response.Response{data=map[string]string} "status: already_verified|sent"
+// @Param request body VerifyRequestBody true "Email"
+// @Success 200 {object} response.Response{data=VerifyRequestStatusData} "status: already_verified|sent"
 // @Failure 400 {object} response.Response
 // @Router /auth/verify/request [post]
 func (h *Handler) RequestVerifyPublic(w http.ResponseWriter, r *http.Request) {
-	var req VerifyRequestPublicRequest
+	var req VerifyRequestBody
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		response.BadRequest(w, "Invalid JSON body")
 		return
@@ -68,13 +68,13 @@ func (h *Handler) RequestVerifyPublic(w http.ResponseWriter, r *http.Request) {
 // @Tags Auth
 // @Accept json
 // @Produce json
-// @Param request body VerifyConfirmPublicRequest true "Email и код подтверждения"
+// @Param request body VerifyConfirmBody true "Email and verification code"
 // @Success 200 {object} response.Response{data=map[string]interface{}}
 // @Failure 400 {object} response.Response
 // @Failure 429 {object} response.Response
 // @Router /auth/verify/confirm [post]
 func (h *Handler) ConfirmVerifyPublic(w http.ResponseWriter, r *http.Request) {
-	var req VerifyConfirmPublicRequest
+	var req VerifyConfirmBody
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		response.BadRequest(w, "Invalid JSON body")
 		return

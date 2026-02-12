@@ -34,13 +34,17 @@ type RefreshRequest struct {
 	RefreshToken string `json:"refresh_token" validate:"required"`
 }
 
-type VerifyRequestPublicRequest struct {
-	Email string `json:"email" validate:"required,email,max=255"`
+type VerifyRequestBody struct {
+	Email string `json:"email" validate:"required,email,max=255" binding:"required,email" example:"user@example.com"`
 }
 
-type VerifyConfirmPublicRequest struct {
-	Email string `json:"email" validate:"required,email,max=255"`
-	Code  string `json:"code" validate:"required,len=6,numeric" pattern:"^\\d{6}$"`
+type VerifyConfirmBody struct {
+	Email string `json:"email" validate:"required,email,max=255" binding:"required,email" example:"user@example.com"`
+	Code  string `json:"code" validate:"required,len=6,numeric" binding:"required,len=6" pattern:"^\\d{6}$" example:"123456"`
+}
+
+type VerifyRequestStatusData struct {
+	Status string `json:"status" example:"sent" enums:"already_verified,sent"`
 }
 
 type RegisterResponse struct {
