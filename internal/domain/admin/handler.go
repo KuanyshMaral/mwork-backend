@@ -32,6 +32,15 @@ func NewHandler(service *Service, jwtSvc *JWTService, photoStudioHandler *PhotoS
 }
 
 // ResyncPhotoStudioUsers handles POST /admin/photostudio/resync
+// @Summary Ресинхронизация пользователей с PhotoStudio
+// @Tags Admin PhotoStudio
+// @Produce json
+// @Security BearerAuth
+// @Param limit query int false "Лимит"
+// @Param offset query int false "Смещение"
+// @Success 200 {object} response.Response
+// @Failure 400,500 {object} response.Response
+// @Router /admin/photostudio/resync [post]
 func (h *Handler) ResyncPhotoStudioUsers(w http.ResponseWriter, r *http.Request) {
 	if h.photoStudioHandler == nil {
 		response.BadRequest(w, "photostudio sync is disabled")
@@ -127,6 +136,13 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 // --- Admin Management ---
 
 // ListAdmins handles GET /admin/admins
+// @Summary Список администраторов
+// @Tags Admin Management
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} response.Response{data=[]AdminResponse}
+// @Failure 500 {object} response.Response
+// @Router /admin/admins [get]
 func (h *Handler) ListAdmins(w http.ResponseWriter, r *http.Request) {
 	admins, err := h.service.ListAdmins(r.Context())
 	if err != nil {
@@ -143,6 +159,15 @@ func (h *Handler) ListAdmins(w http.ResponseWriter, r *http.Request) {
 }
 
 // CreateAdmin handles POST /admin/admins
+// @Summary Создать администратора
+// @Tags Admin Management
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body CreateAdminRequest true "Новый администратор"
+// @Success 201 {object} response.Response{data=AdminResponse}
+// @Failure 400,403,409,422,500 {object} response.Response
+// @Router /admin/admins [post]
 func (h *Handler) CreateAdmin(w http.ResponseWriter, r *http.Request) {
 	var req CreateAdminRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -171,6 +196,16 @@ func (h *Handler) CreateAdmin(w http.ResponseWriter, r *http.Request) {
 }
 
 // UpdateAdmin handles PATCH /admin/admins/{id}
+// @Summary Обновить администратора
+// @Tags Admin Management
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID администратора"
+// @Param request body UpdateAdminRequest true "Поля для обновления"
+// @Success 200 {object} response.Response{data=AdminResponse}
+// @Failure 400,403,404,500 {object} response.Response
+// @Router /admin/admins/{id} [patch]
 func (h *Handler) UpdateAdmin(w http.ResponseWriter, r *http.Request) {
 	targetID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -204,6 +239,13 @@ func (h *Handler) UpdateAdmin(w http.ResponseWriter, r *http.Request) {
 // --- Feature Flags ---
 
 // ListFeatures handles GET /admin/features
+// @Summary Список feature-флагов
+// @Tags Admin Features
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /admin/features [get]
 func (h *Handler) ListFeatures(w http.ResponseWriter, r *http.Request) {
 	flags, err := h.service.ListFeatureFlags(r.Context())
 	if err != nil {
@@ -215,6 +257,16 @@ func (h *Handler) ListFeatures(w http.ResponseWriter, r *http.Request) {
 }
 
 // UpdateFeature handles PATCH /admin/features/{key}
+// @Summary Обновить feature-флаг
+// @Tags Admin Features
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param key path string true "Ключ feature-флага"
+// @Param request body FeatureRequest true "Значение флага"
+// @Success 200 {object} response.Response
+// @Failure 400,404,500 {object} response.Response
+// @Router /admin/features/{key} [patch]
 func (h *Handler) UpdateFeature(w http.ResponseWriter, r *http.Request) {
 	key := chi.URLParam(r, "key")
 
@@ -241,6 +293,13 @@ func (h *Handler) UpdateFeature(w http.ResponseWriter, r *http.Request) {
 // --- Analytics ---
 
 // GetStats returns admin dashboard statistics
+// @Summary Статистика админ-панели
+// @Tags Admin Analytics
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} response.Response
+// @Failure 401,403,500 {object} response.Response
+// @Router /admin/analytics/stats [get]
 func (h *Handler) GetStats(w http.ResponseWriter, r *http.Request) {
 	stats, err := h.service.GetStats(r.Context())
 	if err != nil {
@@ -252,6 +311,13 @@ func (h *Handler) GetStats(w http.ResponseWriter, r *http.Request) {
 }
 
 // Dashboard handles GET /admin/analytics/dashboard
+// @Summary Дашборд аналитики
+// @Tags Admin Analytics
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /admin/analytics/dashboard [get]
 func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 	stats, err := h.service.GetDashboardStats(r.Context())
 	if err != nil {
@@ -262,6 +328,13 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 	response.OK(w, stats)
 }
 
+// @Summary Выручка
+// @Tags Admin Analytics
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /admin/analytics/revenue [get]
 func (h *Handler) Revenue(w http.ResponseWriter, r *http.Request) {
 	stats, err := h.service.GetDashboardStats(r.Context())
 	if err != nil {
@@ -275,6 +348,17 @@ func (h *Handler) Revenue(w http.ResponseWriter, r *http.Request) {
 // --- Audit Logs ---
 
 // AuditLogs handles GET /admin/audit/logs
+// @Summary Логи аудита
+// @Tags Admin Audit
+// @Produce json
+// @Security BearerAuth
+// @Param limit query int false "Лимит"
+// @Param offset query int false "Смещение"
+// @Param action query string false "Действие"
+// @Param entity_type query string false "Тип сущности"
+// @Success 200 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /admin/audit/logs [get]
 func (h *Handler) AuditLogs(w http.ResponseWriter, r *http.Request) {
 	limit := 50
 	offset := 0
@@ -314,6 +398,15 @@ func (h *Handler) AuditLogs(w http.ResponseWriter, r *http.Request) {
 }
 
 // ExecuteSql handles POST /admin/sql - executes SQL queries (temporary solution)
+// @Summary Выполнить SQL-запрос
+// @Tags Admin Maintenance
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body object{query=string} true "SQL-запрос"
+// @Success 200 {object} response.Response
+// @Failure 400,422,500 {object} response.Response
+// @Router /admin/sql [post]
 func (h *Handler) ExecuteSql(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Query string `json:"query" validate:"required"`

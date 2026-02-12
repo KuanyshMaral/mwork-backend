@@ -42,6 +42,15 @@ func NewHandler(service *Service, profileService ProfileService) *Handler {
 }
 
 // Create handles POST /castings
+// @Summary Создать кастинг
+// @Tags Casting
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body CreateCastingRequest true "Данные кастинга"
+// @Success 201 {object} response.Response{data=CastingResponse}
+// @Failure 400,403,422,500 {object} response.Response
+// @Router /castings [post]
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	var req CreateCastingRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -70,6 +79,13 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetByID handles GET /castings/{id}
+// @Summary Получить кастинг по ID
+// @Tags Casting
+// @Produce json
+// @Param id path string true "ID кастинга"
+// @Success 200 {object} response.Response{data=CastingResponse}
+// @Failure 400,403,404,500 {object} response.Response
+// @Router /castings/{id} [get]
 func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
@@ -124,6 +140,16 @@ func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
 }
 
 // Update handles PUT /castings/{id}
+// @Summary Обновить кастинг
+// @Tags Casting
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID кастинга"
+// @Param request body UpdateCastingRequest true "Поля для обновления"
+// @Success 200 {object} response.Response{data=CastingResponse}
+// @Failure 400,403,404,422,500 {object} response.Response
+// @Router /castings/{id} [put]
 func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -160,6 +186,16 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 }
 
 // UpdateStatus handles PATCH /castings/{id}/status
+// @Summary Обновить статус кастинга
+// @Tags Casting
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID кастинга"
+// @Param request body UpdateStatusRequest true "Новый статус"
+// @Success 200 {object} response.Response{data=CastingResponse}
+// @Failure 400,403,404,422,500 {object} response.Response
+// @Router /castings/{id}/status [patch]
 func (h *Handler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -196,6 +232,14 @@ func (h *Handler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 // Delete handles DELETE /castings/{id}
+// @Summary Удалить кастинг
+// @Tags Casting
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID кастинга"
+// @Success 204 {string} string "No Content"
+// @Failure 400,403,404,500 {object} response.Response
+// @Router /castings/{id} [delete]
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -220,6 +264,16 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 }
 
 // List handles GET /castings
+// @Summary Список кастингов
+// @Tags Casting
+// @Produce json
+// @Param page query int false "Страница"
+// @Param limit query int false "Лимит"
+// @Param city query string false "Город"
+// @Param status query string false "Статус"
+// @Success 200 {object} response.Response{data=[]CastingResponse}
+// @Failure 500 {object} response.Response
+// @Router /castings [get]
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	filter := &Filter{}
 	query := r.URL.Query()
@@ -290,6 +344,16 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 // ListMy handles GET /castings/my
+// @Summary Мои кастинги
+// @Tags Casting
+// @Produce json
+// @Security BearerAuth
+// @Param page query int false "Страница"
+// @Param limit query int false "Лимит"
+// @Param status query string false "Статус"
+// @Success 200 {object} response.Response{data=[]CastingResponse}
+// @Failure 500 {object} response.Response
+// @Router /castings/my [get]
 func (h *Handler) ListMy(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

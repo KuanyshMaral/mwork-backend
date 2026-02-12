@@ -28,6 +28,15 @@ type AddRequest struct {
 }
 
 // Add handles POST /favorites
+// @Summary Добавить в избранное
+// @Tags Favorite
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body AddRequest true "Данные избранного"
+// @Success 201 {object} response.Response
+// @Failure 400,401,500 {object} response.Response
+// @Router /favorites [post]
 func (h *Handler) Add(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 	if userID == uuid.Nil {
@@ -63,6 +72,15 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request) {
 }
 
 // Remove handles DELETE /favorites/:type/:id
+// @Summary Удалить из избранного
+// @Tags Favorite
+// @Produce json
+// @Security BearerAuth
+// @Param type path string true "Тип сущности (casting|profile)"
+// @Param id path string true "ID сущности"
+// @Success 204 {string} string "No Content"
+// @Failure 400,401,500 {object} response.Response
+// @Router /favorites/{type}/{id} [delete]
 func (h *Handler) Remove(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 	if userID == uuid.Nil {
@@ -87,6 +105,15 @@ func (h *Handler) Remove(w http.ResponseWriter, r *http.Request) {
 	response.NoContent(w)
 }
 
+// @Summary Проверить наличие в избранном
+// @Tags Favorite
+// @Produce json
+// @Security BearerAuth
+// @Param type path string true "Тип сущности (casting|profile)"
+// @Param id path string true "ID сущности"
+// @Success 200 {object} response.Response{data=map[string]bool}
+// @Failure 400,401,500 {object} response.Response
+// @Router /favorites/{type}/{id}/check [get]
 // Check handles GET /favorites/:type/:id/check
 func (h *Handler) Check(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
@@ -109,6 +136,16 @@ func (h *Handler) Check(w http.ResponseWriter, r *http.Request) {
 	response.OK(w, map[string]bool{"is_favorited": isFavorited})
 }
 
+// @Summary Список избранного
+// @Tags Favorite
+// @Produce json
+// @Security BearerAuth
+// @Param type query string false "Тип фильтра (casting|profile)"
+// @Param limit query int false "Лимит"
+// @Param offset query int false "Смещение"
+// @Success 200 {object} response.Response{data=map[string]interface{}}
+// @Failure 401,500 {object} response.Response
+// @Router /favorites [get]
 // List handles GET /favorites
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())

@@ -169,8 +169,7 @@ func main() {
 		return
 	}
 	if !u.EmailVerified {
-		fmt.Println("ERROR: Email not verified!")
-		return
+		fmt.Println("WARNING: Email not verified (login should still be allowed)")
 	}
 
 	// Match password

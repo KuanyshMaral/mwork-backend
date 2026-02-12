@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -19,18 +20,13 @@ import (
 type Handler struct {
 	service        *Service
 	paymentService PaymentService
-	kaspiClient    KaspiClient
 	config         *Config
 }
 
 // PaymentService defines payment operations needed by subscription
 type PaymentService interface {
 	CreatePayment(ctx context.Context, userID, subscriptionID uuid.UUID, amount float64, provider string) (*Payment, error)
-}
-
-// KaspiClient defines Kaspi API operations
-type KaspiClient interface {
-	CreatePayment(ctx context.Context, req KaspiPaymentRequest) (*KaspiPaymentResponse, error)
+	InitRobokassaPayment(ctx context.Context, req InitRobokassaPaymentRequest) (*InitRobokassaPaymentResponse, error)
 }
 
 // Payment represents payment entity
@@ -39,23 +35,20 @@ type Payment struct {
 	UserID         uuid.UUID
 	SubscriptionID uuid.NullUUID
 	Amount         float64
-	KaspiOrderID   string
 	Status         string
 	CreatedAt      time.Time
 }
 
-// KaspiPaymentRequest for creating Kaspi payment
-type KaspiPaymentRequest struct {
-	Amount      float64
-	OrderID     string
-	Description string
-	ReturnURL   string
-	CallbackURL string
+type InitRobokassaPaymentRequest struct {
+	UserID         uuid.UUID
+	SubscriptionID uuid.UUID
+	Amount         string
+	Description    string
 }
 
-// KaspiPaymentResponse from Kaspi API
-type KaspiPaymentResponse struct {
-	PaymentID  string
+type InitRobokassaPaymentResponse struct {
+	PaymentID  uuid.UUID
+	InvID      int64
 	PaymentURL string
 	Status     string
 }
@@ -67,16 +60,22 @@ type Config struct {
 }
 
 // NewHandler creates subscription handler
-func NewHandler(service *Service, paymentService PaymentService, kaspiClient KaspiClient, config *Config) *Handler {
+func NewHandler(service *Service, paymentService PaymentService, config *Config) *Handler {
 	return &Handler{
 		service:        service,
 		paymentService: paymentService,
-		kaspiClient:    kaspiClient,
 		config:         config,
 	}
 }
 
 // ListPlans handles GET /subscriptions/plans
+// @Summary Список доступных планов подписок
+// @Description Возвращает все доступные планы подписок с ценами и лимитами
+// @Tags Subscription
+// @Produce json
+// @Success 200 {object} response.Response{data=[]PlanResponse}
+// @Failure 500 {object} response.Response
+// @Router /subscriptions/plans [get]
 func (h *Handler) ListPlans(w http.ResponseWriter, r *http.Request) {
 	plans, err := h.service.GetPlans(r.Context())
 	if err != nil {
@@ -93,6 +92,15 @@ func (h *Handler) ListPlans(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetCurrent handles GET /subscriptions/current
+// @Summary Текущая подписка пользователя
+// @Description Возвращает информацию о текущей активной подписке пользователя
+// @Tags Subscription
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} response.Response{data=SubscriptionResponse}
+// @Failure 401 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /subscriptions/current [get]
 func (h *Handler) GetCurrent(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 
@@ -106,6 +114,15 @@ func (h *Handler) GetCurrent(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetLimits handles GET /subscriptions/limits
+// @Summary Лимиты и использование подписки
+// @Description Возвращает лимиты текущего тарифа и статистику их использования
+// @Tags Subscription
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} response.Response{data=LimitsResponse}
+// @Failure 401 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /subscriptions/limits [get]
 func (h *Handler) GetLimits(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 
@@ -139,6 +156,23 @@ func (h *Handler) GetLimits(w http.ResponseWriter, r *http.Request) {
 }
 
 // Subscribe handles POST /subscriptions/subscribe
+// @Summary Оформление подписки
+// @Description Создает новую подписку и инициирует процесс оплаты через Robokassa
+// @Tags Subscription
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body SubscribeRequest true "Параметры подписки"
+// @Success 201 {object} response.Response{data=object{payment_id=string,inv_id=int64,payment_url=string,amount=number,expires_at=string}}
+// @Failure 400 {object} response.Response
+// @Failure 401 {object} response.Response
+// @Failure 404 {object} response.Response
+// @Failure 409 {object} response.Response
+// @Failure 422 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Failure 502 {object} response.Response
+// @Router /subscriptions/subscribe [post]
+// @Router /subscriptions [post]
 func (h *Handler) Subscribe(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -203,26 +237,12 @@ func (h *Handler) Subscribe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate unique Kaspi order ID
-	orderID := uuid.New().String()
-
-	// Create pending payment record
-	payment, err := h.paymentService.CreatePayment(ctx, userID, sub.ID, amount, "kaspi")
-	if err != nil {
-		response.Error(w, http.StatusInternalServerError, "PAYMENT_ERROR", "payment initiation failed")
-		return
-	}
-
-	// Create Kaspi payment
-	kaspiReq := KaspiPaymentRequest{
-		Amount:      amount,
-		OrderID:     orderID,
-		Description: fmt.Sprintf("MWork %s subscription", req.PlanID),
-		ReturnURL:   h.config.FrontendURL + "/payment/success",
-		CallbackURL: h.config.BackendURL + "/webhooks/kaspi",
-	}
-
-	kaspiResp, err := h.kaspiClient.CreatePayment(ctx, kaspiReq)
+	robokassaResp, err := h.paymentService.InitRobokassaPayment(ctx, InitRobokassaPaymentRequest{
+		UserID:         userID,
+		SubscriptionID: sub.ID,
+		Amount:         strconv.FormatFloat(amount, 'f', 2, 64),
+		Description:    fmt.Sprintf("MWork %s subscription", req.PlanID),
+	})
 	if err != nil {
 		response.Error(w, http.StatusBadGateway, "GATEWAY_ERROR", "payment gateway error")
 		return
@@ -234,12 +254,14 @@ func (h *Handler) Subscribe(w http.ResponseWriter, r *http.Request) {
 	// Prepare response
 	subscribeResp := struct {
 		PaymentID  string  `json:"payment_id"`
+		InvID      int64   `json:"inv_id"`
 		PaymentURL string  `json:"payment_url"`
 		Amount     float64 `json:"amount"`
 		ExpiresAt  string  `json:"expires_at"`
 	}{
-		PaymentID:  payment.ID.String(),
-		PaymentURL: kaspiResp.PaymentURL,
+		PaymentID:  robokassaResp.PaymentID.String(),
+		InvID:      robokassaResp.InvID,
+		PaymentURL: robokassaResp.PaymentURL,
 		Amount:     amount,
 		ExpiresAt:  expiresAt,
 	}
@@ -248,6 +270,19 @@ func (h *Handler) Subscribe(w http.ResponseWriter, r *http.Request) {
 }
 
 // Cancel handles POST /subscriptions/cancel
+// @Summary Отмена подписки
+// @Description Отменяет текущую активную подписку пользователя
+// @Tags Subscription
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body CancelRequest false "Причина отмены (опционально)"
+// @Success 200 {object} response.Response{data=object{status=string}}
+// @Failure 400 {object} response.Response
+// @Failure 401 {object} response.Response
+// @Failure 404 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /subscriptions/cancel [post]
 func (h *Handler) Cancel(w http.ResponseWriter, r *http.Request) {
 	var req CancelRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

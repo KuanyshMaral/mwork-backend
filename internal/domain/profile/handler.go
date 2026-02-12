@@ -27,7 +27,7 @@ func NewHandler(service *Service) *Handler {
 // GetMe handles GET /profiles/me
 // @Summary Мой профиль
 // @Description Возвращает профиль текущего пользователя (модель или работодатель).
-// @Tags Profiles
+// @Tags Profile
 // @Produce json
 // @Security BearerAuth
 // @Success 200 {object} response.Response
@@ -58,7 +58,7 @@ func (h *Handler) GetMe(w http.ResponseWriter, r *http.Request) {
 // GetModelByID handles GET /profiles/models/{id}
 // @Summary Получение профиля модели
 // @Description Возвращает публичный профиль модели по идентификатору.
-// @Tags Profiles
+// @Tags Profile
 // @Produce json
 // @Param id path string true "ID профиля"
 // @Success 200 {object} response.Response{data=ModelProfileResponse}
@@ -84,23 +84,23 @@ func (h *Handler) GetModelByID(w http.ResponseWriter, r *http.Request) {
 	response.OK(w, ModelProfileResponseFromEntity(profile))
 }
 
-// UpdateEmployer handles PUT /profiles/employers/{id}
-// @Summary Обновление профиля работодателя
-// @Description Обновляет профиль работодателя. Доступно только владельцу профиля.
-// @Tags Profiles
+// UpdateModel handles PUT /profiles/models/{id}
+// @Summary Обновление профиля модели
+// @Description Обновляет профиль модели. Доступно только владельцу профиля.
+// @Tags Profile
 // @Accept json
 // @Produce json
 // @Security BearerAuth
 // @Param id path string true "ID профиля"
-// @Param request body UpdateEmployerProfileRequest true "Обновление профиля работодателя"
-// @Success 200 {object} response.Response{data=EmployerProfileResponse}
+// @Param request body UpdateModelProfileRequest true "Обновление профиля модели"
+// @Success 200 {object} response.Response{data=ModelProfileResponse}
 // @Failure 400 {object} response.Response
 // @Failure 401 {object} response.Response
 // @Failure 403 {object} response.Response
 // @Failure 404 {object} response.Response
 // @Failure 422 {object} response.Response
 // @Failure 500 {object} response.Response
-// @Router /profiles/employers/{id} [put]
+// @Router /profiles/models/{id} [put]
 func (h *Handler) UpdateModel(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -137,6 +137,22 @@ func (h *Handler) UpdateModel(w http.ResponseWriter, r *http.Request) {
 }
 
 // UpdateEmployer handles PUT /profiles/employers/{id}
+// @Summary Обновление профиля работодателя
+// @Description Обновляет профиль работодателя. Доступно только владельцу профиля.
+// @Tags Profile
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID профиля"
+// @Param request body UpdateEmployerProfileRequest true "Обновление профиля работодателя"
+// @Success 200 {object} response.Response{data=EmployerProfileResponse}
+// @Failure 400 {object} response.Response
+// @Failure 401 {object} response.Response
+// @Failure 403 {object} response.Response
+// @Failure 404 {object} response.Response
+// @Failure 422 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /profiles/employers/{id} [put]
 func (h *Handler) UpdateEmployer(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -175,7 +191,7 @@ func (h *Handler) UpdateEmployer(w http.ResponseWriter, r *http.Request) {
 // ListModels handles GET /profiles/models
 // @Summary Список моделей
 // @Description Возвращает список профилей моделей с фильтрами и пагинацией.
-// @Tags Profiles
+// @Tags Profile
 // @Produce json
 // @Param q query string false "Поиск"
 // @Param city query string false "Город"
@@ -263,7 +279,7 @@ func (h *Handler) ListModels(w http.ResponseWriter, r *http.Request) {
 // ListPromotedModels handles GET /profiles/models/promoted
 // @Summary Список продвигаемых моделей
 // @Description Возвращает список продвигаемых профилей моделей.
-// @Tags Profiles
+// @Tags Profile
 // @Produce json
 // @Param city query string false "Город"
 // @Param limit query int false "Лимит"

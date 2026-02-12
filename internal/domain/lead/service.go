@@ -3,7 +3,6 @@ package lead
 import (
 	"context"
 	"database/sql"
-	"net"
 	"time"
 
 	"github.com/google/uuid"
@@ -30,7 +29,7 @@ func NewService(repo Repository, orgRepo *organization.Repository, userRepo user
 }
 
 // SubmitLead creates a new employer lead (public endpoint)
-func (s *Service) SubmitLead(ctx context.Context, req *CreateLeadRequest, ip net.IP, userAgent string) (*EmployerLead, error) {
+func (s *Service) SubmitLead(ctx context.Context, req *CreateLeadRequest, ip string, userAgent string) (*EmployerLead, error) {
 	now := time.Now()
 
 	lead := &EmployerLead{
@@ -52,7 +51,7 @@ func (s *Service) SubmitLead(ctx context.Context, req *CreateLeadRequest, ip net
 		UTMSource:       sql.NullString{String: req.UTMSource, Valid: req.UTMSource != ""},
 		UTMMedium:       sql.NullString{String: req.UTMMedium, Valid: req.UTMMedium != ""},
 		UTMCampaign:     sql.NullString{String: req.UTMCampaign, Valid: req.UTMCampaign != ""},
-		IPAddress:       ip,
+		IPAddress:       sql.NullString{String: ip, Valid: ip != ""},
 		UserAgent:       sql.NullString{String: userAgent, Valid: userAgent != ""},
 		CreatedAt:       now,
 		UpdatedAt:       now,

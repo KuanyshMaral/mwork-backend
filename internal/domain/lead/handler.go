@@ -59,10 +59,14 @@ func (h *Handler) SubmitLead(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get client IP
-	ip := net.ParseIP(r.Header.Get("X-Forwarded-For"))
-	if ip == nil {
+	ip := r.Header.Get("X-Forwarded-For")
+	if ip == "" {
 		host, _, _ := net.SplitHostPort(r.RemoteAddr)
-		ip = net.ParseIP(host)
+		ip = host
+	}
+	// Fallback to localhost if IP parsing fails
+	if ip == "" {
+		ip = "127.0.0.1"
 	}
 
 	lead, err := h.svc.SubmitLead(r.Context(), &req, ip, r.UserAgent())

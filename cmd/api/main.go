@@ -40,10 +40,11 @@ import (
 	"github.com/mwork/mwork-api/internal/domain/user"
 	"github.com/mwork/mwork-api/internal/middleware"
 	"github.com/mwork/mwork-api/internal/pkg/database"
+	emailpkg "github.com/mwork/mwork-api/internal/pkg/email"
 	"github.com/mwork/mwork-api/internal/pkg/jwt"
-	"github.com/mwork/mwork-api/internal/pkg/kaspi"
 	"github.com/mwork/mwork-api/internal/pkg/photostudio"
 	pkgresponse "github.com/mwork/mwork-api/internal/pkg/response"
+	"github.com/mwork/mwork-api/internal/pkg/robokassa"
 	"github.com/mwork/mwork-api/internal/pkg/storage"
 	"github.com/mwork/mwork-api/internal/pkg/upload"
 
@@ -87,6 +88,13 @@ func main() {
 	defer database.CloseRedis(redis)
 
 	jwtService := jwt.NewService(cfg.JWTSecret, cfg.JWTAccessTTL, cfg.JWTRefreshTTL)
+
+	emailService := emailpkg.NewService(emailpkg.SendGridConfig{
+		APIKey:    cfg.ResendAPIKey,
+		FromEmail: "noreply@mwork.kz",
+		FromName:  "MWork",
+	})
+	defer emailService.Close()
 
 	// Legacy upload service used by photo module (as in your current main)
 	uploadSvc := upload.NewService(&upload.Config{
@@ -184,28 +192,46 @@ func main() {
 	// Adapter for subscription payment service
 	subscriptionPaymentService := &subscriptionPaymentAdapter{service: paymentService}
 
-	// Adapter for subscription kaspi client
-	subscriptionKaspiClient := &subscriptionKaspiAdapter{client: kaspi.NewClient(kaspi.Config{
-		BaseURL:    cfg.KaspiBaseURL,
-		MerchantID: cfg.KaspiMerchantID,
-		SecretKey:  cfg.KaspiSecretKey,
-	})}
+	verificationCodeRepo := auth.NewVerificationCodeRepository(db)
+	refreshTokenRepo := auth.NewRefreshTokenRepository(db)
 
 	// Update authService with authEmployerRepo
 	authService := auth.NewService(
 		userRepo,
 		authModelRepo,
 		jwtService,
-		redis,
+		refreshTokenRepo,
 		authEmployerRepo,
 		photoStudioClient,
 		photoStudioSyncEnabled,
 		photoStudioTimeout,
+		verificationCodeRepo,
+		cfg.VerificationCodePepper,
+		cfg.IsDevelopment(),
+		cfg.AllowLegacyRefresh,
+		emailService,
 	)
 
 	// Update services with proper dependencies
 	subscriptionService = subscription.NewService(subscriptionRepo, subscriptionPhotoRepo, subscriptionResponseRepo, subscriptionCastingRepo, subscriptionProfileRepo)
 	paymentService = payment.NewService(paymentRepo, subscriptionService)
+	hashAlgo, err := robokassa.NormalizeHashAlgorithm(cfg.RobokassaHashAlgo)
+	if err != nil {
+		log.Fatal().Err(err).Msg("invalid ROBOKASSA_HASH_ALGO")
+	}
+	paymentService.SetRobokassaConfig(payment.RobokassaConfig{
+		MerchantLogin: cfg.RobokassaMerchantLogin,
+		Password1:     cfg.RobokassaPassword1,
+		Password2:     cfg.RobokassaPassword2,
+		TestPassword1: cfg.RobokassaTestPassword1,
+		TestPassword2: cfg.RobokassaTestPassword2,
+		IsTest:        cfg.RobokassaIsTest,
+		HashAlgo:      hashAlgo,
+		PaymentURL:    cfg.RobokassaPaymentURL,
+		ResultURL:     cfg.RobokassaResultURL,
+		SuccessURL:    cfg.RobokassaSuccessURL,
+		FailURL:       cfg.RobokassaFailURL,
+	})
 	limitChecker := subscription.NewLimitChecker(subscriptionService)
 	chatService = chat.NewService(chatRepo, userRepo, chatHub, moderationService, limitChecker)
 
@@ -248,11 +274,11 @@ func main() {
 	deviceRepo := notification.NewDeviceTokenRepository(db)
 	preferencesHandler := notification.NewPreferencesHandler(prefsRepo, deviceRepo)
 
-	subscriptionHandler := subscription.NewHandler(subscriptionService, subscriptionPaymentService, subscriptionKaspiClient, &subscription.Config{
+	subscriptionHandler := subscription.NewHandler(subscriptionService, subscriptionPaymentService, &subscription.Config{
 		FrontendURL: "http://localhost:3000",
 		BackendURL:  "http://localhost:8080",
 	})
-	paymentHandler := payment.NewHandler(paymentService, cfg.KaspiSecretKey)
+	paymentHandler := payment.NewHandler(paymentService)
 
 	dashboardHandler := dashboard.NewHandler(dashboardRepo, dashboardSvc)
 	promotionHandler := promotion.NewHandler(promotionRepo)
@@ -275,6 +301,24 @@ func main() {
 	photoStudioBookingHandler := photostudio_booking.NewHandler(photoStudioBookingService)
 
 	authMiddleware := middleware.Auth(jwtService)
+	emailVerificationWhitelist := []string{
+		"/api/v1/auth/login",
+		"/api/v1/auth/register",
+		"/api/v1/auth/refresh",
+		"/api/v1/auth/logout",
+		"/api/v1/auth/verify/request",
+		"/api/v1/auth/verify/confirm",
+		"/api/v1/auth/verify/request/me",
+		"/api/v1/auth/verify/confirm/me",
+		"/health",
+		"/healthz",
+		"/swagger",
+		"/docs",
+	}
+	emailVerifiedMiddleware := middleware.RequireVerifiedEmail(userRepo, emailVerificationWhitelist)
+	authWithVerifiedEmailMiddleware := func(next http.Handler) http.Handler {
+		return authMiddleware(emailVerifiedMiddleware(next))
+	}
 	responseLimitMiddleware := middleware.RequireResponseLimit(limitChecker, &responseLimitCounter{repo: responseRepo})
 	chatLimitMiddleware := middleware.RequireChatLimit(limitChecker)
 	photoLimitMiddleware := middleware.RequirePhotoLimit(limitChecker, &photoLimitCounter{repo: photoRepo}, &modelProfileIDProvider{repo: modelRepo})
@@ -299,7 +343,7 @@ func main() {
 		if token != "" {
 			r.Header.Set("Authorization", "Bearer "+token)
 		}
-		authMiddleware(http.HandlerFunc(chatHandler.WebSocket)).ServeHTTP(w, r)
+		authWithVerifiedEmailMiddleware(http.HandlerFunc(chatHandler.WebSocket)).ServeHTTP(w, r)
 	})
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -314,32 +358,32 @@ func main() {
 			pkgresponse.OK(w, map[string]string{"message": "pong"})
 		})
 
-		r.Mount("/auth", authHandler.Routes(authMiddleware))
-		r.Mount("/profiles", profileHandler.Routes(authMiddleware))
-		r.Mount("/castings", castingHandler.Routes(authMiddleware))
+		r.Mount("/auth", authHandler.Routes(authWithVerifiedEmailMiddleware))
+		r.Mount("/profiles", profileHandler.Routes(authWithVerifiedEmailMiddleware))
+		r.Mount("/castings", castingHandler.Routes(authWithVerifiedEmailMiddleware))
 
 		r.Route("/castings/saved", func(r chi.Router) {
-			r.Use(authMiddleware)
+			r.Use(authWithVerifiedEmailMiddleware)
 			r.Get("/", savedCastingsHandler.ListSaved)
 		})
 		r.Route("/castings/{id}/save", func(r chi.Router) {
-			r.Use(authMiddleware)
+			r.Use(authWithVerifiedEmailMiddleware)
 			r.Post("/", savedCastingsHandler.Save)
 			r.Delete("/", savedCastingsHandler.Unsave)
 			r.Get("/", savedCastingsHandler.CheckSaved)
 		})
 
 		r.Route("/castings/{id}/responses", func(r chi.Router) {
-			r.Use(authMiddleware)
+			r.Use(authWithVerifiedEmailMiddleware)
 			r.With(responseLimitMiddleware).Post("/", responseHandler.Apply)
 			r.Get("/", responseHandler.ListByCasting)
 		})
-		r.Mount("/responses", responseHandler.Routes(authMiddleware))
+		r.Mount("/responses", responseHandler.Routes(authWithVerifiedEmailMiddleware))
 
 		// legacy uploads/photos
-		r.Mount("/uploads", photoHandler.UploadRoutes(authMiddleware))
+		r.Mount("/uploads", photoHandler.UploadRoutes(authWithVerifiedEmailMiddleware))
 		r.Route("/photos", func(r chi.Router) {
-			r.Use(authMiddleware)
+			r.Use(authWithVerifiedEmailMiddleware)
 			r.With(photoLimitMiddleware).Post("/", photoHandler.ConfirmUpload)
 			r.Delete("/{id}", photoHandler.Delete)
 			r.Patch("/{id}/avatar", photoHandler.SetAvatar)
@@ -348,7 +392,7 @@ func main() {
 
 		// NEW: 2-phase file uploads
 		r.Route("/files", func(r chi.Router) {
-			r.Use(authMiddleware)
+			r.Use(authWithVerifiedEmailMiddleware)
 
 			// New 2-phase endpoints
 			r.Post("/init", uploadHandler.Init)
@@ -364,12 +408,12 @@ func main() {
 
 		r.Get("/profiles/{id}/photos", photoHandler.ListByProfile)
 
-		r.Mount("/", experienceHandler.Routes(authMiddleware))
+		r.Mount("/", experienceHandler.Routes(authWithVerifiedEmailMiddleware))
 
 		r.Route("/profiles/{id}/social-links", func(r chi.Router) {
 			r.Get("/", socialLinksHandler.List)
 			r.Group(func(r chi.Router) {
-				r.Use(authMiddleware)
+				r.Use(authWithVerifiedEmailMiddleware)
 				r.Post("/", socialLinksHandler.Create)
 				r.Delete("/{platform}", socialLinksHandler.Delete)
 			})
@@ -381,7 +425,7 @@ func main() {
 		r.Get("/profiles/{id}/reviews/summary", reviewHandler.GetSummary)
 
 		r.Route("/chat", func(r chi.Router) {
-			r.Use(authMiddleware)
+			r.Use(authWithVerifiedEmailMiddleware)
 			r.With(chatLimitMiddleware).Post("/rooms", chatHandler.CreateRoom)
 			r.Get("/rooms", chatHandler.ListRooms)
 
@@ -391,26 +435,26 @@ func main() {
 
 			r.Get("/unread", chatHandler.GetUnreadCount)
 		})
-		r.Mount("/moderation", moderationHandler.Routes(authMiddleware))
-		r.Mount("/notifications", notificationHandler.Routes(authMiddleware))
-		r.Mount("/notifications/preferences", preferencesHandler.Routes(authMiddleware))
+		r.Mount("/moderation", moderationHandler.Routes(authWithVerifiedEmailMiddleware))
+		r.Mount("/notifications", notificationHandler.Routes(authWithVerifiedEmailMiddleware))
+		r.Mount("/notifications/preferences", preferencesHandler.Routes(authWithVerifiedEmailMiddleware))
 
-		r.Mount("/subscriptions", subscriptionHandler.Routes(authMiddleware))
-		r.Mount("/payments", paymentHandler.Routes(authMiddleware))
+		r.Mount("/subscriptions", subscriptionHandler.Routes(authWithVerifiedEmailMiddleware))
+		r.Mount("/payments", paymentHandler.Routes(authWithVerifiedEmailMiddleware))
 
-		r.Mount("/dashboard", dashboard.Routes(dashboardHandler, authMiddleware))
-		r.Mount("/promotions", promotion.Routes(promotionHandler, authMiddleware))
-		r.Mount("/reviews", review.Routes(reviewHandler, authMiddleware))
+		r.Mount("/dashboard", dashboard.Routes(dashboardHandler, authWithVerifiedEmailMiddleware))
+		r.Mount("/promotions", promotion.Routes(promotionHandler, authWithVerifiedEmailMiddleware))
+		r.Mount("/reviews", review.Routes(reviewHandler, authWithVerifiedEmailMiddleware))
 		r.Mount("/faq", faqHandler.Routes())
 
 		// PhotoStudio booking integration
-		r.Mount("/photostudio", photoStudioBookingHandler.Routes(authMiddleware))
+		r.Mount("/photostudio", photoStudioBookingHandler.Routes(authWithVerifiedEmailMiddleware))
 	})
 
 	r.Mount("/webhooks", paymentHandler.WebhookRoutes())
 	r.Mount("/api/v1/leads", leadHandler.PublicRoutes())
 
-	r.Route("/api/admin", func(r chi.Router) {
+	r.Route("/api/v1/admin", func(r chi.Router) {
 		r.Mount("/", adminHandler.Routes())
 		r.Mount("/moderation", adminModerationHandler.Routes(adminJWTService, adminService))
 
@@ -628,34 +672,26 @@ func (a *subscriptionPaymentAdapter) CreatePayment(ctx context.Context, userID, 
 		UserID:         payment.UserID,
 		SubscriptionID: payment.SubscriptionID,
 		Amount:         payment.Amount,
-		KaspiOrderID:   payment.KaspiOrderID,
 		Status:         string(payment.Status),
 		CreatedAt:      payment.CreatedAt,
 	}, nil
 }
 
-type subscriptionKaspiAdapter struct {
-	client *kaspi.Client
-}
-
-func (a *subscriptionKaspiAdapter) CreatePayment(ctx context.Context, req subscription.KaspiPaymentRequest) (*subscription.KaspiPaymentResponse, error) {
-	kaspiReq := kaspi.CreatePaymentRequest{
-		Amount:      req.Amount,
-		OrderID:     req.OrderID,
-		Description: req.Description,
-		ReturnURL:   req.ReturnURL,
-		CallbackURL: req.CallbackURL,
-	}
-
-	resp, err := a.client.CreatePayment(ctx, kaspiReq)
+func (a *subscriptionPaymentAdapter) InitRobokassaPayment(ctx context.Context, req subscription.InitRobokassaPaymentRequest) (*subscription.InitRobokassaPaymentResponse, error) {
+	out, err := a.service.InitRobokassaPayment(ctx, payment.InitRobokassaPaymentRequest{
+		UserID:         req.UserID,
+		SubscriptionID: req.SubscriptionID,
+		Amount:         req.Amount,
+		Description:    req.Description,
+	})
 	if err != nil {
 		return nil, err
 	}
-
-	return &subscription.KaspiPaymentResponse{
-		PaymentID:  resp.PaymentID,
-		PaymentURL: resp.PaymentURL,
-		Status:     resp.Status,
+	return &subscription.InitRobokassaPaymentResponse{
+		PaymentID:  out.PaymentID,
+		InvID:      out.InvID,
+		PaymentURL: out.PaymentURL,
+		Status:     out.Status,
 	}, nil
 }
 

@@ -32,7 +32,7 @@
 - 🎬 **Casting System**: Job postings, applications, responses
 - 💬 **Real-time Chat**: WebSocket-based messaging
 - 📸 **Media Management**: Photo uploads, portfolio management
-- 💳 **Subscriptions**: Freemium model with Kaspi payment integration
+- 💳 **Subscriptions**: Freemium model with Robokassa payment integration
 - 🔔 **Notifications**: Push notifications, email alerts
 - 🏢 **Organizations**: Agency and company management
 
@@ -42,7 +42,7 @@
 - ✅ **JWT Authentication** with refresh token support
 - ✅ **WebSocket Support** for real-time features
 - ✅ **File Uploads** to Cloudflare R2 storage
-- ✅ **Payment Integration** with Kaspi
+- ✅ **Payment Integration** with Robokassa
 - ✅ **Multi-role System** (model, employer, agency, admin)
 - ✅ **Subscription Limits** enforcement
 - ✅ **Email Verification** workflow
@@ -54,7 +54,7 @@ Backend:     Go 1.21+ with Chi Router
 Database:    PostgreSQL 14+
 Cache:       Redis 7+
 Storage:     Cloudflare R2 (S3-compatible)
-Payments:    Kaspi API
+Payments:    Robokassa
 Email:       Resend API
 WebSocket:   Gorilla WebSocket
 ```
@@ -977,7 +977,7 @@ Get all available subscription plans.
 {
   "status": "success",
   "data": {
-    "payment_url": "https://kaspi.kz/pay/...",
+    "payment_url": "https://auth.robokassa.kz/Merchant/Index.aspx?...",
     "order_id": "order-123",
     "amount": 5000
   }
@@ -1076,7 +1076,7 @@ MWork operates on a freemium model with three subscription tiers:
 
 ### Payment Methods
 
-- **Kaspi Pay**: Kazakhstan's leading payment system
+- **Robokassa**: secure payment gateway integration
 - Auto-renewal supported for all plans
 - Cancel anytime (access until period end)
 
@@ -1170,11 +1170,11 @@ X-RateLimit-Reset: 1707739200
 
 ## 🔗 Webhooks
 
-### Kaspi Payment Webhook
+### Robokassa ResultURL Webhook
 
-**Endpoint:** `POST /webhooks/kaspi`
+**Endpoint:** `POST /webhooks/robokassa/result`
 
-Kaspi sends payment status updates to this endpoint.
+Robokassa sends server-to-server payment confirmation to this endpoint.
 
 **Payload:**
 ```json
@@ -1192,6 +1192,43 @@ Kaspi sends payment status updates to this endpoint.
 - `completed`: Payment successful
 - `failed`: Payment failed
 - `cancelled`: Payment cancelled
+
+### Robokassa Payment Flow
+
+**Init endpoint (authenticated):** `POST /api/v1/payments/robokassa/init`
+
+Creates a `pending` payment and returns `payment_url` for redirect to Robokassa.
+
+**ResultURL webhook (public):** `POST /webhooks/robokassa/result` (also supports `GET`)
+
+- Signature is validated using Robokassa Password #2.
+- `OutSum` is validated against stored payment amount.
+- Payment status and subscription activation are applied atomically.
+- Idempotent behavior: repeated callbacks for already completed payments return `OK{InvId}` without re-running business logic.
+
+**SuccessURL (authenticated):** `GET|POST /api/v1/payments/robokassa/success`
+
+Returns informational state (`processing`). Success redirect is not payment confirmation.
+
+**FailURL (authenticated):** `GET|POST /api/v1/payments/robokassa/fail`
+
+Returns informational failed/cancelled state and does not mark payment successful.
+
+### Robokassa ENV
+
+Set the following variables:
+
+- `ROBOKASSA_MERCHANT_LOGIN`
+- `ROBOKASSA_PASSWORD_1`
+- `ROBOKASSA_PASSWORD_2`
+- `ROBOKASSA_TEST_PASSWORD_1`
+- `ROBOKASSA_TEST_PASSWORD_2`
+- `ROBOKASSA_IS_TEST` (`true`/`false`)
+- `ROBOKASSA_HASH_ALGO` (`MD5` or `SHA256`)
+- `ROBOKASSA_PAYMENT_URL` (for example `https://auth.robokassa.kz/Merchant/Index.aspx`)
+- `ROBOKASSA_RESULT_URL`
+- `ROBOKASSA_SUCCESS_URL`
+- `ROBOKASSA_FAIL_URL`
 
 ---
 
@@ -1241,6 +1278,19 @@ curl -X POST "https://api.mwork.kz/api/v1/photos" \
   -F "is_main=false" \
   -F "order=1"
 ```
+
+---
+
+## 🛠️ Migration Recovery
+
+If a migration run stops with a dirty database state (for example after a partial run of `000045_add_user_credit_balance`), recover it with:
+
+```bash
+migrate -path /migrations -database "$DATABASE_URL" force 44
+migrate -path /migrations -database "$DATABASE_URL" up
+```
+
+Run this once to reset the dirty flag and continue applying pending migrations safely.
 
 ---
 

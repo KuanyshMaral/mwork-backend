@@ -2,6 +2,7 @@ package auth
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 
@@ -28,13 +29,15 @@ func NewHandler(service *Service) *Handler {
 // @Accept json
 // @Produce json
 // @Param request body RegisterRequest true "Данные регистрации"
-// @Success 201 {object} response.Response{data=AuthResponse}
+// @Success 201 {object} response.Response{data=map[string]interface{}}
 // @Failure 400 {object} response.Response
 // @Failure 409 {object} response.Response
 // @Failure 422 {object} response.Response
 // @Failure 500 {object} response.Response
 // @Router /auth/register [post]
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
+	requestID := middleware.GetRequestID(r.Context())
+
 	// First, parse role to determine request type
 	var roleCheck struct {
 		Role string `json:"role"`
@@ -64,19 +67,20 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 
 		// Validate agency fields
 		if errors := validator.Validate(&req); errors != nil {
-			response.ValidationError(w, errors)
+			response.ErrorWithDetails(w, http.StatusBadRequest, "VALIDATION_ERROR", "Validation failed", errors)
 			return
 		}
 
 		// Register agency user
 		result, err := h.service.RegisterAgency(r.Context(), &req)
 		if err != nil {
-			switch err {
-			case ErrEmailAlreadyExists:
-				response.Conflict(w, "Email already registered")
+			switch {
+			case errors.Is(err, ErrEmailAlreadyExists):
+				response.Error(w, http.StatusConflict, "EMAIL_ALREADY_EXISTS", "Email already registered")
 			default:
 				log.Error().
 					Err(err).
+					Str("request_id", requestID).
 					Str("email", req.Email).
 					Str("role", "agency").
 					Msg("failed to register agency user")
@@ -85,7 +89,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		response.Created(w, result)
+		response.Created(w, map[string]interface{}{"message": "Registered. Email code sent.", "data": result})
 
 	case "model", "employer":
 		var req RegisterRequest
@@ -96,21 +100,22 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 
 		// Validate request
 		if errors := validator.Validate(&req); errors != nil {
-			response.ValidationError(w, errors)
+			response.ErrorWithDetails(w, http.StatusBadRequest, "VALIDATION_ERROR", "Validation failed", errors)
 			return
 		}
 
 		// Register user
 		result, err := h.service.Register(r.Context(), &req)
 		if err != nil {
-			switch err {
-			case ErrEmailAlreadyExists:
-				response.Conflict(w, "Email already registered")
-			case ErrInvalidRole:
+			switch {
+			case errors.Is(err, ErrEmailAlreadyExists):
+				response.Error(w, http.StatusConflict, "EMAIL_ALREADY_EXISTS", "Email already registered")
+			case errors.Is(err, ErrInvalidRole):
 				response.BadRequest(w, "Role must be 'model' or 'employer'")
 			default:
 				log.Error().
 					Err(err).
+					Str("request_id", requestID).
 					Str("email", req.Email).
 					Str("role", req.Role).
 					Msg("failed to register user")
@@ -119,7 +124,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		response.Created(w, result)
+		response.Created(w, map[string]interface{}{"message": "Registered. Email code sent.", "data": result})
 
 	default:
 		response.BadRequest(w, "invalid role")
@@ -136,7 +141,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} response.Response{data=AuthResponse}
 // @Failure 400 {object} response.Response
 // @Failure 401 {object} response.Response
-// @Failure 403 {object} response.Response
+// @Failure 403 {object} map[string]interface{} "EMAIL_NOT_VERIFIED"
 // @Failure 422 {object} response.Response
 // @Failure 500 {object} response.Response
 // @Router /auth/login [post]
@@ -161,6 +166,14 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 			response.Unauthorized(w, "Invalid email or password")
 		case ErrUserBanned:
 			response.Forbidden(w, "Account is banned")
+		case ErrEmailNotVerified:
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"success":    false,
+				"error_code": "EMAIL_NOT_VERIFIED",
+				"message":    "Email is not verified",
+			})
 		default:
 			log.Error().
 				Err(err).
@@ -216,8 +229,10 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 // @Accept json
 // @Produce json
 // @Param request body RefreshRequest true "Refresh token"
+// @Security BearerAuth
 // @Success 204 {string} string "No Content"
 // @Failure 400 {object} response.Response
+// @Failure 401 {object} response.Response
 // @Router /auth/logout [post]
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	var req RefreshRequest
@@ -241,7 +256,6 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} response.Response{data=UserResponse}
 // @Failure 401 {object} response.Response
 // @Failure 404 {object} response.Response
-// @Router /auth/me [get]
 func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 

@@ -13,6 +13,16 @@ import (
 )
 
 // ListReports returns paginated reports with filters
+// @Summary Список репортов
+// @Tags Admin Reports
+// @Produce json
+// @Security BearerAuth
+// @Param page query int false "Страница"
+// @Param limit query int false "Лимит"
+// @Param status query string false "Статус"
+// @Success 200 {object} response.Response{data=ListReportsResponse}
+// @Failure 500 {object} response.Response
+// @Router /admin/reports [get]
 func (h *Handler) ListReports(w http.ResponseWriter, r *http.Request) {
 	// Parse pagination parameters
 	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
@@ -52,6 +62,16 @@ func (h *Handler) ListReports(w http.ResponseWriter, r *http.Request) {
 }
 
 // ResolveReport handles moderation action on report
+// @Summary Обработать репорт
+// @Tags Admin Reports
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID репорта"
+// @Param request body ResolveRequest true "Решение по репорту"
+// @Success 200 {object} response.Response
+// @Failure 400,404,422,500 {object} response.Response
+// @Router /admin/reports/{id}/status [patch]
 func (h *Handler) ResolveReport(w http.ResponseWriter, r *http.Request) {
 	// Parse report ID from URL
 	reportID, err := uuid.Parse(chi.URLParam(r, "id"))

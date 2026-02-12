@@ -72,6 +72,15 @@ func NewHandler(service *Service, stagingBaseURL string, st UploadStorage, repo 
 }
 
 // Init handles POST /uploads/init
+// @Summary Инициализировать загрузку файла
+// @Tags Upload
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body InitRequest true "Метаданные файла"
+// @Success 200 {object} response.Response{data=InitResponse}
+// @Failure 400,401,413,422,502,500 {object} response.Response
+// @Router /uploads/init [post]
 func (h *Handler) Init(w http.ResponseWriter, r *http.Request) {
 	var req InitRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -135,6 +144,15 @@ func (h *Handler) Init(w http.ResponseWriter, r *http.Request) {
 }
 
 // Confirm handles POST /uploads/confirm
+// @Summary Подтвердить загрузку файла
+// @Tags Upload
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body ConfirmRequest true "ID загрузки"
+// @Success 200 {object} response.Response{data=ConfirmResponse}
+// @Failure 400,401,403,404,422,502,500 {object} response.Response
+// @Router /uploads/confirm [post]
 func (h *Handler) Confirm(w http.ResponseWriter, r *http.Request) {
 	var req ConfirmRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -209,6 +227,16 @@ func (h *Handler) Confirm(w http.ResponseWriter, r *http.Request) {
 
 // Stage handles POST /uploads/stage
 // Multipart form: file + category
+// @Summary Загрузить файл во временное хранилище
+// @Tags Upload
+// @Accept multipart/form-data
+// @Produce json
+// @Security BearerAuth
+// @Param category formData string false "Категория (avatar|photo|document)"
+// @Param file formData file true "Файл"
+// @Success 201 {object} response.Response{data=UploadResponse}
+// @Failure 400,500 {object} response.Response
+// @Router /uploads/stage [post]
 func (h *Handler) Stage(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, MaxUploadSize)
 
@@ -254,6 +282,14 @@ func (h *Handler) Stage(w http.ResponseWriter, r *http.Request) {
 }
 
 // Commit handles POST /uploads/{id}/commit
+// @Summary Закоммитить загруженный файл
+// @Tags Upload
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID загрузки"
+// @Success 200 {object} response.Response{data=UploadResponse}
+// @Failure 400,403,404,500 {object} response.Response
+// @Router /uploads/{id}/commit [post]
 func (h *Handler) Commit(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -284,6 +320,13 @@ func (h *Handler) Commit(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetByID handles GET /uploads/{id}
+// @Summary Получить загрузку по ID
+// @Tags Upload
+// @Produce json
+// @Param id path string true "ID загрузки"
+// @Success 200 {object} response.Response{data=UploadResponse}
+// @Failure 400,404 {object} response.Response
+// @Router /uploads/{id} [get]
 func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -301,6 +344,14 @@ func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
 }
 
 // Delete handles DELETE /uploads/{id}
+// @Summary Удалить загрузку
+// @Tags Upload
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID загрузки"
+// @Success 204 {string} string "No Content"
+// @Failure 400,403,404,500 {object} response.Response
+// @Router /uploads/{id} [delete]
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -326,6 +377,14 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 }
 
 // ListMy handles GET /uploads
+// @Summary Список моих загрузок
+// @Tags Upload
+// @Produce json
+// @Security BearerAuth
+// @Param category query string false "Категория"
+// @Success 200 {object} response.Response{data=[]UploadResponse}
+// @Failure 500 {object} response.Response
+// @Router /uploads [get]
 func (h *Handler) ListMy(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 	category := Category(r.URL.Query().Get("category"))

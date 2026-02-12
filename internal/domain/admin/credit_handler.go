@@ -43,6 +43,16 @@ func NewCreditHandler(creditService credit.Service, auditService AuditService) *
 
 // GrantCredits handles POST /admin/users/{id}/credits/grant
 // B3: Admin credit grant endpoint with permission check and audit logging
+// @Summary Начислить кредиты пользователю
+// @Tags Admin Credits
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID пользователя"
+// @Param request body GrantCreditsRequest true "Данные начисления"
+// @Success 200 {object} response.Response
+// @Failure 400,403,404,422,500 {object} response.Response
+// @Router /admin/users/{id}/credits/grant [post]
 func (h *CreditHandler) GrantCredits(w http.ResponseWriter, r *http.Request) {
 	// Parse user ID from URL
 	userIDStr := chi.URLParam(r, "id")
@@ -140,6 +150,14 @@ func (h *CreditHandler) GrantCredits(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetUserCredits handles GET /admin/users/{id}/credits
+// @Summary Баланс кредитов пользователя
+// @Tags Admin Credits
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID пользователя"
+// @Success 200 {object} response.Response
+// @Failure 400,404,500 {object} response.Response
+// @Router /admin/users/{id}/credits [get]
 func (h *CreditHandler) GetUserCredits(w http.ResponseWriter, r *http.Request) {
 	// Parse user ID from URL
 	userIDStr := chi.URLParam(r, "id")
