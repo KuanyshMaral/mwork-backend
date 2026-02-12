@@ -39,7 +39,7 @@ func NewRepository(db *sqlx.DB) Repository {
 func (r *repository) Create(ctx context.Context, user *User) error {
 	query := `
 		INSERT INTO users (id, email, password_hash, role, email_verified, is_verified, is_banned, credit_balance)
-		VALUES ($1, $2, $3, $4, $5, false, $6, $7)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`
 
 	_, err := r.db.ExecContext(ctx, query,
@@ -48,6 +48,7 @@ func (r *repository) Create(ctx context.Context, user *User) error {
 		user.PasswordHash,
 		user.Role,
 		user.EmailVerified,
+		user.IsVerified,
 		user.IsBanned,
 		user.CreditBalance,
 	)

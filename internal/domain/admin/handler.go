@@ -328,6 +328,7 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 	response.OK(w, stats)
 }
 
+// Revenue
 // @Summary Выручка
 // @Tags Admin Analytics
 // @Produce json
