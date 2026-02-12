@@ -4,20 +4,18 @@ package docs
 import "github.com/swaggo/swag"
 
 const docTemplate = `{
-    "schemes": {{ marshal .Schemes }},
     "swagger": "2.0",
     "info": {
-        "description": "{{escape .Description}}",
-        "title": "{{.Title}}",
+        "description": "API server for model agency aggregator.",
+        "title": "MWork API",
         "termsOfService": "http://swagger.io/terms/",
         "contact": {
             "name": "API Support",
             "email": "support@swagger.io"
         },
-        "version": "{{.Version}}"
+        "version": "1.0"
     },
-    "host": "{{.Host}}",
-    "basePath": "{{.BasePath}}",
+    "basePath": "/api/v1",
     "paths": {
         "/admin/admins": {
             "get": {
@@ -26,22 +24,8 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "consumes": [
-                    "application/json"
-                ],
                 "produces": [
                     "application/json"
-                ],
-                "parameters": [
-                    {
-                        "description": "Email",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/internal_domain_auth.VerifyRequestPublicRequest"
-                        }
-                    }
                 ],
                 "tags": [
                     "Admin Management"
@@ -402,8 +386,8 @@ const docTemplate = `{
                             "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
                         }
                     },
-                    "429": {
-                        "description": "Too Many Requests",
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
                         }
@@ -1586,7 +1570,6 @@ const docTemplate = `{
                 }
             }
         },
-        
         "/auth/login": {
             "post": {
                 "description": "Выполняет вход пользователя по email/паролю и возвращает access/refresh токены.",
@@ -1714,7 +1697,6 @@ const docTemplate = `{
                 }
             }
         },
-        
         "/auth/refresh": {
             "post": {
                 "description": "Обновляет access/refresh токены по валидному refresh token.",
@@ -1849,7 +1831,6 @@ const docTemplate = `{
                 }
             }
         },
-        
         "/auth/verify/confirm": {
             "post": {
                 "description": "Подтверждает email по паре email+code.",
@@ -1865,12 +1846,12 @@ const docTemplate = `{
                 "summary": "Подтверждение верификации (public)",
                 "parameters": [
                     {
-                        "description": "Email и код подтверждения",
+                        "description": "Email and verification code",
                         "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_domain_auth.VerifyConfirmPublicRequest"
+                            "$ref": "#/definitions/internal_domain_auth.VerifyConfirmBody"
                         }
                     }
                 ],
@@ -1928,7 +1909,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_domain_auth.VerifyRequestPublicRequest"
+                            "$ref": "#/definitions/internal_domain_auth.VerifyRequestBody"
                         }
                     }
                 ],
@@ -1938,16 +1919,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                                    "$ref": "#/definitions/response.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "object",
-                                            "additionalProperties": {
-                                                "type": "string"
-                                            }
+                                            "$ref": "#/definitions/internal_domain_auth.VerifyRequestStatusData"
                                         }
                                     }
                                 }
@@ -8905,6 +8883,49 @@ const docTemplate = `{
                 "valid": {
                     "description": "Valid is true if UUID is not NULL",
                     "type": "boolean"
+                }
+            }
+        },
+        "internal_domain_auth.VerifyRequestBody": {
+            "type": "object",
+            "required": [
+                "email"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "example": "user@example.com"
+                }
+            }
+        },
+        "internal_domain_auth.VerifyConfirmBody": {
+            "type": "object",
+            "required": [
+                "code",
+                "email"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "example": "user@example.com"
+                },
+                "code": {
+                    "type": "string",
+                    "pattern": "^\\d{6}$",
+                    "example": "123456"
+                }
+            }
+        },
+        "internal_domain_auth.VerifyRequestStatusData": {
+            "type": "object",
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "already_verified",
+                        "sent"
+                    ],
+                    "example": "sent"
                 }
             }
         }

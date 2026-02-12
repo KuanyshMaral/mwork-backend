@@ -1841,12 +1841,12 @@
                 "summary": "Подтверждение верификации (public)",
                 "parameters": [
                     {
-                        "description": "Email и код подтверждения",
+                        "description": "Email and verification code",
                         "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_domain_auth.VerifyConfirmPublicRequest"
+                            "$ref": "#/definitions/internal_domain_auth.VerifyConfirmBody"
                         }
                     }
                 ],
@@ -1904,7 +1904,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_domain_auth.VerifyRequestPublicRequest"
+                            "$ref": "#/definitions/internal_domain_auth.VerifyRequestBody"
                         }
                     }
                 ],
@@ -1914,16 +1914,13 @@
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                                    "$ref": "#/definitions/response.Response"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "object",
-                                            "additionalProperties": {
-                                                "type": "string"
-                                            }
+                                            "$ref": "#/definitions/internal_domain_auth.VerifyRequestStatusData"
                                         }
                                     }
                                 }
@@ -8881,6 +8878,49 @@
                 "valid": {
                     "description": "Valid is true if UUID is not NULL",
                     "type": "boolean"
+                }
+            }
+        },
+        "internal_domain_auth.VerifyRequestBody": {
+            "type": "object",
+            "required": [
+                "email"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "example": "user@example.com"
+                }
+            }
+        },
+        "internal_domain_auth.VerifyConfirmBody": {
+            "type": "object",
+            "required": [
+                "code",
+                "email"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "example": "user@example.com"
+                },
+                "code": {
+                    "type": "string",
+                    "pattern": "^\\d{6}$",
+                    "example": "123456"
+                }
+            }
+        },
+        "internal_domain_auth.VerifyRequestStatusData": {
+            "type": "object",
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "already_verified",
+                        "sent"
+                    ],
+                    "example": "sent"
                 }
             }
         }
