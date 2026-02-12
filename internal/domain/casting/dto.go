@@ -27,11 +27,11 @@ type CreateCastingRequest struct {
 
 // RequirementsRequest for nested requirements in create/update
 type RequirementsRequest struct {
-	Gender             string   `json:"gender,omitempty"`
-	AgeMin             int      `json:"age_min,omitempty"`
-	AgeMax             int      `json:"age_max,omitempty"`
-	HeightMin          float64  `json:"height_min,omitempty"`
-	HeightMax          float64  `json:"height_max,omitempty"`
+	Gender             string   `json:"gender,omitempty" validate:"omitempty,oneof=male female other"`
+	AgeMin             *int     `json:"age_min,omitempty" validate:"omitempty,gte=0"`
+	AgeMax             *int     `json:"age_max,omitempty" validate:"omitempty,gte=0"`
+	HeightMin          *float64 `json:"height_min,omitempty" validate:"omitempty,gte=0"`
+	HeightMax          *float64 `json:"height_max,omitempty" validate:"omitempty,gte=0"`
 	ExperienceRequired bool     `json:"experience_required,omitempty"`
 	Languages          []string `json:"languages,omitempty"`
 }
