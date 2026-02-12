@@ -25,21 +25,22 @@ type Service struct {
 	robokassaConfig RobokassaConfig
 }
 
+// RobokassaConfig содержит настройки интеграции с платежной системой Robokassa
 type RobokassaConfig struct {
-	MerchantLogin string
-	Password1     string
-	Password2     string
-	TestPassword1 string
-	TestPassword2 string
-	IsTest        bool
-	HashAlgo      robokassa.HashAlgorithm
-	PaymentURL    string
-	ResultURL     string
-	SuccessURL    string
-	FailURL       string
+	MerchantLogin string                  // Идентификатор магазина в Robokassa
+	Password1     string                  // Пароль #1 для формирования подписи
+	Password2     string                  // Пароль #2 для проверки результата оплаты
+	TestPassword1 string                  // Тестовый пароль #1
+	TestPassword2 string                  // Тестовый пароль #2
+	IsTest        bool                    // Режим тестирования
+	HashAlgo      robokassa.HashAlgorithm // Алгоритм хеширования (MD5, SHA256, SHA512)
+	PaymentURL    string                  // URL платежной формы Robokassa
+	ResultURL     string                  // URL для получения результата оплаты
+	SuccessURL    string                  // URL для редиректа после успешной оплаты
+	FailURL       string                  // URL для редиректа после неудачной оплаты
 }
 
-// NewService creates payment service
+// NewService создает новый экземпляр сервиса платежей
 func NewService(repo Repository, subSvc *subscription.Service) *Service {
 	return &Service{
 		repo:   repo,
@@ -47,24 +48,40 @@ func NewService(repo Repository, subSvc *subscription.Service) *Service {
 	}
 }
 
+// SetRobokassaConfig устанавливает конфигурацию Robokassa
 func (s *Service) SetRobokassaConfig(cfg RobokassaConfig) {
 	s.robokassaConfig = cfg
 }
 
+// InitRobokassaPaymentRequest содержит параметры для инициализации платежа через Robokassa
 type InitRobokassaPaymentRequest struct {
-	UserID         uuid.UUID
-	SubscriptionID uuid.UUID
-	Amount         string
-	Description    string
+	UserID         uuid.UUID // ID пользователя
+	SubscriptionID uuid.UUID // ID подписки
+	Amount         string    // Сумма платежа (строка для точности)
+	Description    string    // Описание платежа
 }
 
+// InitRobokassaPaymentResponse содержит данные созданного платежа
 type InitRobokassaPaymentResponse struct {
-	PaymentID  uuid.UUID `json:"payment_id"`
-	InvID      int64     `json:"inv_id"`
-	PaymentURL string    `json:"payment_url"`
-	Status     string    `json:"status"`
+	PaymentID  uuid.UUID `json:"payment_id"`  // ID платежа в системе
+	InvID      int64     `json:"inv_id"`      // ID инвойса в Robokassa
+	PaymentURL string    `json:"payment_url"` // URL для оплаты
+	Status     string    `json:"status"`      // Статус платежа
 }
 
+// InitRobokassaPayment инициирует новый платеж через Robokassa.
+// Создает запись о платеже в БД, генерирует подпись и возвращает URL для оплаты.
+//
+// Процесс:
+// 1. Генерирует уникальный InvID на основе timestamp
+// 2. Формирует подпись запроса согласно документации Robokassa
+// 3. Создает запись о платеже со статусом pending
+// 4. Возвращает URL платежной формы
+//
+// Возвращаемые ошибки:
+//   - invalid amount: неверный формат суммы
+//   - signing error: ошибка при генерации подписи
+//   - database error: ошибка при создании записи в БД
 func (s *Service) InitRobokassaPayment(ctx context.Context, req InitRobokassaPaymentRequest) (*InitRobokassaPaymentResponse, error) {
 	invID := time.Now().UnixNano()
 	amountRat, ok := new(big.Rat).SetString(req.Amount)
@@ -122,6 +139,23 @@ func (s *Service) InitRobokassaPayment(ctx context.Context, req InitRobokassaPay
 	return &InitRobokassaPaymentResponse{PaymentID: payment.ID, InvID: invID, PaymentURL: paymentURL, Status: string(StatusPending)}, nil
 }
 
+// ProcessRobokassaResult обрабатывает callback от Robokassa (Result URL).
+// Выполняет проверку подписи, валидацию суммы и активацию подписки.
+//
+// Процесс:
+// 1. Проверяет подпись запроса
+// 2. Находит платеж по InvID
+// 3. Проверяет соответствие суммы
+// 4. Обновляет статус платежа на completed
+// 5. Активирует подписку (если это платеж за подписку)
+// 6. Создает событие в журнале
+//
+// Идемпотентность: повторные вызовы для уже обработанного платежа не вызывают ошибку.
+//
+// Возвращаемые ошибки:
+//   - invalid signature: неверная подпись
+//   - payment not found: платеж не найден
+//   - amount mismatch: сумма не совпадает с ожидаемой
 func (s *Service) ProcessRobokassaResult(ctx context.Context, outSum, invID, signature string, shp map[string]string, rawPayload map[string]string) error {
 	password2 := s.robokassaConfig.Password2
 	if s.robokassaConfig.IsTest && s.robokassaConfig.TestPassword2 != "" {
@@ -204,12 +238,19 @@ func ratToFloat64(v *big.Rat) float64 {
 	return out
 }
 
-// SetCreditService sets the credit service (optional, to avoid circular dependency)
+// SetCreditService устанавливает сервис кредитов (опционально, для избежания циклических зависимостей)
 func (s *Service) SetCreditService(creditSvc credit.Service) { // ✅ FIXED: Using credit.Service
 	s.creditSvc = creditSvc
 }
 
-// CreatePayment creates a new payment for subscription
+// CreatePayment создает новый платеж для подписки.
+// Платеж создается в статусе pending и требует подтверждения через ConfirmPayment.
+//
+// Параметры:
+//   - userID: ID пользователя
+//   - subscriptionID: ID подписки
+//   - amount: сумма платежа
+//   - provider: платежный провайдер (напр. "robokassa", "stripe")
 func (s *Service) CreatePayment(ctx context.Context, userID, subscriptionID uuid.UUID, amount float64, provider Provider) (*Payment, error) {
 	now := time.Now()
 	payment := &Payment{
@@ -230,8 +271,15 @@ func (s *Service) CreatePayment(ctx context.Context, userID, subscriptionID uuid
 	return payment, nil
 }
 
-// CreateCreditPayment creates a new payment for credit purchase
-// B4: New method for credit purchases
+// CreateCreditPayment создает новый платеж для покупки кредитов.
+// Поддерживаются только фиксированные пакеты: 5, 10, 25, 50 кредитов.
+//
+// Валидация:
+//   - Пакет кредитов должен быть одним из: 5, 10, 25, 50
+//   - Платеж создается в статусе pending
+//
+// Возвращаемые ошибки:
+//   - invalid credit package: неподдерживаемый пакет кредитов
 func (s *Service) CreateCreditPayment(ctx context.Context, userID uuid.UUID, creditAmount int, totalPrice float64, provider Provider) (*Payment, error) {
 	// Validate credit amount - only allow specific packages (5, 10, 25, 50)
 	validPackages := map[int]bool{
@@ -263,8 +311,17 @@ func (s *Service) CreateCreditPayment(ctx context.Context, userID uuid.UUID, cre
 	return payment, nil
 }
 
-// ConfirmPayment marks payment as completed and activates subscription or grants credits
-// B4: Updated to handle credit purchases with idempotency
+// ConfirmPayment подтверждает платеж и выполняет соответствующие действия.
+//
+// Действия в зависимости от типа платежа:
+//   - Платеж за подписку: активирует подписку
+//   - Платеж за кредиты: начисляет кредиты на баланс пользователя
+//
+// Идемпотентность:
+// Метод идемпотентен - повторные вызовы для уже обработанного платежа не приводят к дублированию кредитов или подписок.
+//
+// Возвращаемые ошибки:
+//   - ErrPaymentNotFound: платеж не найден
 func (s *Service) ConfirmPayment(ctx context.Context, paymentID uuid.UUID) error {
 	payment, err := s.repo.GetByID(ctx, paymentID)
 	if err != nil || payment == nil {
@@ -309,8 +366,16 @@ func (s *Service) ConfirmPayment(ctx context.Context, paymentID uuid.UUID) error
 	return nil
 }
 
-// determineCreditAmount maps payment amount to credit amount
-// B4: Validates payment amount matches expected credit packages
+// determineCreditAmount определяет количество кредитов по сумме платежа.
+// Валидирует соответствие суммы ожидаемым пакетам кредитов.
+//
+// Тарифы (KZT):
+//   - 5 кредитов = 500 ₸
+//   - 10 кредитов = 900 ₸
+//   - 25 кредитов = 2000 ₸
+//   - 50 кредитов = 3500 ₸
+//
+// Возвращает 0, если сумма не соответствует ни одному пакету.
 func (s *Service) determineCreditAmount(amount float64) int {
 	// Allowed credit packages with pricing (KZT):
 	// 5 credits = 500 KZT
@@ -331,13 +396,27 @@ func (s *Service) determineCreditAmount(amount float64) int {
 	return 0
 }
 
-// FailPayment marks payment as failed
+// FailPayment отмечает платеж как неудавшийся.
+// Обновляет статус платежа на failed.
 func (s *Service) FailPayment(ctx context.Context, paymentID uuid.UUID) error {
 	return s.repo.UpdateStatus(ctx, paymentID, StatusFailed)
 }
 
-// HandleWebhook processes payment webhook from provider
-// B4: Webhook idempotency handled at ConfirmPayment level
+// HandleWebhook обрабатывает webhook от платежного провайдера.
+//
+// Процесс:
+// 1. Находит платеж по внешнему ID
+// 2. Проверяет идемпотентность (пропускает уже обработанные)
+// 3. В зависимости от статуса вызывает ConfirmPayment или FailPayment
+//
+// Поддерживаемые статусы:
+//   - success, completed, paid → подтверждение платежа
+//   - failed, cancelled, declined → отклонение платежа
+//
+// Идемпотентность обеспечивается на уровне ConfirmPayment.
+//
+// Возвращаемые ошибки:
+//   - ErrPaymentNotFound: платеж не найден
 func (s *Service) HandleWebhook(ctx context.Context, provider string, externalID string, status string) error {
 	payment, err := s.repo.GetByExternalID(ctx, provider, externalID)
 	if err != nil || payment == nil {
@@ -363,7 +442,12 @@ func (s *Service) HandleWebhook(ctx context.Context, provider string, externalID
 	return nil
 }
 
-// GetPaymentHistory returns user's payment history
+// GetPaymentHistory возвращает историю платежей пользователя с пагинацией.
+//
+// Параметры:
+//   - userID: ID пользователя
+//   - limit: максимальное количество записей
+//   - offset: смещение для пагинации
 func (s *Service) GetPaymentHistory(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*Payment, error) {
 	return s.repo.ListByUser(ctx, userID, limit, offset)
 }

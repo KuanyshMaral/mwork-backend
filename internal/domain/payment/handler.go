@@ -25,6 +25,20 @@ type InitRobokassaRequest struct {
 	Description    string `json:"description"`
 }
 
+// InitRobokassaPayment handles POST /payments/robokassa/init
+// @Summary Инициализация оплаты через Robokassa
+// @Description Создает новый платеж и возвращает URL для перенаправления на платежную форму Robokassa
+// @Tags Payment
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body InitRobokassaRequest true "Параметры платежа"
+// @Success 200 {object} response.Response{data=InitRobokassaPaymentResponse}
+// @Failure 400 {object} response.Response
+// @Failure 401 {object} response.Response
+// @Failure 422 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /payments/robokassa/init [post]
 func (h *Handler) InitRobokassaPayment(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 	var req InitRobokassaRequest
@@ -55,6 +69,19 @@ func (h *Handler) InitRobokassaPayment(w http.ResponseWriter, r *http.Request) {
 	response.OK(w, out)
 }
 
+// RobokassaResult handles POST/GET /webhooks/robokassa/result
+// @Summary Webhook обработки результата Robokassa
+// @Description Обрабатывает callback от Robokassa о результате платежа (Result URL)
+// @Tags Payment Webhooks
+// @Accept application/x-www-form-urlencoded
+// @Produce plain
+// @Param OutSum formData string true "Сумма платежа"
+// @Param InvId formData string true "ID инвойса"
+// @Param SignatureValue formData string true "Подпись"
+// @Success 200 {string} string "OK{InvId}"
+// @Failure 400 {object} response.Response
+// @Router /webhooks/robokassa/result [post]
+// @Router /webhooks/robokassa/result [get]
 func (h *Handler) RobokassaResult(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		response.Error(w, http.StatusBadRequest, "BAD_REQUEST", "invalid form data")
@@ -91,10 +118,28 @@ func (h *Handler) RobokassaResult(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte("OK" + invID))
 }
 
+// RobokassaSuccess handles GET/POST /payments/robokassa/success
+// @Summary Страница успешной оплаты Robokassa
+// @Description Обрабатывает редирект пользователя после успешной оплаты (Success URL)
+// @Tags Payment
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} response.Response{data=object{status=string,message=string}}
+// @Router /payments/robokassa/success [get]
+// @Router /payments/robokassa/success [post]
 func (h *Handler) RobokassaSuccess(w http.ResponseWriter, r *http.Request) {
 	response.OK(w, map[string]string{"status": "processing", "message": "Оплата принята, проверяем статус"})
 }
 
+// RobokassaFail handles GET/POST /payments/robokassa/fail
+// @Summary Страница неудачной оплаты Robokassa
+// @Description Обрабатывает редирект пользователя после неудачной оплаты (Fail URL)
+// @Tags Payment
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} response.Response{data=object{status=string,message=string}}
+// @Router /payments/robokassa/fail [get]
+// @Router /payments/robokassa/fail [post]
 func (h *Handler) RobokassaFail(w http.ResponseWriter, r *http.Request) {
 	response.OK(w, map[string]string{"status": "failed", "message": "Платеж отменен или не завершен"})
 }
@@ -105,6 +150,17 @@ func NewHandler(service *Service) *Handler {
 }
 
 // GetHistory handles GET /payments
+// @Summary История платежей
+// @Description Возвращает историю платежей текущего пользователя с пагинацией
+// @Tags Payment
+// @Produce json
+// @Security BearerAuth
+// @Param limit query int false "Количество записей (по умолчанию 20, максимум 100)"
+// @Param offset query int false "Смещение (по умолчанию 0)"
+// @Success 200 {object} response.Response{data=[]Payment}
+// @Failure 401 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /payments [get]
 func (h *Handler) GetHistory(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 
@@ -130,8 +186,17 @@ func (h *Handler) GetHistory(w http.ResponseWriter, r *http.Request) {
 	response.OK(w, payments)
 }
 
-// Webhook handles POST /webhooks/payment
-// This is called by payment providers.
+// Webhook handles POST /webhooks/payment/{provider}
+// @Summary Webhook от платежного провайдера
+// @Description Обрабатывает webhook-уведомления от различных платежных провайдеров
+// @Tags Payment Webhooks
+// @Accept json
+// @Produce json
+// @Param provider path string true "Название провайдера (например, stripe, paypal)"
+// @Param request body object{transaction_id=string,external_id=string,status=string,amount=number} true "Данные webhook"
+// @Success 200 {object} response.Response{data=object{status=string}}
+// @Failure 400 {object} response.Response
+// @Router /webhooks/payment/{provider} [post]
 func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 	provider := chi.URLParam(r, "provider")
 
