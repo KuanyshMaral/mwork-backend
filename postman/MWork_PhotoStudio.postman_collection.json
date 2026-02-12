@@ -2609,7 +2609,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"plan_id\": \"{{plan_id}}\",\n  \"provider\": \"kaspi\"\n}"
+              "raw": "{\n  \"plan_id\": \"{{plan_id}}\",\n  \"provider\": \"robokassa\"\n}"
             }
           },
           "event": [

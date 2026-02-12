@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -19,18 +20,13 @@ import (
 type Handler struct {
 	service        *Service
 	paymentService PaymentService
-	kaspiClient    KaspiClient
 	config         *Config
 }
 
 // PaymentService defines payment operations needed by subscription
 type PaymentService interface {
 	CreatePayment(ctx context.Context, userID, subscriptionID uuid.UUID, amount float64, provider string) (*Payment, error)
-}
-
-// KaspiClient defines Kaspi API operations
-type KaspiClient interface {
-	CreatePayment(ctx context.Context, req KaspiPaymentRequest) (*KaspiPaymentResponse, error)
+	InitRobokassaPayment(ctx context.Context, req InitRobokassaPaymentRequest) (*InitRobokassaPaymentResponse, error)
 }
 
 // Payment represents payment entity
@@ -39,23 +35,20 @@ type Payment struct {
 	UserID         uuid.UUID
 	SubscriptionID uuid.NullUUID
 	Amount         float64
-	KaspiOrderID   string
 	Status         string
 	CreatedAt      time.Time
 }
 
-// KaspiPaymentRequest for creating Kaspi payment
-type KaspiPaymentRequest struct {
-	Amount      float64
-	OrderID     string
-	Description string
-	ReturnURL   string
-	CallbackURL string
+type InitRobokassaPaymentRequest struct {
+	UserID         uuid.UUID
+	SubscriptionID uuid.UUID
+	Amount         string
+	Description    string
 }
 
-// KaspiPaymentResponse from Kaspi API
-type KaspiPaymentResponse struct {
-	PaymentID  string
+type InitRobokassaPaymentResponse struct {
+	PaymentID  uuid.UUID
+	InvID      int64
 	PaymentURL string
 	Status     string
 }
@@ -67,11 +60,10 @@ type Config struct {
 }
 
 // NewHandler creates subscription handler
-func NewHandler(service *Service, paymentService PaymentService, kaspiClient KaspiClient, config *Config) *Handler {
+func NewHandler(service *Service, paymentService PaymentService, config *Config) *Handler {
 	return &Handler{
 		service:        service,
 		paymentService: paymentService,
-		kaspiClient:    kaspiClient,
 		config:         config,
 	}
 }
@@ -203,26 +195,12 @@ func (h *Handler) Subscribe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate unique Kaspi order ID
-	orderID := uuid.New().String()
-
-	// Create pending payment record
-	payment, err := h.paymentService.CreatePayment(ctx, userID, sub.ID, amount, "kaspi")
-	if err != nil {
-		response.Error(w, http.StatusInternalServerError, "PAYMENT_ERROR", "payment initiation failed")
-		return
-	}
-
-	// Create Kaspi payment
-	kaspiReq := KaspiPaymentRequest{
-		Amount:      amount,
-		OrderID:     orderID,
-		Description: fmt.Sprintf("MWork %s subscription", req.PlanID),
-		ReturnURL:   h.config.FrontendURL + "/payment/success",
-		CallbackURL: h.config.BackendURL + "/webhooks/kaspi",
-	}
-
-	kaspiResp, err := h.kaspiClient.CreatePayment(ctx, kaspiReq)
+	robokassaResp, err := h.paymentService.InitRobokassaPayment(ctx, InitRobokassaPaymentRequest{
+		UserID:         userID,
+		SubscriptionID: sub.ID,
+		Amount:         strconv.FormatFloat(amount, 'f', 2, 64),
+		Description:    fmt.Sprintf("MWork %s subscription", req.PlanID),
+	})
 	if err != nil {
 		response.Error(w, http.StatusBadGateway, "GATEWAY_ERROR", "payment gateway error")
 		return
@@ -234,12 +212,14 @@ func (h *Handler) Subscribe(w http.ResponseWriter, r *http.Request) {
 	// Prepare response
 	subscribeResp := struct {
 		PaymentID  string  `json:"payment_id"`
+		InvID      int64   `json:"inv_id"`
 		PaymentURL string  `json:"payment_url"`
 		Amount     float64 `json:"amount"`
 		ExpiresAt  string  `json:"expires_at"`
 	}{
-		PaymentID:  payment.ID.String(),
-		PaymentURL: kaspiResp.PaymentURL,
+		PaymentID:  robokassaResp.PaymentID.String(),
+		InvID:      robokassaResp.InvID,
+		PaymentURL: robokassaResp.PaymentURL,
 		Amount:     amount,
 		ExpiresAt:  expiresAt,
 	}
