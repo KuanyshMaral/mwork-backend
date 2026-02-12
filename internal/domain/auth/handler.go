@@ -29,7 +29,7 @@ func NewHandler(service *Service) *Handler {
 // @Accept json
 // @Produce json
 // @Param request body RegisterRequest true "Данные регистрации"
-// @Success 201 {object} response.Response{data=AuthResponse}
+// @Success 201 {object} response.Response{data=map[string]interface{}}
 // @Failure 400 {object} response.Response
 // @Failure 409 {object} response.Response
 // @Failure 422 {object} response.Response
@@ -89,7 +89,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		response.Created(w, result)
+		response.Created(w, map[string]interface{}{"message": "Registered. Email code sent.", "data": result})
 
 	case "model", "employer":
 		var req RegisterRequest
@@ -124,7 +124,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		response.Created(w, result)
+		response.Created(w, map[string]interface{}{"message": "Registered. Email code sent.", "data": result})
 
 	default:
 		response.BadRequest(w, "invalid role")
@@ -141,7 +141,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} response.Response{data=AuthResponse}
 // @Failure 400 {object} response.Response
 // @Failure 401 {object} response.Response
-// @Failure 403 {object} response.Response
+// @Failure 403 {object} map[string]interface{} "EMAIL_NOT_VERIFIED"
 // @Failure 422 {object} response.Response
 // @Failure 500 {object} response.Response
 // @Router /auth/login [post]
@@ -166,6 +166,14 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 			response.Unauthorized(w, "Invalid email or password")
 		case ErrUserBanned:
 			response.Forbidden(w, "Account is banned")
+		case ErrEmailNotVerified:
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"success":    false,
+				"error_code": "EMAIL_NOT_VERIFIED",
+				"message":    "Email is not verified",
+			})
 		default:
 			log.Error().
 				Err(err).
@@ -248,7 +256,6 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} response.Response{data=UserResponse}
 // @Failure 401 {object} response.Response
 // @Failure 404 {object} response.Response
-// @Router /auth/me [get]
 func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 

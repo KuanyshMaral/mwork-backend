@@ -2479,32 +2479,6 @@ paths:
       summary: Изменение статуса пользователя
       tags:
       - Admin Users
-  /auth/forgot-password:
-    post:
-      consumes:
-      - application/json
-      description: Отправляет инструкцию по сбросу пароля на email.
-      parameters:
-      - description: Email пользователя
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/internal_domain_auth.ForgotPasswordRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-      summary: Запрос на сброс пароля
-      tags:
-      - Auth
   /auth/login:
     post:
       consumes:
@@ -2583,34 +2557,6 @@ paths:
       security:
       - BearerAuth: []
       summary: Выход пользователя
-      tags:
-      - Auth
-  /auth/me:
-    get:
-      description: Возвращает данные авторизованного пользователя.
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-            - properties:
-                data:
-                  $ref: '#/definitions/internal_domain_auth.UserResponse'
-              type: object
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-      security:
-      - BearerAuth: []
-      summary: Текущий пользователь
       tags:
       - Auth
   /auth/refresh:
@@ -2696,78 +2642,53 @@ paths:
       summary: Регистрация пользователя
       tags:
       - Auth
-  /auth/reset-password:
+  /auth/verify/confirm:
     post:
       consumes:
       - application/json
-      description: Устанавливает новый пароль по reset token.
+      description: Подтверждает email по паре email+code.
       parameters:
-      - description: Токен и новый пароль
+      - description: Email и код подтверждения
         in: body
         name: request
         required: true
         schema:
-          $ref: '#/definitions/internal_domain_auth.ResetPasswordRequest'
+          $ref: '#/definitions/internal_domain_auth.VerifyConfirmPublicRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-      summary: Сброс пароля
-      tags:
-      - Auth
-  /auth/verify/confirm:
-    post:
-      consumes:
-      - application/json
-      description: Проверяет 6-значный код верификации и подтверждает аккаунт.
-      parameters:
-      - description: Код подтверждения
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/internal_domain_auth.VerifyConfirmRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 'status: verified'
-          schema:
             allOf:
             - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
             - properties:
                 data:
-                  additionalProperties:
-                    type: string
                   type: object
               type: object
         "400":
           description: Bad Request
           schema:
             $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "401":
-          description: Unauthorized
+        "429":
+          description: Too Many Requests
           schema:
             $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-      security:
-      - BearerAuth: []
-      summary: Подтверждение верификации
+      summary: Подтверждение верификации (public)
       tags:
       - Auth
   /auth/verify/request:
     post:
-      description: Отправляет код верификации пользователю, если аккаунт ещё не подтвержден.
+      consumes:
+      - application/json
+      description: Отправляет код верификации по email без раскрытия существования пользователя.
+      parameters:
+      - description: Email
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_domain_auth.VerifyRequestPublicRequest'
       produces:
       - application/json
       responses:
@@ -2782,13 +2703,11 @@ paths:
                     type: string
                   type: object
               type: object
-        "401":
-          description: Unauthorized
+        "400":
+          description: Bad Request
           schema:
             $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-      security:
-      - BearerAuth: []
-      summary: Запрос кода верификации
+      summary: Запрос кода верификации (public)
       tags:
       - Auth
   /castings:

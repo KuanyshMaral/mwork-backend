@@ -38,6 +38,7 @@ type Config struct {
 	// Email
 	ResendAPIKey           string
 	VerificationCodePepper string
+	AllowLegacyRefresh     bool
 
 	// Robokassa Payment
 	RobokassaMerchantLogin string
@@ -97,6 +98,7 @@ func Load() *Config {
 		// Email
 		ResendAPIKey:           getEnv("RESEND_API_KEY", ""),
 		VerificationCodePepper: getEnv("VERIFICATION_CODE_PEPPER", "dev-only-change-me"),
+		AllowLegacyRefresh:     parseBool(getEnv("ALLOW_LEGACY_REFRESH", "false"), false),
 
 		// Robokassa Payment
 		RobokassaMerchantLogin: getEnv("ROBOKASSA_MERCHANT_LOGIN", ""),

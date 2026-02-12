@@ -34,6 +34,20 @@ type RefreshRequest struct {
 	RefreshToken string `json:"refresh_token" validate:"required"`
 }
 
+type VerifyRequestPublicRequest struct {
+	Email string `json:"email" validate:"required,email,max=255"`
+}
+
+type VerifyConfirmPublicRequest struct {
+	Email string `json:"email" validate:"required,email,max=255"`
+	Code  string `json:"code" validate:"required,len=6,numeric" pattern:"^\\d{6}$"`
+}
+
+type RegisterResponse struct {
+	User             UserResponse `json:"user"`
+	VerificationSent bool         `json:"verification_sent"`
+}
+
 // AuthResponse returned after login/register
 type AuthResponse struct {
 	User   UserResponse   `json:"user"`
@@ -59,13 +73,13 @@ type TokensResponse struct {
 }
 
 // NewUserResponse creates UserResponse from user data
-func NewUserResponse(id uuid.UUID, email, role string, emailVerified bool, createdAt time.Time) UserResponse {
+func NewUserResponse(id uuid.UUID, email, role string, emailVerified, isVerified bool, createdAt time.Time) UserResponse {
 	return UserResponse{
 		ID:            id,
 		Email:         email,
 		Role:          role,
 		EmailVerified: emailVerified,
-		IsVerified:    emailVerified,
+		IsVerified:    isVerified,
 		CreatedAt:     createdAt.Format(time.RFC3339),
 	}
 }

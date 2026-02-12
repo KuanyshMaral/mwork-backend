@@ -26,8 +26,22 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
+                ],
+                "parameters": [
+                    {
+                        "description": "Email",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_domain_auth.VerifyRequestPublicRequest"
+                        }
+                    }
                 ],
                 "tags": [
                     "Admin Management"
@@ -388,8 +402,8 @@ const docTemplate = `{
                             "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
                         }
                     },
-                    "401": {
-                        "description": "Unauthorized",
+                    "429": {
+                        "description": "Too Many Requests",
                         "schema": {
                             "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
                         }
@@ -1572,46 +1586,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/auth/forgot-password": {
-            "post": {
-                "description": "Отправляет инструкцию по сбросу пароля на email.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Auth"
-                ],
-                "summary": "Запрос на сброс пароля",
-                "parameters": [
-                    {
-                        "description": "Email пользователя",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/internal_domain_auth.ForgotPasswordRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    }
-                }
-            }
-        },
+        
         "/auth/login": {
             "post": {
                 "description": "Выполняет вход пользователя по email/паролю и возвращает access/refresh токены.",
@@ -1739,55 +1714,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/auth/me": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Возвращает данные авторизованного пользователя.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Auth"
-                ],
-                "summary": "Текущий пользователь",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/internal_domain_auth.UserResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    }
-                }
-            }
-        },
+        
         "/auth/refresh": {
             "post": {
                 "description": "Обновляет access/refresh токены по валидному refresh token.",
@@ -1922,9 +1849,10 @@ const docTemplate = `{
                 }
             }
         },
-        "/auth/reset-password": {
+        
+        "/auth/verify/confirm": {
             "post": {
-                "description": "Устанавливает новый пароль по reset token.",
+                "description": "Подтверждает email по паре email+code.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1934,72 +1862,21 @@ const docTemplate = `{
                 "tags": [
                     "Auth"
                 ],
-                "summary": "Сброс пароля",
+                "summary": "Подтверждение верификации (public)",
                 "parameters": [
                     {
-                        "description": "Токен и новый пароль",
+                        "description": "Email и код подтверждения",
                         "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_domain_auth.ResetPasswordRequest"
+                            "$ref": "#/definitions/internal_domain_auth.VerifyConfirmPublicRequest"
                         }
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    }
-                }
-            }
-        },
-        "/auth/verify/confirm": {
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Проверяет 6-значный код верификации и подтверждает аккаунт.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Auth"
-                ],
-                "summary": "Подтверждение верификации",
-                "parameters": [
-                    {
-                        "description": "Код подтверждения",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/internal_domain_auth.VerifyConfirmRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "status: verified",
                         "schema": {
                             "allOf": [
                                 {
@@ -2009,10 +1886,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "object",
-                                            "additionalProperties": {
-                                                "type": "string"
-                                            }
+                                            "type": "object"
                                         }
                                     }
                                 }
@@ -2025,8 +1899,8 @@ const docTemplate = `{
                             "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
                         }
                     },
-                    "401": {
-                        "description": "Unauthorized",
+                    "429": {
+                        "description": "Too Many Requests",
                         "schema": {
                             "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
                         }
@@ -2036,19 +1910,28 @@ const docTemplate = `{
         },
         "/auth/verify/request": {
             "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
+                "description": "Отправляет код верификации по email без раскрытия существования пользователя.",
+                "consumes": [
+                    "application/json"
                 ],
-                "description": "Отправляет код верификации пользователю, если аккаунт ещё не подтвержден.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Auth"
                 ],
-                "summary": "Запрос кода верификации",
+                "summary": "Запрос кода верификации (public)",
+                "parameters": [
+                    {
+                        "description": "Email",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_domain_auth.VerifyRequestPublicRequest"
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "status: already_verified|sent",
@@ -2071,8 +1954,8 @@ const docTemplate = `{
                             ]
                         }
                     },
-                    "401": {
-                        "description": "Unauthorized",
+                    "400": {
+                        "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
                         }

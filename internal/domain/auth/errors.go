@@ -11,4 +11,6 @@ var (
 	ErrRefreshTokenRequired    = errors.New("refresh token is required")
 	ErrUserBanned              = errors.New("user is banned")
 	ErrInvalidVerificationCode = errors.New("invalid code")
+	ErrTooManyAttempts         = errors.New("too many attempts")
+	ErrEmailNotVerified        = errors.New("email is not verified")
 )
