@@ -869,6 +869,91 @@ definitions:
     required:
     - role
     type: object
+  internal_domain_payment.InitRobokassaPaymentResponse:
+    properties:
+      inv_id:
+        description: ID инвойса в Robokassa
+        type: integer
+      payment_id:
+        description: ID платежа в системе
+        type: string
+      payment_url:
+        description: URL для оплаты
+        type: string
+      status:
+        description: Статус платежа
+        type: string
+    type: object
+  internal_domain_payment.InitRobokassaRequest:
+    properties:
+      amount:
+        type: string
+      description:
+        type: string
+      subscription_id:
+        type: string
+    type: object
+  internal_domain_payment.Payment:
+    properties:
+      amount:
+        type: number
+      created_at:
+        type: string
+      currency:
+        type: string
+      description:
+        $ref: '#/definitions/sql.NullString'
+      external_id:
+        $ref: '#/definitions/sql.NullString'
+      failed_at:
+        $ref: '#/definitions/sql.NullTime'
+      id:
+        type: string
+      metadata:
+        items:
+          type: integer
+        type: array
+      paid_at:
+        $ref: '#/definitions/sql.NullTime'
+      plan_id:
+        type: string
+      promotion_id:
+        type: string
+      provider:
+        $ref: '#/definitions/sql.NullString'
+      raw_callback_payload:
+        items:
+          type: integer
+        type: array
+      raw_init_payload:
+        items:
+          type: integer
+        type: array
+      refunded_at:
+        $ref: '#/definitions/sql.NullTime'
+      robokassa_inv_id:
+        $ref: '#/definitions/sql.NullInt64'
+      status:
+        $ref: '#/definitions/internal_domain_payment.Status'
+      subscription_id:
+        $ref: '#/definitions/uuid.NullUUID'
+      updated_at:
+        type: string
+      user_id:
+        type: string
+    type: object
+  internal_domain_payment.Status:
+    enum:
+    - pending
+    - completed
+    - failed
+    - refunded
+    type: string
+    x-enum-varnames:
+    - StatusPending
+    - StatusCompleted
+    - StatusFailed
+    - StatusRefunded
   internal_domain_profile.CompletenessResponse:
     properties:
       missing_fields:
@@ -1229,6 +1314,101 @@ definitions:
       reviewer_name:
         type: string
     type: object
+  internal_domain_subscription.CancelRequest:
+    properties:
+      reason:
+        maxLength: 500
+        type: string
+    type: object
+  internal_domain_subscription.LimitsResponse:
+    properties:
+      can_chat:
+        type: boolean
+      can_see_viewers:
+        type: boolean
+      max_photos:
+        type: integer
+      max_responses_month:
+        description: -1 = unlimited
+        type: integer
+      photos_used:
+        type: integer
+      plan_id:
+        type: string
+      priority_search:
+        type: boolean
+      responses_used:
+        type: integer
+    type: object
+  internal_domain_subscription.PlanResponse:
+    properties:
+      can_chat:
+        type: boolean
+      can_see_viewers:
+        type: boolean
+      description:
+        type: string
+      features:
+        description: Human-readable feature list
+        items:
+          type: string
+        type: array
+      id:
+        type: string
+      max_photos:
+        type: integer
+      max_responses_month:
+        description: -1 = unlimited
+        type: integer
+      max_team_members:
+        type: integer
+      name:
+        type: string
+      price_monthly:
+        type: number
+      price_yearly:
+        type: number
+      priority_search:
+        type: boolean
+    type: object
+  internal_domain_subscription.SubscribeRequest:
+    properties:
+      billing_period:
+        enum:
+        - monthly
+        - yearly
+        type: string
+      plan_id:
+        enum:
+        - pro
+        - agency
+        type: string
+    required:
+    - billing_period
+    - plan_id
+    type: object
+  internal_domain_subscription.SubscriptionResponse:
+    properties:
+      auto_renew:
+        type: boolean
+      billing_period:
+        type: string
+      days_remaining:
+        description: -1 = unlimited
+        type: integer
+      expires_at:
+        type: string
+      id:
+        type: string
+      plan:
+        $ref: '#/definitions/internal_domain_subscription.PlanResponse'
+      plan_id:
+        type: string
+      started_at:
+        type: string
+      status:
+        type: string
+    type: object
   internal_domain_upload.ConfirmRequest:
     properties:
       upload_id:
@@ -1291,6 +1471,39 @@ definitions:
         type: string
       width:
         type: integer
+    type: object
+  sql.NullInt64:
+    properties:
+      int64:
+        format: int64
+        type: integer
+      valid:
+        description: Valid is true if Int64 is not NULL
+        type: boolean
+    type: object
+  sql.NullString:
+    properties:
+      string:
+        type: string
+      valid:
+        description: Valid is true if String is not NULL
+        type: boolean
+    type: object
+  sql.NullTime:
+    properties:
+      time:
+        type: string
+      valid:
+        description: Valid is true if Time is not NULL
+        type: boolean
+    type: object
+  uuid.NullUUID:
+    properties:
+      uuid:
+        type: string
+      valid:
+        description: Valid is true if UUID is not NULL
+        type: boolean
     type: object
 info:
   contact:
@@ -3958,6 +4171,193 @@ paths:
       summary: Пригласить участника в организацию
       tags:
       - Organization
+  /payments:
+    get:
+      description: Возвращает историю платежей текущего пользователя с пагинацией
+      parameters:
+      - description: Количество записей (по умолчанию 20, максимум 100)
+        in: query
+        name: limit
+        type: integer
+      - description: Смещение (по умолчанию 0)
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/internal_domain_payment.Payment'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: История платежей
+      tags:
+      - Payment
+  /payments/robokassa/fail:
+    get:
+      description: Обрабатывает редирект пользователя после неудачной оплаты (Fail
+        URL)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  properties:
+                    message:
+                      type: string
+                    status:
+                      type: string
+                  type: object
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Страница неудачной оплаты Robokassa
+      tags:
+      - Payment
+    post:
+      description: Обрабатывает редирект пользователя после неудачной оплаты (Fail
+        URL)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  properties:
+                    message:
+                      type: string
+                    status:
+                      type: string
+                  type: object
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Страница неудачной оплаты Robokassa
+      tags:
+      - Payment
+  /payments/robokassa/init:
+    post:
+      consumes:
+      - application/json
+      description: Создает новый платеж и возвращает URL для перенаправления на платежную
+        форму Robokassa
+      parameters:
+      - description: Параметры платежа
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_domain_payment.InitRobokassaRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_domain_payment.InitRobokassaPaymentResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Инициализация оплаты через Robokassa
+      tags:
+      - Payment
+  /payments/robokassa/success:
+    get:
+      description: Обрабатывает редирект пользователя после успешной оплаты (Success
+        URL)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  properties:
+                    message:
+                      type: string
+                    status:
+                      type: string
+                  type: object
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Страница успешной оплаты Robokassa
+      tags:
+      - Payment
+    post:
+      description: Обрабатывает редирект пользователя после успешной оплаты (Success
+        URL)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  properties:
+                    message:
+                      type: string
+                    status:
+                      type: string
+                  type: object
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Страница успешной оплаты Robokassa
+      tags:
+      - Payment
   /profiles/{id}/completeness:
     get:
       parameters:
@@ -4619,6 +5019,271 @@ paths:
       summary: Удалить отзыв
       tags:
       - Review
+  /subscriptions:
+    post:
+      consumes:
+      - application/json
+      description: Создает новую подписку и инициирует процесс оплаты через Robokassa
+      parameters:
+      - description: Параметры подписки
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_domain_subscription.SubscribeRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  properties:
+                    amount:
+                      type: number
+                    expires_at:
+                      type: string
+                    inv_id:
+                      format: int64
+                      type: integer
+                    payment_id:
+                      type: string
+                    payment_url:
+                      type: string
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Оформление подписки
+      tags:
+      - Subscription
+  /subscriptions/cancel:
+    post:
+      consumes:
+      - application/json
+      description: Отменяет текущую активную подписку пользователя
+      parameters:
+      - description: Причина отмены (опционально)
+        in: body
+        name: request
+        schema:
+          $ref: '#/definitions/internal_domain_subscription.CancelRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  properties:
+                    status:
+                      type: string
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Отмена подписки
+      tags:
+      - Subscription
+  /subscriptions/current:
+    get:
+      description: Возвращает информацию о текущей активной подписке пользователя
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_domain_subscription.SubscriptionResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Текущая подписка пользователя
+      tags:
+      - Subscription
+  /subscriptions/limits:
+    get:
+      description: Возвращает лимиты текущего тарифа и статистику их использования
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_domain_subscription.LimitsResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Лимиты и использование подписки
+      tags:
+      - Subscription
+  /subscriptions/plans:
+    get:
+      description: Возвращает все доступные планы подписок с ценами и лимитами
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/internal_domain_subscription.PlanResponse'
+                  type: array
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      summary: Список доступных планов подписок
+      tags:
+      - Subscription
+  /subscriptions/subscribe:
+    post:
+      consumes:
+      - application/json
+      description: Создает новую подписку и инициирует процесс оплаты через Robokassa
+      parameters:
+      - description: Параметры подписки
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_domain_subscription.SubscribeRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  properties:
+                    amount:
+                      type: number
+                    expires_at:
+                      type: string
+                    inv_id:
+                      format: int64
+                      type: integer
+                    payment_id:
+                      type: string
+                    payment_url:
+                      type: string
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Оформление подписки
+      tags:
+      - Subscription
   /uploads:
     get:
       parameters:
@@ -4903,6 +5568,125 @@ paths:
       summary: Загрузить файл во временное хранилище
       tags:
       - Upload
+  /webhooks/payment/{provider}:
+    post:
+      consumes:
+      - application/json
+      description: Обрабатывает webhook-уведомления от различных платежных провайдеров
+      parameters:
+      - description: Название провайдера (например, stripe, paypal)
+        in: path
+        name: provider
+        required: true
+        type: string
+      - description: Данные webhook
+        in: body
+        name: request
+        required: true
+        schema:
+          properties:
+            amount:
+              type: number
+            external_id:
+              type: string
+            status:
+              type: string
+            transaction_id:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  properties:
+                    status:
+                      type: string
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      summary: Webhook от платежного провайдера
+      tags:
+      - Payment Webhooks
+  /webhooks/robokassa/result:
+    get:
+      consumes:
+      - application/x-www-form-urlencoded
+      description: Обрабатывает callback от Robokassa о результате платежа (Result
+        URL)
+      parameters:
+      - description: Сумма платежа
+        in: formData
+        name: OutSum
+        required: true
+        type: string
+      - description: ID инвойса
+        in: formData
+        name: InvId
+        required: true
+        type: string
+      - description: Подпись
+        in: formData
+        name: SignatureValue
+        required: true
+        type: string
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: OK{InvId}
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      summary: Webhook обработки результата Robokassa
+      tags:
+      - Payment Webhooks
+    post:
+      consumes:
+      - application/x-www-form-urlencoded
+      description: Обрабатывает callback от Robokassa о результате платежа (Result
+        URL)
+      parameters:
+      - description: Сумма платежа
+        in: formData
+        name: OutSum
+        required: true
+        type: string
+      - description: ID инвойса
+        in: formData
+        name: InvId
+        required: true
+        type: string
+      - description: Подпись
+        in: formData
+        name: SignatureValue
+        required: true
+        type: string
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: OK{InvId}
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      summary: Webhook обработки результата Robokassa
+      tags:
+      - Payment Webhooks
 securityDefinitions:
   BearerAuth:
     in: header
