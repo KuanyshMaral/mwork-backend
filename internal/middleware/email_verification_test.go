@@ -27,6 +27,9 @@ func (f *fakeEmailGuardUserRepo) Delete(context.Context, uuid.UUID) error  { ret
 func (f *fakeEmailGuardUserRepo) UpdateEmailVerified(context.Context, uuid.UUID, bool) error {
 	return nil
 }
+func (f *fakeEmailGuardUserRepo) UpdateVerificationFlags(context.Context, uuid.UUID, bool, bool) error {
+	return nil
+}
 func (f *fakeEmailGuardUserRepo) UpdatePassword(context.Context, uuid.UUID, string) error { return nil }
 func (f *fakeEmailGuardUserRepo) UpdateStatus(context.Context, uuid.UUID, user.Status) error {
 	return nil

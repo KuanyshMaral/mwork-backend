@@ -3,9 +3,13 @@ package auth
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,6 +17,7 @@ import (
 
 	"github.com/mwork/mwork-api/internal/domain/user"
 	"github.com/mwork/mwork-api/internal/middleware"
+	"github.com/mwork/mwork-api/internal/pkg/email"
 	"github.com/mwork/mwork-api/internal/pkg/jwt"
 	"github.com/mwork/mwork-api/internal/pkg/password"
 	"github.com/mwork/mwork-api/internal/pkg/photostudio"
@@ -28,9 +33,11 @@ type Service struct {
 	photoStudioClient        PhotoStudioClient
 	photoStudioSyncEnabled   bool
 	photoStudioTimeout       time.Duration
-	verificationCodeRepo     *VerificationCodeRepository
+	verificationCodeRepo     VerificationCodeStore
 	verificationCodePepper   string
 	verificationCodeLogInDev bool
+	allowLegacyRefresh       bool
+	emailService             *email.Service
 }
 
 type RefreshTokenStore interface {
@@ -48,6 +55,14 @@ type ModelProfileRepository interface {
 }
 
 // EmployerProfileRepository defines employer profile operations needed by auth
+type VerificationCodeStore interface {
+	Upsert(ctx context.Context, userID uuid.UUID, codeHash string, expiresAt time.Time) error
+	GetActiveByUserID(ctx context.Context, userID uuid.UUID) (*VerificationCodeRecord, error)
+	IncrementAttempts(ctx context.Context, userID uuid.UUID) (int, error)
+	Invalidate(ctx context.Context, userID uuid.UUID) error
+	MarkUsed(ctx context.Context, userID uuid.UUID) error
+}
+
 type EmployerProfileRepository interface {
 	Create(ctx context.Context, profile *EmployerProfile) error
 	GetByUserID(ctx context.Context, userID uuid.UUID) (*EmployerProfile, error)
@@ -88,9 +103,11 @@ func NewService(
 	photoStudioClient PhotoStudioClient,
 	photoStudioSyncEnabled bool,
 	photoStudioTimeout time.Duration,
-	verificationCodeRepo *VerificationCodeRepository,
+	verificationCodeRepo VerificationCodeStore,
 	verificationCodePepper string,
 	verificationCodeLogInDev bool,
+	allowLegacyRefresh bool,
+	emailService *email.Service,
 ) *Service {
 	if photoStudioTimeout <= 0 {
 		photoStudioTimeout = 10 * time.Second
@@ -107,11 +124,13 @@ func NewService(
 		verificationCodeRepo:     verificationCodeRepo,
 		verificationCodePepper:   verificationCodePepper,
 		verificationCodeLogInDev: verificationCodeLogInDev,
+		allowLegacyRefresh:       allowLegacyRefresh,
+		emailService:             emailService,
 	}
 }
 
 // Register creates new user account
-func (s *Service) Register(ctx context.Context, req *RegisterRequest) (*AuthResponse, error) {
+func (s *Service) Register(ctx context.Context, req *RegisterRequest) (*RegisterResponse, error) {
 	requestID := middleware.GetRequestID(ctx)
 	req.Email = normalizeEmail(req.Email)
 	// 1. Check if email exists
@@ -170,12 +189,19 @@ func (s *Service) Register(ctx context.Context, req *RegisterRequest) (*AuthResp
 		Role:        string(u.Role),
 	})
 
-	// 5. Generate tokens
-	return s.generateTokens(ctx, u)
+	// 5. Send verification code
+	if _, err := s.RequestVerificationCode(ctx, u.ID); err != nil {
+		return nil, err
+	}
+
+	return &RegisterResponse{
+		User:             NewUserResponse(u.ID, u.Email, string(u.Role), u.EmailVerified, u.IsVerified, u.CreatedAt),
+		VerificationSent: true,
+	}, nil
 }
 
 // RegisterAgency creates new agency user account with employer profile
-func (s *Service) RegisterAgency(ctx context.Context, req *AgencyRegisterRequest) (*AuthResponse, error) {
+func (s *Service) RegisterAgency(ctx context.Context, req *AgencyRegisterRequest) (*RegisterResponse, error) {
 	requestID := middleware.GetRequestID(ctx)
 	req.Email = normalizeEmail(req.Email)
 	// 1. Check if email exists
@@ -258,8 +284,15 @@ func (s *Service) RegisterAgency(ctx context.Context, req *AgencyRegisterRequest
 		Role:        string(u.Role),
 	})
 
-	// 5. Generate tokens
-	return s.generateTokens(ctx, u)
+	// 5. Send verification code
+	if _, err := s.RequestVerificationCode(ctx, u.ID); err != nil {
+		return nil, err
+	}
+
+	return &RegisterResponse{
+		User:             NewUserResponse(u.ID, u.Email, string(u.Role), u.EmailVerified, u.IsVerified, u.CreatedAt),
+		VerificationSent: true,
+	}, nil
 }
 
 // Login authenticates user
@@ -284,6 +317,11 @@ func (s *Service) Login(ctx context.Context, req *LoginRequest) (*AuthResponse, 
 	if !passwordValid {
 		log.Warn().Str("email", req.Email).Msg("Password verification failed")
 		return nil, ErrInvalidCredentials
+	}
+
+	if !u.EmailVerified || !u.IsVerified {
+		log.Warn().Str("email", req.Email).Msg("User email is not verified")
+		return nil, ErrEmailNotVerified
 	}
 
 	// Check if banned
@@ -364,8 +402,15 @@ func (s *Service) RequestVerificationCode(ctx context.Context, userID uuid.UUID)
 		return "", err
 	}
 
-	if s.verificationCodeLogInDev {
+	if s.canLogPlaintextVerificationCode() {
 		log.Info().Str("user_id", userID.String()).Str("verification_code", code).Msg("DEV verification code generated")
+	}
+
+	if s.emailService != nil {
+		s.emailService.Queue(u.Email, u.Email, "verification", "Подтвердите ваш email", map[string]string{
+			"UserName": u.Email,
+			"Code":     code,
+		})
 	}
 
 	return "sent", nil
@@ -385,9 +430,13 @@ func (s *Service) ConfirmVerificationCode(ctx context.Context, userID uuid.UUID,
 	}
 
 	now := time.Now()
-	if rec.UsedAt != nil || now.After(rec.ExpiresAt) || rec.Attempts >= verificationCodeMaxAttempts {
+	if rec.UsedAt != nil || now.After(rec.ExpiresAt) {
 		_ = s.verificationCodeRepo.Invalidate(ctx, userID)
 		return "", ErrInvalidVerificationCode
+	}
+	if rec.Attempts >= verificationCodeMaxAttempts {
+		_ = s.verificationCodeRepo.Invalidate(ctx, userID)
+		return "", ErrTooManyAttempts
 	}
 
 	if rec.CodeHash != s.hashVerificationCode(code) {
@@ -397,11 +446,12 @@ func (s *Service) ConfirmVerificationCode(ctx context.Context, userID uuid.UUID,
 		}
 		if attempts >= verificationCodeMaxAttempts {
 			_ = s.verificationCodeRepo.Invalidate(ctx, userID)
+			return "", ErrTooManyAttempts
 		}
 		return "", ErrInvalidVerificationCode
 	}
 
-	if err := s.userRepo.UpdateEmailVerified(ctx, userID, true); err != nil {
+	if err := s.userRepo.UpdateVerificationFlags(ctx, userID, true, true); err != nil {
 		return "", err
 	}
 	if err := s.verificationCodeRepo.MarkUsed(ctx, userID); err != nil {
@@ -425,25 +475,55 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (*AuthRespon
 		return nil, ErrInvalidRefreshToken
 	}
 
-	claims, err := s.jwtService.ValidateRefreshToken(refreshToken)
-	if err != nil {
-		return nil, ErrInvalidRefreshToken
-	}
+	var rec *RefreshTokenRecord
+	var err error
 
-	refreshHash := jwt.HashRefreshToken(refreshToken)
-	rec, err := s.refreshTokenRepo.GetByTokenHash(ctx, refreshHash)
-	if err != nil {
-		return nil, ErrInvalidRefreshToken
-	}
+	if isLikelyJWT(refreshToken) {
+		claims, validateErr := s.jwtService.ValidateRefreshToken(refreshToken)
+		if validateErr != nil {
+			return nil, ErrInvalidRefreshToken
+		}
 
-	now := time.Now()
-	if rec.UserID != claims.UserID || rec.JTI != claims.ID || rec.RevokedAt.Valid || rec.UsedAt.Valid || now.After(rec.ExpiresAt) {
-		_ = s.refreshTokenRepo.RevokeAllByUserID(ctx, rec.UserID)
-		return nil, ErrInvalidRefreshToken
-	}
+		refreshHash := s.hashRefreshToken(refreshToken)
+		rec, err = s.refreshTokenRepo.GetByTokenHash(ctx, refreshHash)
+		if err != nil {
+			if !s.allowLegacyRefresh {
+				return nil, ErrInvalidRefreshToken
+			}
+			// TODO: remove after legacy refresh migration window closes.
+			legacyHash := jwt.HashRefreshToken(refreshToken)
+			rec, err = s.refreshTokenRepo.GetByTokenHash(ctx, legacyHash)
+			if err != nil {
+				return nil, ErrInvalidRefreshToken
+			}
+			refreshHash = legacyHash
+		}
 
-	if err := s.refreshTokenRepo.MarkUsed(ctx, refreshHash); err != nil {
-		return nil, ErrInvalidRefreshToken
+		now := time.Now()
+		if rec.UserID != claims.UserID || (rec.JTI != "" && rec.JTI != claims.ID) || rec.RevokedAt.Valid || rec.UsedAt.Valid || now.After(rec.ExpiresAt) {
+			_ = s.refreshTokenRepo.RevokeAllByUserID(ctx, rec.UserID)
+			return nil, ErrInvalidRefreshToken
+		}
+
+		if err := s.refreshTokenRepo.RevokeByTokenHash(ctx, refreshHash); err != nil {
+			return nil, ErrInvalidRefreshToken
+		}
+	} else {
+		refreshHash := s.hashRefreshToken(refreshToken)
+		rec, err = s.refreshTokenRepo.GetByTokenHash(ctx, refreshHash)
+		if err != nil {
+			return nil, ErrInvalidRefreshToken
+		}
+
+		now := time.Now()
+		if rec.RevokedAt.Valid || rec.UsedAt.Valid || now.After(rec.ExpiresAt) {
+			_ = s.refreshTokenRepo.RevokeAllByUserID(ctx, rec.UserID)
+			return nil, ErrInvalidRefreshToken
+		}
+
+		if err := s.refreshTokenRepo.RevokeByTokenHash(ctx, refreshHash); err != nil {
+			return nil, ErrInvalidRefreshToken
+		}
 	}
 
 	u, err := s.userRepo.GetByID(ctx, rec.UserID)
@@ -459,8 +539,19 @@ func (s *Service) Logout(ctx context.Context, refreshToken string) error {
 	if refreshToken == "" || s.refreshTokenRepo == nil {
 		return nil
 	}
-	refreshHash := jwt.HashRefreshToken(refreshToken)
-	return s.refreshTokenRepo.RevokeByTokenHash(ctx, refreshHash)
+
+	if isLikelyJWT(refreshToken) {
+		if err := s.refreshTokenRepo.RevokeByTokenHash(ctx, s.hashRefreshToken(refreshToken)); err == nil {
+			return nil
+		}
+		if !s.allowLegacyRefresh {
+			return ErrInvalidRefreshToken
+		}
+		// TODO: remove after legacy refresh migration window closes.
+		return s.refreshTokenRepo.RevokeByTokenHash(ctx, jwt.HashRefreshToken(refreshToken))
+	}
+
+	return s.refreshTokenRepo.RevokeByTokenHash(ctx, s.hashRefreshToken(refreshToken))
 }
 
 // GetCurrentUser returns current user by ID
@@ -470,7 +561,7 @@ func (s *Service) GetCurrentUser(ctx context.Context, userID uuid.UUID) (*UserRe
 		return nil, ErrUserNotFound
 	}
 
-	resp := NewUserResponse(u.ID, u.Email, string(u.Role), u.EmailVerified, u.CreatedAt)
+	resp := NewUserResponse(u.ID, u.Email, string(u.Role), u.EmailVerified, u.IsVerified, u.CreatedAt)
 	return &resp, nil
 }
 
@@ -482,17 +573,18 @@ func (s *Service) generateTokens(ctx context.Context, u *user.User) (*AuthRespon
 		return nil, err
 	}
 
-	// Generate signed refresh token
-	refreshToken, refreshJTI, refreshExpiresAt, err := s.jwtService.GenerateRefreshToken(u.ID)
+	refreshToken, err := generateOpaqueRefreshToken()
 	if err != nil {
 		return nil, err
 	}
+	refreshJTI := uuid.New().String()
+	refreshExpiresAt := time.Now().Add(7 * 24 * time.Hour)
 
 	if s.refreshTokenRepo == nil {
 		return nil, ErrInvalidRefreshToken
 	}
 
-	refreshHash := jwt.HashRefreshToken(refreshToken)
+	refreshHash := s.hashRefreshToken(refreshToken)
 	if err := s.refreshTokenRepo.Create(ctx, &RefreshTokenRecord{
 		ID:        uuid.New(),
 		UserID:    u.ID,
@@ -510,7 +602,7 @@ func (s *Service) generateTokens(ctx context.Context, u *user.User) (*AuthRespon
 	}
 
 	return &AuthResponse{
-		User: NewUserResponse(u.ID, u.Email, string(u.Role), u.EmailVerified, u.CreatedAt),
+		User: NewUserResponse(u.ID, u.Email, string(u.Role), u.EmailVerified, u.IsVerified, u.CreatedAt),
 		Tokens: TokensResponse{
 			AccessToken:  accessToken,
 			RefreshToken: refreshToken, // return raw refresh to client
@@ -518,6 +610,39 @@ func (s *Service) generateTokens(ctx context.Context, u *user.User) (*AuthRespon
 			TokenType:    "Bearer",
 		},
 	}, nil
+}
+
+func (s *Service) canLogPlaintextVerificationCode() bool {
+	if !s.verificationCodeLogInDev {
+		return false
+	}
+
+	env := strings.ToLower(strings.TrimSpace(os.Getenv("ENV")))
+	appEnv := strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV")))
+	ginMode := strings.ToLower(strings.TrimSpace(os.Getenv("GIN_MODE")))
+
+	if env == "production" || env == "prod" || appEnv == "production" || appEnv == "prod" || ginMode == "release" {
+		return false
+	}
+
+	return true
+}
+
+func (s *Service) hashRefreshToken(token string) string {
+	sum := sha256.Sum256([]byte(token + s.verificationCodePepper))
+	return hex.EncodeToString(sum[:])
+}
+
+func generateOpaqueRefreshToken() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
+}
+
+func isLikelyJWT(token string) bool {
+	return strings.Count(token, ".") == 2
 }
 
 func (s *Service) syncPhotoStudioUser(payload photostudio.SyncUserPayload) {
@@ -556,11 +681,6 @@ func (s *Service) syncPhotoStudioUser(payload photostudio.SyncUserPayload) {
 // FindByEmail finds user by email address
 func (s *Service) FindByEmail(ctx context.Context, email string) (*user.User, error) {
 	return s.userRepo.GetByEmail(ctx, email)
-}
-
-// MarkEmailVerified marks user's email as verified
-func (s *Service) MarkEmailVerified(ctx context.Context, userID uuid.UUID) error {
-	return s.userRepo.UpdateEmailVerified(ctx, userID, true)
 }
 
 // UpdatePassword updates user's password

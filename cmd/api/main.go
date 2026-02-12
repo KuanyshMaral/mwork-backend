@@ -40,6 +40,7 @@ import (
 	"github.com/mwork/mwork-api/internal/domain/user"
 	"github.com/mwork/mwork-api/internal/middleware"
 	"github.com/mwork/mwork-api/internal/pkg/database"
+	emailpkg "github.com/mwork/mwork-api/internal/pkg/email"
 	"github.com/mwork/mwork-api/internal/pkg/jwt"
 	"github.com/mwork/mwork-api/internal/pkg/photostudio"
 	pkgresponse "github.com/mwork/mwork-api/internal/pkg/response"
@@ -87,6 +88,13 @@ func main() {
 	defer database.CloseRedis(redis)
 
 	jwtService := jwt.NewService(cfg.JWTSecret, cfg.JWTAccessTTL, cfg.JWTRefreshTTL)
+
+	emailService := emailpkg.NewService(emailpkg.SendGridConfig{
+		APIKey:    cfg.ResendAPIKey,
+		FromEmail: "noreply@mwork.kz",
+		FromName:  "MWork",
+	})
+	defer emailService.Close()
 
 	// Legacy upload service used by photo module (as in your current main)
 	uploadSvc := upload.NewService(&upload.Config{
@@ -200,6 +208,8 @@ func main() {
 		verificationCodeRepo,
 		cfg.VerificationCodePepper,
 		cfg.IsDevelopment(),
+		cfg.AllowLegacyRefresh,
+		emailService,
 	)
 
 	// Update services with proper dependencies
@@ -298,6 +308,8 @@ func main() {
 		"/api/v1/auth/logout",
 		"/api/v1/auth/verify/request",
 		"/api/v1/auth/verify/confirm",
+		"/api/v1/auth/verify/request/me",
+		"/api/v1/auth/verify/confirm/me",
 		"/health",
 		"/healthz",
 		"/swagger",

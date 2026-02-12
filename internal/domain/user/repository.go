@@ -19,6 +19,7 @@ type Repository interface {
 	Update(ctx context.Context, user *User) error
 	Delete(ctx context.Context, id uuid.UUID) error
 	UpdateEmailVerified(ctx context.Context, id uuid.UUID, verified bool) error
+	UpdateVerificationFlags(ctx context.Context, id uuid.UUID, emailVerified bool, isVerified bool) error
 	UpdatePassword(ctx context.Context, id uuid.UUID, passwordHash string) error
 	UpdateStatus(ctx context.Context, id uuid.UUID, status Status) error
 	UpdateLastLogin(ctx context.Context, id uuid.UUID, ip string) error
@@ -126,6 +127,12 @@ func (r *repository) Update(ctx context.Context, user *User) error {
 func (r *repository) UpdateEmailVerified(ctx context.Context, id uuid.UUID, verified bool) error {
 	query := `UPDATE users SET email_verified = $2, updated_at = NOW() WHERE id = $1`
 	_, err := r.db.ExecContext(ctx, query, id, verified)
+	return err
+}
+
+func (r *repository) UpdateVerificationFlags(ctx context.Context, id uuid.UUID, emailVerified bool, isVerified bool) error {
+	query := `UPDATE users SET email_verified = $2, is_verified = $3, updated_at = NOW() WHERE id = $1`
+	_, err := r.db.ExecContext(ctx, query, id, emailVerified, isVerified)
 	return err
 }
 
