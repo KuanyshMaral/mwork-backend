@@ -51,7 +51,7 @@ services:
     restart: "no"
 
   api:
-    image: ghcr.io/kuanyshmaral/mwork-backend:latest
+    image: mwork-backend-api:local
     depends_on:
       postgres:
         condition: service_healthy
@@ -77,3 +77,4 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:
