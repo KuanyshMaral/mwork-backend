@@ -183,6 +183,7 @@ func (s *Service) Convert(ctx context.Context, leadID uuid.UUID, req *ConvertReq
 		PasswordHash:  hashedPwd,
 		Role:          user.RoleEmployer,
 		EmailVerified: true, // Pre-verified
+		IsVerified:    true, // Allow immediate login after manual admin conversion
 		CreatedAt:     now,
 		UpdatedAt:     now,
 	}
