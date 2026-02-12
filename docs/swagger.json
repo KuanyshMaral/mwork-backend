@@ -276,6 +276,48 @@
                 }
             }
         },
+        "/admin/analytics/stats": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin Analytics"
+                ],
+                "summary": "Статистика админ-панели",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/audit/logs": {
             "get": {
                 "security": [
@@ -1119,16 +1161,10 @@
                     "application/json"
                 ],
                 "tags": [
-                    "Admin Reports"
+                    "Moderation Admin"
                 ],
-                "summary": "Список репортов",
+                "summary": "Все жалобы (админ)",
                 "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Страница",
-                        "name": "page",
-                        "in": "query"
-                    },
                     {
                         "type": "integer",
                         "description": "Лимит",
@@ -1136,8 +1172,14 @@
                         "in": "query"
                     },
                     {
+                        "type": "integer",
+                        "description": "Смещение",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
                         "type": "string",
-                        "description": "Статус",
+                        "description": "Статус (pending|resolved|rejected)",
                         "name": "status",
                         "in": "query"
                     }
@@ -1146,19 +1188,106 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/internal_domain_admin.ListReportsResponse"
-                                        }
-                                    }
-                                }
-                            ]
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/reports/{id}/resolve": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Moderation Admin"
+                ],
+                "summary": "Разрешить жалобу (админ)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID жалобы",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Решение жалобы",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_domain_moderation.ResolveReportRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
                         }
                     },
                     "500": {
@@ -1621,9 +1750,10 @@
                         }
                     },
                     "403": {
-                        "description": "Forbidden",
+                        "description": "EMAIL_NOT_VERIFIED",
                         "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     },
                     "422": {
@@ -1792,7 +1922,8 @@
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/internal_domain_auth.AuthResponse"
+                                            "type": "object",
+                                            "additionalProperties": true
                                         }
                                     }
                                 }
@@ -1862,7 +1993,8 @@
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "object"
+                                            "type": "object",
+                                            "additionalProperties": true
                                         }
                                     }
                                 }
@@ -1914,7 +2046,7 @@
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/response.Response"
+                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
                                 },
                                 {
                                     "type": "object",
@@ -3196,6 +3328,431 @@
                 }
             }
         },
+        "/dashboard/employer/stats": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Dashboard"
+                ],
+                "summary": "Статистика работодателя",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": true
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/dashboard/model/stats": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Dashboard"
+                ],
+                "summary": "Статистика модели",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/faq": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "FAQ"
+                ],
+                "summary": "Список часто задаваемых вопросов",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Категория",
+                        "name": "category",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": true
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/faq/categories": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "FAQ"
+                ],
+                "summary": "Список категорий вопросов",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/favorites": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Favorite"
+                ],
+                "summary": "Список избранного",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Тип фильтра (casting|profile)",
+                        "name": "type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Лимит",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Смещение",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": true
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Favorite"
+                ],
+                "summary": "Добавить в избранное",
+                "parameters": [
+                    {
+                        "description": "Данные избранного",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/favorite.AddRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/favorites/{type}/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Favorite"
+                ],
+                "summary": "Удалить из избранного",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Тип сущности (casting|profile)",
+                        "name": "type",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID сущности",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/favorites/{type}/{id}/check": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Favorite"
+                ],
+                "summary": "Проверить наличие в избранном",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Тип сущности (casting|profile)",
+                        "name": "type",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID сущности",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "boolean"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/leads/employer": {
             "post": {
                 "description": "Публичная форма создания лида работодателя.",
@@ -3247,6 +3804,262 @@
                     },
                     "422": {
                         "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/moderation/block": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Moderation"
+                ],
+                "summary": "Заблокировать пользователя",
+                "parameters": [
+                    {
+                        "description": "ID пользователя для блокировки",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_domain_moderation.BlockUserRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Moderation"
+                ],
+                "summary": "Разблокировать пользователя",
+                "parameters": [
+                    {
+                        "description": "ID пользователя для разблокировки",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_domain_moderation.BlockUserRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/moderation/blocks": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Moderation"
+                ],
+                "summary": "Список заблокированных пользователей",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/moderation/report": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Moderation"
+                ],
+                "summary": "Создать жалобу",
+                "parameters": [
+                    {
+                        "description": "Данные жалобы",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_domain_moderation.CreateReportRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/moderation/reports/mine": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Moderation"
+                ],
+                "summary": "Мои жалобы",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
                         }
@@ -4499,6 +5312,357 @@
                 }
             }
         },
+        "/photos": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Photo"
+                ],
+                "summary": "Подтвердить загрузку фото",
+                "parameters": [
+                    {
+                        "description": "Данные загрузки",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_domain_photo.ConfirmUploadRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_domain_photo.PhotoResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/photos/reorder": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Photo"
+                ],
+                "summary": "Изменить порядок фото",
+                "parameters": [
+                    {
+                        "description": "Новый порядок фото",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_domain_photo.ReorderRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/photos/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Photo"
+                ],
+                "summary": "Удалить фото",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID фото",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/photos/{id}/avatar": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Photo"
+                ],
+                "summary": "Установить аватар профиля",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID фото",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_domain_photo.PhotoResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/photostudio/bookings": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "PhotoStudio"
+                ],
+                "summary": "Создать бронирование фотостудии",
+                "parameters": [
+                    {
+                        "description": "Данные бронирования",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_domain_photostudio_booking.CreateBookingRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/photostudio/studios": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "PhotoStudio"
+                ],
+                "summary": "Список фотостудий",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Город",
+                        "name": "city",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Страница",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Лимит",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/profiles/employers/{id}": {
             "put": {
                 "security": [
@@ -4964,6 +6128,277 @@
                 }
             }
         },
+        "/profiles/{id}/experience": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Experience"
+                ],
+                "summary": "Список опыта работы профиля",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID профиля",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/internal_domain_experience.Entity"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Experience"
+                ],
+                "summary": "Добавить опыт работы",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID профиля",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Данные опыта",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_domain_experience.CreateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_domain_experience.Entity"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/profiles/{id}/experience/{expId}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Experience"
+                ],
+                "summary": "Удалить опыт работы",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID профиля",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID опыта",
+                        "name": "expId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/profiles/{id}/photos": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Photo"
+                ],
+                "summary": "Список фото профиля",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID профиля",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/internal_domain_photo.PhotoResponse"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/profiles/{id}/reviews": {
             "get": {
                 "produces": [
@@ -5262,6 +6697,380 @@
                     },
                     "403": {
                         "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/promotions": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Promotion"
+                ],
+                "summary": "Список промоций пользователя",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": true
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Promotion"
+                ],
+                "summary": "Создать промоцию",
+                "parameters": [
+                    {
+                        "description": "Данные промоции",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_domain_promotion.CreateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_domain_promotion.Response"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/promotions/{id}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Promotion"
+                ],
+                "summary": "Получить промоцию",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID промоции",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_domain_promotion.Response"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/promotions/{id}/activate": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Promotion"
+                ],
+                "summary": "Активировать промоцию",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID промоции",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_domain_promotion.Response"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/promotions/{id}/pause": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Promotion"
+                ],
+                "summary": "Паузировать промоцию",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID промоции",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_domain_promotion.Response"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/promotions/{id}/stats": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Promotion"
+                ],
+                "summary": "Статистика промоции",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID промоции",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
                         }
@@ -6247,6 +8056,62 @@
                 }
             }
         },
+        "/uploads/presign": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Photo"
+                ],
+                "summary": "Получить presigned URL для загрузки фото",
+                "parameters": [
+                    {
+                        "description": "Параметры загрузки",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_domain_photo.PresignRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/uploads/stage": {
             "post": {
                 "security": [
@@ -6671,6 +8536,25 @@
         }
     },
     "definitions": {
+        "favorite.AddRequest": {
+            "type": "object",
+            "required": [
+                "entity_id",
+                "entity_type"
+            ],
+            "properties": {
+                "entity_id": {
+                    "type": "string"
+                },
+                "entity_type": {
+                    "type": "string",
+                    "enum": [
+                        "casting",
+                        "profile"
+                    ]
+                }
+            }
+        },
         "github_com_mwork_mwork-api_internal_pkg_response.ErrorInfo": {
             "type": "object",
             "properties": {
@@ -6965,17 +8849,6 @@
                 }
             }
         },
-        "internal_domain_auth.ForgotPasswordRequest": {
-            "type": "object",
-            "required": [
-                "email"
-            ],
-            "properties": {
-                "email": {
-                    "type": "string"
-                }
-            }
-        },
         "internal_domain_auth.LoginRequest": {
             "type": "object",
             "required": [
@@ -7028,22 +8901,6 @@
                 }
             }
         },
-        "internal_domain_auth.ResetPasswordRequest": {
-            "type": "object",
-            "required": [
-                "new_password",
-                "token"
-            ],
-            "properties": {
-                "new_password": {
-                    "type": "string",
-                    "minLength": 6
-                },
-                "token": {
-                    "type": "string"
-                }
-            }
-        },
         "internal_domain_auth.TokensResponse": {
             "type": "object",
             "properties": {
@@ -7085,6 +8942,24 @@
                 }
             }
         },
+        "internal_domain_auth.VerifyConfirmBody": {
+            "type": "object",
+            "required": [
+                "code",
+                "email"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "example": "123456"
+                },
+                "email": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "example": "user@example.com"
+                }
+            }
+        },
         "internal_domain_auth.VerifyConfirmRequest": {
             "type": "object",
             "properties": {
@@ -7093,14 +8968,29 @@
                 }
             }
         },
-        "internal_domain_auth.VerifyEmailRequest": {
+        "internal_domain_auth.VerifyRequestBody": {
             "type": "object",
             "required": [
-                "code"
+                "email"
             ],
             "properties": {
-                "code": {
-                    "type": "string"
+                "email": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "example": "user@example.com"
+                }
+            }
+        },
+        "internal_domain_auth.VerifyRequestStatusData": {
+            "type": "object",
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "already_verified",
+                        "sent"
+                    ],
+                    "example": "sent"
                 }
             }
         },
@@ -7488,6 +9378,65 @@
                 }
             }
         },
+        "internal_domain_experience.CreateRequest": {
+            "type": "object",
+            "required": [
+                "title"
+            ],
+            "properties": {
+                "company": {
+                    "type": "string",
+                    "maxLength": 200
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 2000
+                },
+                "role": {
+                    "type": "string",
+                    "maxLength": 100
+                },
+                "title": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "minLength": 2
+                },
+                "year": {
+                    "type": "integer",
+                    "maximum": 2100,
+                    "minimum": 1900
+                }
+            }
+        },
+        "internal_domain_experience.Entity": {
+            "type": "object",
+            "properties": {
+                "company": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "profile_id": {
+                    "type": "string"
+                },
+                "role": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "year": {
+                    "type": "integer"
+                }
+            }
+        },
         "internal_domain_lead.AssignRequest": {
             "type": "object",
             "required": [
@@ -7714,6 +9663,91 @@
                         "rejected",
                         "lost"
                     ]
+                }
+            }
+        },
+        "internal_domain_moderation.BlockUserRequest": {
+            "type": "object",
+            "required": [
+                "user_id"
+            ],
+            "properties": {
+                "user_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_domain_moderation.CreateReportRequest": {
+            "type": "object",
+            "required": [
+                "reason",
+                "reported_user_id"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "maxLength": 1000
+                },
+                "message_id": {
+                    "type": "string"
+                },
+                "reason": {
+                    "enum": [
+                        "spam",
+                        "abuse",
+                        "scam",
+                        "nudity",
+                        "other"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/internal_domain_moderation.ReportReason"
+                        }
+                    ]
+                },
+                "reported_user_id": {
+                    "type": "string"
+                },
+                "room_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_domain_moderation.ReportReason": {
+            "type": "string",
+            "enum": [
+                "spam",
+                "abuse",
+                "scam",
+                "nudity",
+                "other"
+            ],
+            "x-enum-varnames": [
+                "ReportReasonSpam",
+                "ReportReasonAbuse",
+                "ReportReasonScam",
+                "ReportReasonNudity",
+                "ReportReasonOther"
+            ]
+        },
+        "internal_domain_moderation.ResolveReportRequest": {
+            "type": "object",
+            "required": [
+                "action"
+            ],
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": [
+                        "warn",
+                        "suspend",
+                        "delete",
+                        "dismiss"
+                    ]
+                },
+                "notes": {
+                    "type": "string",
+                    "maxLength": 1000
                 }
             }
         },
@@ -8070,6 +10104,150 @@
                 "StatusRefunded"
             ]
         },
+        "internal_domain_photo.ConfirmUploadRequest": {
+            "type": "object",
+            "required": [
+                "key",
+                "original_name"
+            ],
+            "properties": {
+                "brand": {
+                    "type": "string",
+                    "maxLength": 200
+                },
+                "caption": {
+                    "type": "string",
+                    "maxLength": 2000
+                },
+                "key": {
+                    "type": "string"
+                },
+                "original_name": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "project_name": {
+                    "type": "string",
+                    "maxLength": 200
+                },
+                "year": {
+                    "type": "integer",
+                    "maximum": 2100,
+                    "minimum": 1900
+                }
+            }
+        },
+        "internal_domain_photo.PhotoResponse": {
+            "type": "object",
+            "properties": {
+                "brand": {
+                    "type": "string"
+                },
+                "caption": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_avatar": {
+                    "type": "boolean"
+                },
+                "mime_type": {
+                    "type": "string"
+                },
+                "original_name": {
+                    "type": "string"
+                },
+                "profile_id": {
+                    "type": "string"
+                },
+                "project_name": {
+                    "type": "string"
+                },
+                "size_bytes": {
+                    "type": "integer"
+                },
+                "sort_order": {
+                    "type": "integer"
+                },
+                "thumbnail_url": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                },
+                "year": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_domain_photo.PresignRequest": {
+            "type": "object",
+            "required": [
+                "content_type",
+                "filename",
+                "size"
+            ],
+            "properties": {
+                "content_type": {
+                    "type": "string"
+                },
+                "filename": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 1
+                },
+                "size": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_domain_photo.ReorderRequest": {
+            "type": "object",
+            "required": [
+                "photo_ids"
+            ],
+            "properties": {
+                "photo_ids": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "internal_domain_photostudio_booking.CreateBookingRequest": {
+            "type": "object",
+            "required": [
+                "end_time",
+                "room_id",
+                "start_time",
+                "studio_id"
+            ],
+            "properties": {
+                "end_time": {
+                    "type": "string"
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "room_id": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "start_time": {
+                    "type": "string"
+                },
+                "studio_id": {
+                    "type": "integer",
+                    "minimum": 1
+                }
+            }
+        },
         "internal_domain_profile.CompletenessResponse": {
             "type": "object",
             "properties": {
@@ -8406,6 +10584,130 @@
                     "type": "number",
                     "maximum": 200,
                     "minimum": 30
+                }
+            }
+        },
+        "internal_domain_promotion.CreateRequest": {
+            "type": "object",
+            "required": [
+                "budget_amount",
+                "duration_days",
+                "title"
+            ],
+            "properties": {
+                "budget_amount": {
+                    "type": "integer",
+                    "minimum": 1000
+                },
+                "daily_budget": {
+                    "type": "integer",
+                    "minimum": 500
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 2000
+                },
+                "duration_days": {
+                    "type": "integer",
+                    "maximum": 90,
+                    "minimum": 1
+                },
+                "photo_url": {
+                    "type": "string"
+                },
+                "specialization": {
+                    "type": "string",
+                    "maxLength": 100
+                },
+                "target_audience": {
+                    "type": "string",
+                    "enum": [
+                        "employers",
+                        "agencies",
+                        "all"
+                    ]
+                },
+                "target_cities": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "title": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 5
+                }
+            }
+        },
+        "internal_domain_promotion.Response": {
+            "type": "object",
+            "properties": {
+                "budget_amount": {
+                    "type": "integer"
+                },
+                "clicks": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "ctr": {
+                    "type": "number"
+                },
+                "daily_budget": {
+                    "type": "integer"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "duration_days": {
+                    "type": "integer"
+                },
+                "ends_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "impressions": {
+                    "type": "integer"
+                },
+                "photo_url": {
+                    "type": "string"
+                },
+                "profile_id": {
+                    "type": "string"
+                },
+                "responses": {
+                    "type": "integer"
+                },
+                "specialization": {
+                    "type": "string"
+                },
+                "spent_amount": {
+                    "type": "integer"
+                },
+                "starts_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "target_audience": {
+                    "type": "string"
+                },
+                "target_cities": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "title": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
                 }
             }
         },
@@ -8878,49 +11180,6 @@
                 "valid": {
                     "description": "Valid is true if UUID is not NULL",
                     "type": "boolean"
-                }
-            }
-        },
-        "internal_domain_auth.VerifyRequestBody": {
-            "type": "object",
-            "required": [
-                "email"
-            ],
-            "properties": {
-                "email": {
-                    "type": "string",
-                    "example": "user@example.com"
-                }
-            }
-        },
-        "internal_domain_auth.VerifyConfirmBody": {
-            "type": "object",
-            "required": [
-                "code",
-                "email"
-            ],
-            "properties": {
-                "email": {
-                    "type": "string",
-                    "example": "user@example.com"
-                },
-                "code": {
-                    "type": "string",
-                    "pattern": "^\\d{6}$",
-                    "example": "123456"
-                }
-            }
-        },
-        "internal_domain_auth.VerifyRequestStatusData": {
-            "type": "object",
-            "properties": {
-                "status": {
-                    "type": "string",
-                    "enum": [
-                        "already_verified",
-                        "sent"
-                    ],
-                    "example": "sent"
                 }
             }
         }
