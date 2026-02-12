@@ -51,7 +51,7 @@ services:
     restart: "no"
 
   api:
-    image: mwork-backend-api:local
+    image: ghcr.io/kuanyshmaral/mwork-backend:latest
     depends_on:
       postgres:
         condition: service_healthy
