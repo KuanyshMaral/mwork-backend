@@ -239,15 +239,9 @@ definitions:
         maxLength: 128
         minLength: 8
         type: string
-      role:
-        enum:
-        - model
-        - employer
-        type: string
     required:
     - email
     - password
-    - role
     type: object
   internal_domain_auth.TokensResponse:
     properties:
@@ -2994,8 +2988,7 @@ paths:
     post:
       consumes:
       - application/json
-      description: Создает аккаунт для model/employer или agency в зависимости от
-        поля role.
+      description: Создает аккаунт для model.
       parameters:
       - description: Данные регистрации
         in: body
