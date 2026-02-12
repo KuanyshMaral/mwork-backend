@@ -59,13 +59,13 @@ type TokensResponse struct {
 }
 
 // NewUserResponse creates UserResponse from user data
-func NewUserResponse(id uuid.UUID, email, role string, emailVerified, isVerified bool, createdAt time.Time) UserResponse {
+func NewUserResponse(id uuid.UUID, email, role string, emailVerified bool, createdAt time.Time) UserResponse {
 	return UserResponse{
 		ID:            id,
 		Email:         email,
 		Role:          role,
 		EmailVerified: emailVerified,
-		IsVerified:    isVerified,
+		IsVerified:    emailVerified,
 		CreatedAt:     createdAt.Format(time.RFC3339),
 	}
 }

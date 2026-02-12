@@ -44,11 +44,9 @@ func (f *fakeUserRepo) Delete(ctx context.Context, id uuid.UUID) error { return 
 func (f *fakeUserRepo) UpdateEmailVerified(ctx context.Context, id uuid.UUID, verified bool) error {
 	if f.byEmail != nil && f.byEmail.ID == id {
 		f.byEmail.EmailVerified = verified
-		f.byEmail.IsVerified = verified
 	}
 	if f.byID != nil && f.byID.ID == id {
 		f.byID.EmailVerified = verified
-		f.byID.IsVerified = verified
 	}
 	return nil
 }
@@ -168,6 +166,34 @@ func TestRegisterSuccess(t *testing.T) {
 	}
 	if repo.created == nil {
 		t.Fatal("expected user to be created")
+	}
+	if repo.created.EmailVerified {
+		t.Fatal("expected new user email_verified=false")
+	}
+	if resp.User.EmailVerified {
+		t.Fatal("expected response email_verified=false")
+	}
+	if resp.User.IsVerified {
+		t.Fatal("expected response is_verified alias=false for unverified email")
+	}
+}
+
+func TestMarkEmailVerifiedDoesNotMutateLegacyIsVerified(t *testing.T) {
+	uid := uuid.New()
+	u := &user.User{ID: uid, Email: "mark@example.com", IsVerified: false}
+	repo := &fakeUserRepo{byID: u}
+	jwtService := jwt.NewService("secret", time.Minute, time.Hour)
+	svc := NewService(repo, &fakeModelProfileRepo{}, jwtService, newFakeRefreshRepo(), &fakeEmployerProfileRepo{}, nil, false, 50*time.Millisecond, nil, "pepper", false)
+
+	if err := svc.MarkEmailVerified(context.Background(), uid); err != nil {
+		t.Fatalf("mark email verified failed: %v", err)
+	}
+
+	if !u.EmailVerified {
+		t.Fatal("expected email_verified=true")
+	}
+	if u.IsVerified {
+		t.Fatal("expected legacy is_verified to remain unchanged")
 	}
 }
 

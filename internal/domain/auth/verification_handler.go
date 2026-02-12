@@ -45,7 +45,7 @@ type ResetPasswordRequest struct {
 	NewPassword string `json:"new_password" validate:"required,min=6"`
 }
 
-// SendVerification handles POST /auth/send-verification
+// SendVerification handles legacy email verification request flow.
 // @Summary Отправка кода верификации email
 // @Description Отправляет код подтверждения на email текущего пользователя.
 // @Tags Auth
@@ -55,7 +55,6 @@ type ResetPasswordRequest struct {
 // @Failure 401 {object} response.Response
 // @Failure 404 {object} response.Response
 // @Failure 500 {object} response.Response
-// @Router /auth/send-verification [post]
 // Sends a verification code to the authenticated user's email
 func (h *VerificationHandler) SendVerification(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
@@ -88,7 +87,7 @@ func (h *VerificationHandler) SendVerification(w http.ResponseWriter, r *http.Re
 	})
 }
 
-// VerifyEmail handles POST /auth/verify-email
+// VerifyEmail handles legacy email verification confirm flow.
 // @Summary Подтверждение email
 // @Description Проверяет код подтверждения и отмечает email как подтвержденный.
 // @Tags Auth
@@ -100,7 +99,6 @@ func (h *VerificationHandler) SendVerification(w http.ResponseWriter, r *http.Re
 // @Failure 400 {object} response.Response
 // @Failure 401 {object} response.Response
 // @Failure 500 {object} response.Response
-// @Router /auth/verify-email [post]
 // Verifies the email with the code
 func (h *VerificationHandler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())

@@ -349,7 +349,7 @@ func (s *Service) RequestVerificationCode(ctx context.Context, userID uuid.UUID)
 		return "", ErrUserNotFound
 	}
 
-	if u.IsVerified {
+	if u.EmailVerified {
 		return "already_verified", nil
 	}
 
@@ -470,7 +470,7 @@ func (s *Service) GetCurrentUser(ctx context.Context, userID uuid.UUID) (*UserRe
 		return nil, ErrUserNotFound
 	}
 
-	resp := NewUserResponse(u.ID, u.Email, string(u.Role), u.EmailVerified, u.IsVerified, u.CreatedAt)
+	resp := NewUserResponse(u.ID, u.Email, string(u.Role), u.EmailVerified, u.CreatedAt)
 	return &resp, nil
 }
 
@@ -510,7 +510,7 @@ func (s *Service) generateTokens(ctx context.Context, u *user.User) (*AuthRespon
 	}
 
 	return &AuthResponse{
-		User: NewUserResponse(u.ID, u.Email, string(u.Role), u.EmailVerified, u.IsVerified, u.CreatedAt),
+		User: NewUserResponse(u.ID, u.Email, string(u.Role), u.EmailVerified, u.CreatedAt),
 		Tokens: TokensResponse{
 			AccessToken:  accessToken,
 			RefreshToken: refreshToken, // return raw refresh to client

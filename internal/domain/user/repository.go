@@ -38,7 +38,7 @@ func NewRepository(db *sqlx.DB) Repository {
 func (r *repository) Create(ctx context.Context, user *User) error {
 	query := `
 		INSERT INTO users (id, email, password_hash, role, email_verified, is_verified, is_banned, credit_balance)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		VALUES ($1, $2, $3, $4, $5, false, $6, $7)
 	`
 
 	_, err := r.db.ExecContext(ctx, query,
@@ -47,7 +47,6 @@ func (r *repository) Create(ctx context.Context, user *User) error {
 		user.PasswordHash,
 		user.Role,
 		user.EmailVerified,
-		user.IsVerified,
 		user.IsBanned,
 		user.CreditBalance,
 	)
@@ -62,6 +61,7 @@ func (r *repository) Create(ctx context.Context, user *User) error {
 func (r *repository) GetByID(ctx context.Context, id uuid.UUID) (*User, error) {
 	query := `
 		SELECT id, email, password_hash, role, email_verified, is_verified, is_banned, credit_balance,
+		       user_verification_status,
 		       created_at, updated_at
 		FROM users WHERE id = $1
 	`
@@ -81,6 +81,7 @@ func (r *repository) GetByID(ctx context.Context, id uuid.UUID) (*User, error) {
 func (r *repository) GetByEmail(ctx context.Context, email string) (*User, error) {
 	query := `
 		SELECT id, email, password_hash, role, email_verified, is_verified, is_banned, credit_balance,
+		       user_verification_status,
 		       created_at, updated_at
 		FROM users WHERE email = $1
 	`
@@ -101,7 +102,7 @@ func (r *repository) Update(ctx context.Context, user *User) error {
 	query := `
 		UPDATE users 
 		SET email = $2, password_hash = $3, 
-		    role = $4, email_verified = $5, is_verified = $6, is_banned = $7, credit_balance = $8, updated_at = NOW()
+		    role = $4, email_verified = $5, is_banned = $6, credit_balance = $7, updated_at = NOW()
 		WHERE id = $1
 	`
 
@@ -111,7 +112,6 @@ func (r *repository) Update(ctx context.Context, user *User) error {
 		user.PasswordHash,
 		user.Role,
 		user.EmailVerified,
-		user.IsVerified,
 		user.IsBanned,
 		user.CreditBalance,
 	)
@@ -124,7 +124,7 @@ func (r *repository) Update(ctx context.Context, user *User) error {
 
 // UpdateEmailVerified updates email verified status
 func (r *repository) UpdateEmailVerified(ctx context.Context, id uuid.UUID, verified bool) error {
-	query := `UPDATE users SET email_verified = $2, is_verified = $2, updated_at = NOW() WHERE id = $1`
+	query := `UPDATE users SET email_verified = $2, updated_at = NOW() WHERE id = $1`
 	_, err := r.db.ExecContext(ctx, query, id, verified)
 	return err
 }
