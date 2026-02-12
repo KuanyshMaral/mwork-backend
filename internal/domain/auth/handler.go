@@ -3,7 +3,6 @@ package auth
 import (
 	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 
 	"github.com/mwork/mwork-api/internal/middleware"
@@ -24,7 +23,7 @@ func NewHandler(service *Service) *Handler {
 
 // Register handles POST /auth/register
 // @Summary Регистрация пользователя
-// @Description Создает аккаунт для model/employer или agency в зависимости от поля role.
+// @Description Создает аккаунт для model.
 // @Tags Auth
 // @Accept json
 // @Produce json
@@ -38,97 +37,36 @@ func NewHandler(service *Service) *Handler {
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	requestID := middleware.GetRequestID(r.Context())
 
-	// First, parse role to determine request type
-	var roleCheck struct {
-		Role string `json:"role"`
+	var req RegisterRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.BadRequest(w, "Invalid JSON body")
+		return
 	}
 
-	// Read body into buffer to parse twice
-	bodyBytes, err := io.ReadAll(r.Body)
+	// Validate request
+	if errors := validator.Validate(&req); errors != nil {
+		response.ErrorWithDetails(w, http.StatusBadRequest, "VALIDATION_ERROR", "Validation failed", errors)
+		return
+	}
+
+	// Register user
+	result, err := h.service.Register(r.Context(), &req)
 	if err != nil {
-		response.BadRequest(w, "Invalid JSON body")
+		switch {
+		case errors.Is(err, ErrEmailAlreadyExists):
+			response.Error(w, http.StatusConflict, "EMAIL_ALREADY_EXISTS", "Email already registered")
+		default:
+			log.Error().
+				Err(err).
+				Str("request_id", requestID).
+				Str("email", req.Email).
+				Msg("failed to register user")
+			response.InternalError(w)
+		}
 		return
 	}
 
-	// Parse role first
-	if err := json.Unmarshal(bodyBytes, &roleCheck); err != nil {
-		response.BadRequest(w, "Invalid JSON body")
-		return
-	}
-
-	// Role-based parsing and registration
-	switch roleCheck.Role {
-	case "agency":
-		var req AgencyRegisterRequest
-		if err := json.Unmarshal(bodyBytes, &req); err != nil {
-			response.BadRequest(w, "Invalid JSON body")
-			return
-		}
-
-		// Validate agency fields
-		if errors := validator.Validate(&req); errors != nil {
-			response.ErrorWithDetails(w, http.StatusBadRequest, "VALIDATION_ERROR", "Validation failed", errors)
-			return
-		}
-
-		// Register agency user
-		result, err := h.service.RegisterAgency(r.Context(), &req)
-		if err != nil {
-			switch {
-			case errors.Is(err, ErrEmailAlreadyExists):
-				response.Error(w, http.StatusConflict, "EMAIL_ALREADY_EXISTS", "Email already registered")
-			default:
-				log.Error().
-					Err(err).
-					Str("request_id", requestID).
-					Str("email", req.Email).
-					Str("role", "agency").
-					Msg("failed to register agency user")
-				response.InternalError(w)
-			}
-			return
-		}
-
-		response.Created(w, map[string]interface{}{"message": "Registered. Email code sent.", "data": result})
-
-	case "model", "employer":
-		var req RegisterRequest
-		if err := json.Unmarshal(bodyBytes, &req); err != nil {
-			response.BadRequest(w, "Invalid JSON body")
-			return
-		}
-
-		// Validate request
-		if errors := validator.Validate(&req); errors != nil {
-			response.ErrorWithDetails(w, http.StatusBadRequest, "VALIDATION_ERROR", "Validation failed", errors)
-			return
-		}
-
-		// Register user
-		result, err := h.service.Register(r.Context(), &req)
-		if err != nil {
-			switch {
-			case errors.Is(err, ErrEmailAlreadyExists):
-				response.Error(w, http.StatusConflict, "EMAIL_ALREADY_EXISTS", "Email already registered")
-			case errors.Is(err, ErrInvalidRole):
-				response.BadRequest(w, "Role must be 'model' or 'employer'")
-			default:
-				log.Error().
-					Err(err).
-					Str("request_id", requestID).
-					Str("email", req.Email).
-					Str("role", req.Role).
-					Msg("failed to register user")
-				response.InternalError(w)
-			}
-			return
-		}
-
-		response.Created(w, map[string]interface{}{"message": "Registered. Email code sent.", "data": result})
-
-	default:
-		response.BadRequest(w, "invalid role")
-	}
+	response.Created(w, map[string]interface{}{"message": "Registered. Email code sent.", "data": result})
 }
 
 // Login handles POST /auth/login

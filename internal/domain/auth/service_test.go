@@ -174,7 +174,7 @@ func TestRegisterSuccess(t *testing.T) {
 	jwtService := jwt.NewService("secret", time.Minute, time.Hour)
 	svc := NewService(repo, &fakeModelProfileRepo{}, jwtService, newFakeRefreshRepo(), &fakeEmployerProfileRepo{}, nil, false, 50*time.Millisecond, &fakeVerificationCodeRepo{}, "pepper", false, false, nil)
 
-	resp, err := svc.Register(context.Background(), &RegisterRequest{Email: "new@example.com", Password: "password123", Role: "model"})
+	resp, err := svc.Register(context.Background(), &RegisterRequest{Email: "new@example.com", Password: "password123"})
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -200,7 +200,7 @@ func TestRegisterMapsDuplicateEmailToDomainError(t *testing.T) {
 	jwtService := jwt.NewService("secret", time.Minute, time.Hour)
 	svc := NewService(repo, &fakeModelProfileRepo{}, jwtService, newFakeRefreshRepo(), &fakeEmployerProfileRepo{}, nil, false, 50*time.Millisecond, nil, "pepper", false, false, nil)
 
-	_, err := svc.Register(context.Background(), &RegisterRequest{Email: "duplicate@example.com", Password: "password123", Role: "model"})
+	_, err := svc.Register(context.Background(), &RegisterRequest{Email: "duplicate@example.com", Password: "password123"})
 	if !errors.Is(err, ErrEmailAlreadyExists) {
 		t.Fatalf("expected ErrEmailAlreadyExists, got %v", err)
 	}
@@ -213,7 +213,7 @@ func TestRegisterIgnoresPhotoStudioError(t *testing.T) {
 
 	svc := NewService(repo, &fakeModelProfileRepo{}, jwtService, newFakeRefreshRepo(), &fakeEmployerProfileRepo{}, &fakePhotoStudioClient{called: called, err: errors.New("boom")}, true, 50*time.Millisecond, &fakeVerificationCodeRepo{}, "test-pepper", false, false, nil)
 
-	resp, err := svc.Register(context.Background(), &RegisterRequest{Email: "user@example.com", Password: "password123", Role: "model"})
+	resp, err := svc.Register(context.Background(), &RegisterRequest{Email: "user@example.com", Password: "password123"})
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
