@@ -61,6 +61,14 @@ type repository struct {
 	db *sqlx.DB
 }
 
+const castingSelectColumns = `
+	id, creator_id, title, description, city, address,
+	pay_min, pay_max, pay_type, date_from, date_to,
+	requirements, status, is_promoted, view_count, response_count,
+	created_at, updated_at, moderation_status, required_models_count,
+	accepted_models_count, cover_image_url
+`
+
 // NewRepository creates new casting repository
 func NewRepository(db *sqlx.DB) Repository {
 	return &repository{db: db}
@@ -142,7 +150,7 @@ func mapCreateDBError(err error) error {
 
 func (r *repository) GetByID(ctx context.Context, id uuid.UUID) (*Casting, error) {
 	query := `
-		SELECT * FROM castings
+		SELECT ` + castingSelectColumns + ` FROM castings
 		WHERE id = $1 AND status != 'deleted'
 	`
 
@@ -175,6 +183,7 @@ func (r *repository) Update(ctx context.Context, casting *Casting) error {
 		casting.Title, casting.Description, casting.City, casting.Address,
 		casting.PayMin, casting.PayMax, casting.PayType,
 		casting.DateFrom, casting.DateTo,
+		casting.CoverImageURL,
 		casting.Requirements, casting.Status,
 	)
 	if err != nil {
@@ -269,10 +278,10 @@ func (r *repository) List(ctx context.Context, filter *Filter, sortBy SortBy, pa
 	// Get castings with pagination
 	offset := (pagination.Page - 1) * pagination.Limit
 	query := fmt.Sprintf(`
-		SELECT * FROM castings c
+		SELECT %s FROM castings c
 		%s %s
 		LIMIT $%d OFFSET $%d
-	`, where, orderBy, argIndex, argIndex+1)
+	`, castingSelectColumns, where, orderBy, argIndex, argIndex+1)
 	args = append(args, pagination.Limit, offset)
 
 	var castings []*Casting
@@ -351,7 +360,7 @@ func (r *repository) ListByCreator(ctx context.Context, creatorID uuid.UUID, pag
 	// List
 	offset := (pagination.Page - 1) * pagination.Limit
 	query := `
-		SELECT * FROM castings 
+		SELECT ` + castingSelectColumns + ` FROM castings 
 		WHERE creator_id = $1 AND status != 'deleted'
 		ORDER BY created_at DESC
 		LIMIT $2 OFFSET $3
