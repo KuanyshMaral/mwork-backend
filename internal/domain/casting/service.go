@@ -133,7 +133,12 @@ func (s *Service) Create(ctx context.Context, userID uuid.UUID, req *CreateCasti
 	if !u.CanCreateCasting() {
 		return nil, ErrOnlyEmployersCanCreate
 	}
-	if (u.Role == user.RoleEmployer || u.Role == user.RoleAgency) && !u.IsVerificationApproved() {
+	requestedStatus := StatusActive
+	if req.Status != "" {
+		requestedStatus = Status(req.Status)
+	}
+
+	if (u.Role == user.RoleEmployer || u.Role == user.RoleAgency) && !u.IsVerificationApproved() && requestedStatus != StatusDraft {
 		return nil, ErrEmployerNotVerified
 	}
 
