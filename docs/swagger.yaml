@@ -1,5 +1,18 @@
 basePath: /api/v1
 definitions:
+  favorite.AddRequest:
+    properties:
+      entity_id:
+        type: string
+      entity_type:
+        enum:
+        - casting
+        - profile
+        type: string
+    required:
+    - entity_id
+    - entity_type
+    type: object
   github_com_mwork_mwork-api_internal_pkg_response.ErrorInfo:
     properties:
       code:
@@ -200,13 +213,6 @@ definitions:
       user:
         $ref: '#/definitions/internal_domain_auth.UserResponse'
     type: object
-  internal_domain_auth.ForgotPasswordRequest:
-    properties:
-      email:
-        type: string
-    required:
-    - email
-    type: object
   internal_domain_auth.LoginRequest:
     properties:
       email:
@@ -243,17 +249,6 @@ definitions:
     - password
     - role
     type: object
-  internal_domain_auth.ResetPasswordRequest:
-    properties:
-      new_password:
-        minLength: 6
-        type: string
-      token:
-        type: string
-    required:
-    - new_password
-    - token
-    type: object
   internal_domain_auth.TokensResponse:
     properties:
       access_token:
@@ -281,28 +276,29 @@ definitions:
       role:
         type: string
     type: object
-  internal_domain_auth.VerifyConfirmRequest:
-    properties:
-      code:
-        type: string
-    type: object
   internal_domain_auth.VerifyConfirmBody:
     properties:
       code:
         example: "123456"
-        pattern: ^\d{6}$
         type: string
       email:
         example: user@example.com
+        maxLength: 255
         type: string
     required:
     - code
     - email
     type: object
+  internal_domain_auth.VerifyConfirmRequest:
+    properties:
+      code:
+        type: string
+    type: object
   internal_domain_auth.VerifyRequestBody:
     properties:
       email:
         example: user@example.com
+        maxLength: 255
         type: string
     required:
     - email
@@ -315,13 +311,6 @@ definitions:
         - sent
         example: sent
         type: string
-    type: object
-  internal_domain_auth.VerifyEmailRequest:
-    properties:
-      code:
-        type: string
-    required:
-    - code
     type: object
   internal_domain_casting.CastingResponse:
     properties:
@@ -584,6 +573,47 @@ definitions:
     required:
     - content
     type: object
+  internal_domain_experience.CreateRequest:
+    properties:
+      company:
+        maxLength: 200
+        type: string
+      description:
+        maxLength: 2000
+        type: string
+      role:
+        maxLength: 100
+        type: string
+      title:
+        maxLength: 200
+        minLength: 2
+        type: string
+      year:
+        maximum: 2100
+        minimum: 1900
+        type: integer
+    required:
+    - title
+    type: object
+  internal_domain_experience.Entity:
+    properties:
+      company:
+        type: string
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      profile_id:
+        type: string
+      role:
+        type: string
+      title:
+        type: string
+      year:
+        type: integer
+    type: object
   internal_domain_lead.AssignRequest:
     properties:
       admin_id:
@@ -746,6 +776,66 @@ definitions:
         type: string
     required:
     - status
+    type: object
+  internal_domain_moderation.BlockUserRequest:
+    properties:
+      user_id:
+        type: string
+    required:
+    - user_id
+    type: object
+  internal_domain_moderation.CreateReportRequest:
+    properties:
+      description:
+        maxLength: 1000
+        type: string
+      message_id:
+        type: string
+      reason:
+        allOf:
+        - $ref: '#/definitions/internal_domain_moderation.ReportReason'
+        enum:
+        - spam
+        - abuse
+        - scam
+        - nudity
+        - other
+      reported_user_id:
+        type: string
+      room_id:
+        type: string
+    required:
+    - reason
+    - reported_user_id
+    type: object
+  internal_domain_moderation.ReportReason:
+    enum:
+    - spam
+    - abuse
+    - scam
+    - nudity
+    - other
+    type: string
+    x-enum-varnames:
+    - ReportReasonSpam
+    - ReportReasonAbuse
+    - ReportReasonScam
+    - ReportReasonNudity
+    - ReportReasonOther
+  internal_domain_moderation.ResolveReportRequest:
+    properties:
+      action:
+        enum:
+        - warn
+        - suspend
+        - delete
+        - dismiss
+        type: string
+      notes:
+        maxLength: 1000
+        type: string
+    required:
+    - action
     type: object
   internal_domain_notification.ChannelSettings:
     properties:
@@ -984,6 +1074,106 @@ definitions:
     - StatusCompleted
     - StatusFailed
     - StatusRefunded
+  internal_domain_photo.ConfirmUploadRequest:
+    properties:
+      brand:
+        maxLength: 200
+        type: string
+      caption:
+        maxLength: 2000
+        type: string
+      key:
+        type: string
+      original_name:
+        maxLength: 255
+        type: string
+      project_name:
+        maxLength: 200
+        type: string
+      year:
+        maximum: 2100
+        minimum: 1900
+        type: integer
+    required:
+    - key
+    - original_name
+    type: object
+  internal_domain_photo.PhotoResponse:
+    properties:
+      brand:
+        type: string
+      caption:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      is_avatar:
+        type: boolean
+      mime_type:
+        type: string
+      original_name:
+        type: string
+      profile_id:
+        type: string
+      project_name:
+        type: string
+      size_bytes:
+        type: integer
+      sort_order:
+        type: integer
+      thumbnail_url:
+        type: string
+      url:
+        type: string
+      year:
+        type: integer
+    type: object
+  internal_domain_photo.PresignRequest:
+    properties:
+      content_type:
+        type: string
+      filename:
+        maxLength: 255
+        minLength: 1
+        type: string
+      size:
+        type: integer
+    required:
+    - content_type
+    - filename
+    - size
+    type: object
+  internal_domain_photo.ReorderRequest:
+    properties:
+      photo_ids:
+        items:
+          type: string
+        minItems: 1
+        type: array
+    required:
+    - photo_ids
+    type: object
+  internal_domain_photostudio_booking.CreateBookingRequest:
+    properties:
+      end_time:
+        type: string
+      notes:
+        type: string
+      room_id:
+        minimum: 1
+        type: integer
+      start_time:
+        type: string
+      studio_id:
+        minimum: 1
+        type: integer
+    required:
+    - end_time
+    - room_id
+    - start_time
+    - studio_id
+    type: object
   internal_domain_profile.CompletenessResponse:
     properties:
       missing_fields:
@@ -1219,6 +1409,92 @@ definitions:
         maximum: 200
         minimum: 30
         type: number
+    type: object
+  internal_domain_promotion.CreateRequest:
+    properties:
+      budget_amount:
+        minimum: 1000
+        type: integer
+      daily_budget:
+        minimum: 500
+        type: integer
+      description:
+        maxLength: 2000
+        type: string
+      duration_days:
+        maximum: 90
+        minimum: 1
+        type: integer
+      photo_url:
+        type: string
+      specialization:
+        maxLength: 100
+        type: string
+      target_audience:
+        enum:
+        - employers
+        - agencies
+        - all
+        type: string
+      target_cities:
+        items:
+          type: string
+        type: array
+      title:
+        maxLength: 255
+        minLength: 5
+        type: string
+    required:
+    - budget_amount
+    - duration_days
+    - title
+    type: object
+  internal_domain_promotion.Response:
+    properties:
+      budget_amount:
+        type: integer
+      clicks:
+        type: integer
+      created_at:
+        type: string
+      ctr:
+        type: number
+      daily_budget:
+        type: integer
+      description:
+        type: string
+      duration_days:
+        type: integer
+      ends_at:
+        type: string
+      id:
+        type: string
+      impressions:
+        type: integer
+      photo_url:
+        type: string
+      profile_id:
+        type: string
+      responses:
+        type: integer
+      specialization:
+        type: string
+      spent_amount:
+        type: integer
+      starts_at:
+        type: string
+      status:
+        type: string
+      target_audience:
+        type: string
+      target_cities:
+        items:
+          type: string
+        type: array
+      title:
+        type: string
+      updated_at:
+        type: string
     type: object
   internal_domain_response.ApplyRequest:
     properties:
@@ -1699,6 +1975,32 @@ paths:
       security:
       - BearerAuth: []
       summary: Выручка
+      tags:
+      - Admin Analytics
+  /admin/analytics/stats:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Статистика админ-панели
       tags:
       - Admin Analytics
   /admin/audit/logs:
@@ -2225,15 +2527,15 @@ paths:
   /admin/reports:
     get:
       parameters:
-      - description: Страница
-        in: query
-        name: page
-        type: integer
       - description: Лимит
         in: query
         name: limit
         type: integer
-      - description: Статус
+      - description: Смещение
+        in: query
+        name: offset
+        type: integer
+      - description: Статус (pending|resolved|rejected)
         in: query
         name: status
         type: string
@@ -2243,21 +2545,80 @@ paths:
         "200":
           description: OK
           schema:
-            allOf:
-            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-            - properties:
-                data:
-                  $ref: '#/definitions/internal_domain_admin.ListReportsResponse'
-              type: object
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
       security:
       - BearerAuth: []
-      summary: Список репортов
+      summary: Все жалобы (админ)
       tags:
-      - Admin Reports
+      - Moderation Admin
+  /admin/reports/{id}/resolve:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID жалобы
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Решение жалобы
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_domain_moderation.ResolveReportRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Разрешить жалобу (админ)
+      tags:
+      - Moderation Admin
   /admin/reports/{id}/status:
     patch:
       consumes:
@@ -2543,9 +2904,10 @@ paths:
           schema:
             $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
         "403":
-          description: Forbidden
+          description: EMAIL_NOT_VERIFIED
           schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            additionalProperties: true
+            type: object
         "422":
           description: Unprocessable Entity
           schema:
@@ -2651,7 +3013,8 @@ paths:
             - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
             - properties:
                 data:
-                  $ref: '#/definitions/internal_domain_auth.AuthResponse'
+                  additionalProperties: true
+                  type: object
               type: object
         "400":
           description: Bad Request
@@ -2694,6 +3057,7 @@ paths:
             - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
             - properties:
                 data:
+                  additionalProperties: true
                   type: object
               type: object
         "400":
@@ -2711,7 +3075,8 @@ paths:
     post:
       consumes:
       - application/json
-      description: Отправляет код верификации по email без раскрытия существования пользователя.
+      description: Отправляет код верификации по email без раскрытия существования
+        пользователя.
       parameters:
       - description: Email
         in: body
@@ -3507,6 +3872,262 @@ paths:
       summary: Количество непрочитанных сообщений
       tags:
       - Chat
+  /dashboard/employer/stats:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  additionalProperties: true
+                  type: object
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Статистика работодателя
+      tags:
+      - Dashboard
+  /dashboard/model/stats:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Статистика модели
+      tags:
+      - Dashboard
+  /faq:
+    get:
+      parameters:
+      - description: Категория
+        in: query
+        name: category
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  additionalProperties: true
+                  type: object
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      summary: Список часто задаваемых вопросов
+      tags:
+      - FAQ
+  /faq/categories:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  items:
+                    type: string
+                  type: array
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      summary: Список категорий вопросов
+      tags:
+      - FAQ
+  /favorites:
+    get:
+      parameters:
+      - description: Тип фильтра (casting|profile)
+        in: query
+        name: type
+        type: string
+      - description: Лимит
+        in: query
+        name: limit
+        type: integer
+      - description: Смещение
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  additionalProperties: true
+                  type: object
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Список избранного
+      tags:
+      - Favorite
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Данные избранного
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/favorite.AddRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Добавить в избранное
+      tags:
+      - Favorite
+  /favorites/{type}/{id}:
+    delete:
+      parameters:
+      - description: Тип сущности (casting|profile)
+        in: path
+        name: type
+        required: true
+        type: string
+      - description: ID сущности
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Удалить из избранного
+      tags:
+      - Favorite
+  /favorites/{type}/{id}/check:
+    get:
+      parameters:
+      - description: Тип сущности (casting|profile)
+        in: path
+        name: type
+        required: true
+        type: string
+      - description: ID сущности
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  additionalProperties:
+                    type: boolean
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Проверить наличие в избранном
+      tags:
+      - Favorite
   /leads/employer:
     post:
       consumes:
@@ -3546,6 +4167,166 @@ paths:
       summary: Создание лида работодателя
       tags:
       - Leads
+  /moderation/block:
+    delete:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID пользователя для разблокировки
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_domain_moderation.BlockUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Разблокировать пользователя
+      tags:
+      - Moderation
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID пользователя для блокировки
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_domain_moderation.BlockUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Заблокировать пользователя
+      tags:
+      - Moderation
+  /moderation/blocks:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Список заблокированных пользователей
+      tags:
+      - Moderation
+  /moderation/report:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Данные жалобы
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_domain_moderation.CreateReportRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Создать жалобу
+      tags:
+      - Moderation
+  /moderation/reports/mine:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Мои жалобы
+      tags:
+      - Moderation
   /notifications:
     get:
       parameters:
@@ -4305,6 +5086,222 @@ paths:
       summary: Страница успешной оплаты Robokassa
       tags:
       - Payment
+  /photos:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Данные загрузки
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_domain_photo.ConfirmUploadRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_domain_photo.PhotoResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Подтвердить загрузку фото
+      tags:
+      - Photo
+  /photos/{id}:
+    delete:
+      parameters:
+      - description: ID фото
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Удалить фото
+      tags:
+      - Photo
+  /photos/{id}/avatar:
+    patch:
+      parameters:
+      - description: ID фото
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_domain_photo.PhotoResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Установить аватар профиля
+      tags:
+      - Photo
+  /photos/reorder:
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Новый порядок фото
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_domain_photo.ReorderRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Изменить порядок фото
+      tags:
+      - Photo
+  /photostudio/bookings:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Данные бронирования
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_domain_photostudio_booking.CreateBookingRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Создать бронирование фотостудии
+      tags:
+      - PhotoStudio
+  /photostudio/studios:
+    get:
+      parameters:
+      - description: Город
+        in: query
+        name: city
+        type: string
+      - description: Страница
+        in: query
+        name: page
+        type: integer
+      - description: Лимит
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      summary: Список фотостудий
+      tags:
+      - PhotoStudio
   /profiles/{id}/completeness:
     get:
       parameters:
@@ -4336,6 +5333,173 @@ paths:
       summary: Полнота профиля модели
       tags:
       - Profile
+  /profiles/{id}/experience:
+    get:
+      parameters:
+      - description: ID профиля
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/internal_domain_experience.Entity'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      summary: Список опыта работы профиля
+      tags:
+      - Experience
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID профиля
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Данные опыта
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_domain_experience.CreateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_domain_experience.Entity'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Добавить опыт работы
+      tags:
+      - Experience
+  /profiles/{id}/experience/{expId}:
+    delete:
+      parameters:
+      - description: ID профиля
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: ID опыта
+        in: path
+        name: expId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Удалить опыт работы
+      tags:
+      - Experience
+  /profiles/{id}/photos:
+    get:
+      parameters:
+      - description: ID профиля
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/internal_domain_photo.PhotoResponse'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      summary: Список фото профиля
+      tags:
+      - Photo
   /profiles/{id}/reviews:
     get:
       parameters:
@@ -4787,6 +5951,230 @@ paths:
       summary: Список продвигаемых моделей
       tags:
       - Profile
+  /promotions:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  additionalProperties: true
+                  type: object
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Список промоций пользователя
+      tags:
+      - Promotion
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Данные промоции
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_domain_promotion.CreateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_domain_promotion.Response'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Создать промоцию
+      tags:
+      - Promotion
+  /promotions/{id}:
+    get:
+      parameters:
+      - description: ID промоции
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_domain_promotion.Response'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      summary: Получить промоцию
+      tags:
+      - Promotion
+  /promotions/{id}/activate:
+    post:
+      parameters:
+      - description: ID промоции
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_domain_promotion.Response'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Активировать промоцию
+      tags:
+      - Promotion
+  /promotions/{id}/pause:
+    post:
+      parameters:
+      - description: ID промоции
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_domain_promotion.Response'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Паузировать промоцию
+      tags:
+      - Promotion
+  /promotions/{id}/stats:
+    get:
+      parameters:
+      - description: ID промоции
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Статистика промоции
+      tags:
+      - Promotion
   /responses/{id}/status:
     patch:
       consumes:
@@ -5476,6 +6864,41 @@ paths:
       summary: Инициализировать загрузку файла
       tags:
       - Upload
+  /uploads/presign:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Параметры загрузки
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_domain_photo.PresignRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Получить presigned URL для загрузки фото
+      tags:
+      - Photo
   /uploads/stage:
     post:
       consumes:
