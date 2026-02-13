@@ -47,14 +47,15 @@ func (r *repository) Create(ctx context.Context, response *Response) error {
 	defer tx.Rollback()
 
 	query := `
-		INSERT INTO casting_responses (id, casting_id, model_id, message, proposed_rate, status)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO casting_responses (id, casting_id, model_id, user_id, message, proposed_rate, status)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`
 
 	_, err = tx.ExecContext(ctx, query,
 		response.ID,
 		response.CastingID,
 		response.ModelID,
+		response.UserID,
 		response.Message,
 		response.ProposedRate,
 		response.Status,
