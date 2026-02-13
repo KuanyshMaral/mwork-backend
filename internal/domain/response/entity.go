@@ -27,6 +27,7 @@ type Response struct {
 	// References
 	CastingID uuid.UUID `db:"casting_id"`
 	ModelID   uuid.UUID `db:"model_id"` // FK to model_profiles
+	UserID    uuid.UUID `db:"user_id"`
 
 	// Application details
 	Message      sql.NullString  `db:"message"`
