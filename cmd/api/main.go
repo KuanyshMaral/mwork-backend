@@ -286,7 +286,7 @@ func main() {
 	savedCastingsHandler := casting.NewSavedCastingsHandler(db)
 	socialLinksHandler := profile.NewSocialLinksHandler(db, modelRepo)
 	reviewRepo := review.NewRepository(db)
-	reviewHandler := review.NewHandler(reviewRepo)
+	reviewHandler := review.NewHandler(reviewRepo, modelRepo)
 	faqHandler := content.NewFAQHandler(db)
 
 	creditHandler := admin.NewCreditHandler(creditService, adminService)
