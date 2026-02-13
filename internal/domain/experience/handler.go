@@ -24,6 +24,29 @@ func NewHandler(repo Repository, profileRepo profile.ModelRepository) *Handler {
 	return &Handler{repo: repo, profileRepo: profileRepo}
 }
 
+func (h *Handler) resolveProfileByPathID(r *http.Request) (*profile.ModelProfile, error) {
+	profileIDStr := chi.URLParam(r, "id")
+	if profileIDStr == "" {
+		return nil, nil
+	}
+
+	id, err := uuid.Parse(profileIDStr)
+	if err != nil {
+		return nil, err
+	}
+
+	p, err := h.profileRepo.GetByID(r.Context(), id)
+	if err != nil {
+		return nil, err
+	}
+	if p != nil {
+		return p, nil
+	}
+
+	// Backward compatibility: some clients send user_id in {id}.
+	return h.profileRepo.GetByUserID(r.Context(), id)
+}
+
 // Create adds new work experience
 // @Summary Добавить опыт работы
 // @Tags Experience
@@ -55,20 +78,13 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	profileIDStr := chi.URLParam(r, "id")
-	if profileIDStr == "" {
-		response.BadRequest(w, "Missing profile ID")
-		return
-	}
-
-	profileID, err := uuid.Parse(profileIDStr)
+	p, err := h.resolveProfileByPathID(r)
 	if err != nil {
 		response.BadRequest(w, "Invalid profile ID")
 		return
 	}
 
-	p, err := h.profileRepo.GetByID(r.Context(), profileID)
-	if err != nil || p == nil {
+	if p == nil {
 		response.NotFound(w, "Profile not found")
 		return
 	}
@@ -83,7 +99,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 
 	// Create entity from request
 	exp := &Entity{
-		ProfileID:   profileIDStr,
+		ProfileID:   p.ID.String(),
 		Title:       req.Title,
 		Company:     req.Company,
 		Role:        req.Role,
@@ -109,14 +125,18 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 // @Failure 400,500 {object} response.Response
 // @Router /profiles/{id}/experience [get]
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
-	profileID := chi.URLParam(r, "id")
-	if profileID == "" {
-		response.BadRequest(w, "Missing profile ID")
+	p, err := h.resolveProfileByPathID(r)
+	if err != nil {
+		response.BadRequest(w, "Invalid profile ID")
+		return
+	}
+	if p == nil {
+		response.NotFound(w, "Profile not found")
 		return
 	}
 
 	// Get experiences
-	experiences, err := h.repo.ListByProfileID(r.Context(), profileID)
+	experiences, err := h.repo.ListByProfileID(r.Context(), p.ID.String())
 	if err != nil {
 		response.InternalError(w)
 		return
