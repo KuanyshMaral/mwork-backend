@@ -185,7 +185,7 @@ func (h *Handler) Activate(w http.ResponseWriter, r *http.Request) {
 	now := time.Now()
 	startsAt := sql.NullTime{Time: now, Valid: true}
 	endsAt := sql.NullTime{Time: now.AddDate(0, 0, promo.DurationDays), Valid: true}
-	paymentID := uuid.New()
+	var paymentID *uuid.UUID
 
 	if err := h.repo.Activate(r.Context(), id, startsAt, endsAt, paymentID); err != nil {
 		response.InternalError(w)

@@ -138,7 +138,7 @@ func (r *Repository) UpdateStatus(ctx context.Context, id uuid.UUID, status Stat
 }
 
 // Activate activates a promotion with start/end times
-func (r *Repository) Activate(ctx context.Context, id uuid.UUID, startsAt, endsAt sql.NullTime, paymentID uuid.UUID) error {
+func (r *Repository) Activate(ctx context.Context, id uuid.UUID, startsAt, endsAt sql.NullTime, paymentID *uuid.UUID) error {
 	query := `
 		UPDATE profile_promotions 
 		SET status = 'active', starts_at = $2, ends_at = $3, payment_id = $4, updated_at = NOW()
