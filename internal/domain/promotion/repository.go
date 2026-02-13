@@ -3,6 +3,7 @@ package promotion
 import (
 	"context"
 	"database/sql"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
@@ -65,11 +66,12 @@ func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (*Promotion, err
 	var targetCities pq.StringArray
 
 	row := r.db.QueryRowContext(ctx, query, id)
+	var paymentID sql.NullString
 	err := row.Scan(
 		&p.ID, &p.ProfileID, &p.Title, &p.Description, &p.PhotoURL, &p.Specialization,
 		&p.TargetAudience, &targetCities, &p.BudgetAmount, &p.DailyBudget,
 		&p.DurationDays, &p.Status, &p.StartsAt, &p.EndsAt, &p.Impressions, &p.Clicks,
-		&p.Responses, &p.SpentAmount, &p.PaymentID, &p.CreatedAt, &p.UpdatedAt,
+		&p.Responses, &p.SpentAmount, &paymentID, &p.CreatedAt, &p.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, ErrPromotionNotFound
@@ -79,6 +81,13 @@ func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (*Promotion, err
 	}
 
 	p.TargetCities = targetCities
+	if paymentID.Valid {
+		parsedPaymentID, parseErr := uuid.Parse(strings.TrimSpace(paymentID.String))
+		if parseErr != nil {
+			return nil, parseErr
+		}
+		p.PaymentID = &parsedPaymentID
+	}
 	return &p, nil
 }
 
@@ -104,18 +113,26 @@ func (r *Repository) GetByProfileID(ctx context.Context, profileID uuid.UUID) ([
 	for rows.Next() {
 		var p Promotion
 		var targetCities pq.StringArray
+		var paymentID sql.NullString
 
 		err := rows.Scan(
 			&p.ID, &p.ProfileID, &p.Title, &p.Description, &p.PhotoURL, &p.Specialization,
 			&p.TargetAudience, &targetCities, &p.BudgetAmount, &p.DailyBudget,
 			&p.DurationDays, &p.Status, &p.StartsAt, &p.EndsAt, &p.Impressions, &p.Clicks,
-			&p.Responses, &p.SpentAmount, &p.PaymentID, &p.CreatedAt, &p.UpdatedAt,
+			&p.Responses, &p.SpentAmount, &paymentID, &p.CreatedAt, &p.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err
 		}
 
 		p.TargetCities = targetCities
+		if paymentID.Valid {
+			parsedPaymentID, parseErr := uuid.Parse(strings.TrimSpace(paymentID.String))
+			if parseErr != nil {
+				return nil, parseErr
+			}
+			p.PaymentID = &parsedPaymentID
+		}
 		promotions = append(promotions, p)
 	}
 
@@ -207,18 +224,26 @@ func (r *Repository) GetActivePromotions(ctx context.Context) ([]Promotion, erro
 	for rows.Next() {
 		var p Promotion
 		var targetCities pq.StringArray
+		var paymentID sql.NullString
 
 		err := rows.Scan(
 			&p.ID, &p.ProfileID, &p.Title, &p.Description, &p.PhotoURL, &p.Specialization,
 			&p.TargetAudience, &targetCities, &p.BudgetAmount, &p.DailyBudget,
 			&p.DurationDays, &p.Status, &p.StartsAt, &p.EndsAt, &p.Impressions, &p.Clicks,
-			&p.Responses, &p.SpentAmount, &p.PaymentID, &p.CreatedAt, &p.UpdatedAt,
+			&p.Responses, &p.SpentAmount, &paymentID, &p.CreatedAt, &p.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err
 		}
 
 		p.TargetCities = targetCities
+		if paymentID.Valid {
+			parsedPaymentID, parseErr := uuid.Parse(strings.TrimSpace(paymentID.String))
+			if parseErr != nil {
+				return nil, parseErr
+			}
+			p.PaymentID = &parsedPaymentID
+		}
 		promotions = append(promotions, p)
 	}
 
