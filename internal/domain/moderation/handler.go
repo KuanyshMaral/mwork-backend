@@ -98,7 +98,6 @@ func (h *Handler) UnblockUser(w http.ResponseWriter, r *http.Request) {
 	response.OK(w, map[string]string{"message": "User unblocked successfully"})
 }
 
-
 // @Summary Список заблокированных пользователей
 // @Tags Moderation
 // @Produce json
@@ -119,7 +118,6 @@ func (h *Handler) ListBlocks(w http.ResponseWriter, r *http.Request) {
 
 	response.OK(w, blocks)
 }
-
 
 // @Summary Создать жалобу
 // @Tags Moderation

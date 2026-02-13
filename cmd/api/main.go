@@ -360,6 +360,13 @@ func main() {
 
 		r.Mount("/auth", authHandler.Routes(authWithVerifiedEmailMiddleware))
 		r.Mount("/profiles", profileHandler.Routes(authWithVerifiedEmailMiddleware))
+		mountProfileExperienceRoutes(
+			r,
+			authWithVerifiedEmailMiddleware,
+			experienceHandler.List,
+			experienceHandler.Create,
+			experienceHandler.Delete,
+		)
 		r.Mount("/castings", castingHandler.Routes(authWithVerifiedEmailMiddleware))
 
 		r.Route("/castings/saved", func(r chi.Router) {
@@ -407,8 +414,6 @@ func main() {
 		})
 
 		r.Get("/profiles/{id}/photos", photoHandler.ListByProfile)
-
-		r.Mount("/profiles", experienceHandler.Routes(authWithVerifiedEmailMiddleware))
 
 		r.Route("/profiles/{id}/social-links", func(r chi.Router) {
 			r.Get("/", socialLinksHandler.List)
@@ -496,6 +501,18 @@ func main() {
 	}
 
 	log.Info().Msg("Server exited properly")
+}
+
+func mountProfileExperienceRoutes(
+	r chi.Router,
+	authMiddleware func(http.Handler) http.Handler,
+	listHandler http.HandlerFunc,
+	createHandler http.HandlerFunc,
+	deleteHandler http.HandlerFunc,
+) {
+	r.Get("/profiles/{id}/experience", listHandler)
+	r.With(authMiddleware).Post("/profiles/{id}/experience", createHandler)
+	r.With(authMiddleware).Delete("/profiles/{id}/experience/{expId}", deleteHandler)
 }
 
 // authModelProfileAdapter adapts profile.ModelRepository to auth.ModelProfileRepository
