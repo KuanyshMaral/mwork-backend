@@ -24,6 +24,7 @@ import (
 	"github.com/mwork/mwork-api/internal/domain/credit"
 	"github.com/mwork/mwork-api/internal/domain/dashboard"
 	"github.com/mwork/mwork-api/internal/domain/experience"
+	"github.com/mwork/mwork-api/internal/domain/favorite"
 	"github.com/mwork/mwork-api/internal/domain/lead"
 	"github.com/mwork/mwork-api/internal/domain/moderation"
 	"github.com/mwork/mwork-api/internal/domain/notification"
@@ -121,6 +122,7 @@ func main() {
 	dashboardRepo := dashboard.NewRepository(db)
 	dashboardSvc := dashboard.NewService(db)
 	promotionRepo := promotion.NewRepository(db)
+	favoriteRepo := favorite.NewRepository(db)
 
 	// ---------- Upload domain (2-phase) ----------
 	// R2 storage client (presign/move/exists)
@@ -282,6 +284,7 @@ func main() {
 
 	dashboardHandler := dashboard.NewHandler(dashboardRepo, dashboardSvc)
 	promotionHandler := promotion.NewHandler(promotionRepo)
+	favoriteHandler := favorite.NewHandler(favoriteRepo)
 
 	savedCastingsHandler := casting.NewSavedCastingsHandler(db)
 	socialLinksHandler := profile.NewSocialLinksHandler(db, modelRepo)
@@ -449,6 +452,7 @@ func main() {
 
 		r.Mount("/dashboard", dashboard.Routes(dashboardHandler, authWithVerifiedEmailMiddleware))
 		r.Mount("/promotions", promotion.Routes(promotionHandler, authWithVerifiedEmailMiddleware))
+		r.Mount("/favorites", favorite.Routes(favoriteHandler, authWithVerifiedEmailMiddleware))
 		r.Mount("/reviews", review.Routes(reviewHandler, authWithVerifiedEmailMiddleware))
 		r.Mount("/faq", faqHandler.Routes())
 
