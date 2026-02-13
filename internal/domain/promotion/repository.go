@@ -20,6 +20,24 @@ func NewRepository(db *sqlx.DB) *Repository {
 	return &Repository{db: db}
 }
 
+// GetProfileIDByUserID returns profile ID for authenticated user
+func (r *Repository) GetProfileIDByUserID(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
+	var profileID uuid.UUID
+	err := r.db.GetContext(ctx, &profileID, `
+		SELECT id
+		FROM profiles
+		WHERE user_id = $1
+	`, userID)
+	if err == sql.ErrNoRows {
+		return uuid.Nil, ErrProfileNotFound
+	}
+	if err != nil {
+		return uuid.Nil, err
+	}
+
+	return profileID, nil
+}
+
 // Create inserts a new promotion
 func (r *Repository) Create(ctx context.Context, p *Promotion) error {
 	query := `
@@ -136,6 +154,10 @@ func (r *Repository) GetByProfileID(ctx context.Context, profileID uuid.UUID) ([
 		promotions = append(promotions, p)
 	}
 
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
 	return promotions, nil
 }
 
@@ -245,6 +267,10 @@ func (r *Repository) GetActivePromotions(ctx context.Context) ([]Promotion, erro
 			p.PaymentID = &parsedPaymentID
 		}
 		promotions = append(promotions, p)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
 	return promotions, nil
