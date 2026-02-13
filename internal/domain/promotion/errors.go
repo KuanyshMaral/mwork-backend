@@ -10,4 +10,5 @@ var (
 	ErrAlreadyActive      = errors.New("promotion is already active")
 	ErrCannotModifyActive = errors.New("cannot modify active promotion")
 	ErrPlanRequired       = errors.New("subscription plan required for promotions")
+	ErrProfileNotFound    = errors.New("profile not found")
 )

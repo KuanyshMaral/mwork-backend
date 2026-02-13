@@ -42,7 +42,17 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	promotions, err := h.repo.GetByProfileID(r.Context(), userID)
+	profileID, err := h.repo.GetProfileIDByUserID(r.Context(), userID)
+	if err == ErrProfileNotFound {
+		response.NotFound(w, "profile not found")
+		return
+	}
+	if err != nil {
+		response.InternalError(w)
+		return
+	}
+
+	promotions, err := h.repo.GetByProfileID(r.Context(), profileID)
 	if err != nil {
 		response.InternalError(w)
 		return
@@ -98,9 +108,19 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 // @Failure 400,401,422,500 {object} response.Response
 // @Router /promotions [post]
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
-	profileID := middleware.GetUserID(r.Context())
-	if profileID == uuid.Nil {
+	userID := middleware.GetUserID(r.Context())
+	if userID == uuid.Nil {
 		response.Unauthorized(w, "unauthorized")
+		return
+	}
+
+	profileID, err := h.repo.GetProfileIDByUserID(r.Context(), userID)
+	if err == ErrProfileNotFound {
+		response.NotFound(w, "profile not found")
+		return
+	}
+	if err != nil {
+		response.InternalError(w)
 		return
 	}
 
