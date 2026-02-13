@@ -149,7 +149,6 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	response.Created(w, promo.ToResponse())
 }
 
-
 // @Summary Активировать промоцию
 // @Tags Promotion
 // @Produce json
@@ -196,7 +195,6 @@ func (h *Handler) Activate(w http.ResponseWriter, r *http.Request) {
 	promo, _ = h.repo.GetByID(r.Context(), id)
 	response.OK(w, promo.ToResponse())
 }
-
 
 // @Summary Паузировать промоцию
 // @Tags Promotion
