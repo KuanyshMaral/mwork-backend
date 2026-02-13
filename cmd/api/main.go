@@ -408,7 +408,7 @@ func main() {
 
 		r.Get("/profiles/{id}/photos", photoHandler.ListByProfile)
 
-		r.Mount("/", experienceHandler.Routes(authWithVerifiedEmailMiddleware))
+		r.Mount("/profiles", experienceHandler.Routes(authWithVerifiedEmailMiddleware))
 
 		r.Route("/profiles/{id}/social-links", func(r chi.Router) {
 			r.Get("/", socialLinksHandler.List)
