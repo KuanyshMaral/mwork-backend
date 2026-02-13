@@ -11,13 +11,13 @@ func (h *Handler) Routes(authMiddleware func(http.Handler) http.Handler) chi.Rou
 	r := chi.NewRouter()
 
 	// Public routes
-	r.Get("/profiles/{id}/experience", h.List)
+	r.Get("/{id}/experience", h.List)
 
 	// Protected routes (require authentication)
 	r.Group(func(r chi.Router) {
 		r.Use(authMiddleware)
-		r.Post("/profiles/{id}/experience", h.Create)
-		r.Delete("/profiles/{id}/experience/{expId}", h.Delete)
+		r.Post("/{id}/experience", h.Create)
+		r.Delete("/{id}/experience/{expId}", h.Delete)
 	})
 
 	return r
