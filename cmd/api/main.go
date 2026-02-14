@@ -191,9 +191,6 @@ func main() {
 	// Adapter for casting profile service
 	castingProfileService := &castingProfileServiceAdapter{service: profileService}
 
-	// Adapter for subscription payment service
-	subscriptionPaymentService := &subscriptionPaymentAdapter{service: paymentService}
-
 	verificationCodeRepo := auth.NewVerificationCodeRepository(db)
 	refreshTokenRepo := auth.NewRefreshTokenRepository(db)
 
@@ -234,6 +231,9 @@ func main() {
 		SuccessURL:    cfg.RobokassaSuccessURL,
 		FailURL:       cfg.RobokassaFailURL,
 	})
+
+	// Adapter for subscription payment service (must use configured paymentService instance)
+	subscriptionPaymentService := &subscriptionPaymentAdapter{service: paymentService}
 	limitChecker := subscription.NewLimitChecker(subscriptionService)
 	chatService = chat.NewService(chatRepo, userRepo, chatHub, moderationService, limitChecker)
 
