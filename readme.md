@@ -934,7 +934,7 @@ Get all available subscription plans.
 
 ---
 
-#### GET /subscriptions/my
+#### GET /subscriptions/current
 🔒 Get current subscription status.
 
 **Response: 200 OK**
@@ -961,7 +961,7 @@ Get all available subscription plans.
 
 ---
 
-#### POST /subscriptions/subscribe
+#### POST /subscriptions
 🔒 Subscribe to a plan.
 
 **Request:**
