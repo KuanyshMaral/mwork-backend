@@ -1,4 +1,4 @@
--- 000053_update_free_response_limit.down.sql
+-- 000054_update_free_response_limit.down.sql
 -- Roll back free plan monthly response limit for models
 
 UPDATE plans
