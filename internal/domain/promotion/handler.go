@@ -305,14 +305,19 @@ func (h *Handler) GetStats(w http.ResponseWriter, r *http.Request) {
 // Routes returns promotion routes
 func Routes(h *Handler, authMiddleware func(http.Handler) http.Handler) chi.Router {
 	r := chi.NewRouter()
-	r.Use(authMiddleware)
 
-	r.Get("/", h.List)
-	r.Post("/", h.Create)
+	// Public promotion card/details endpoint
 	r.Get("/{id}", h.Get)
-	r.Post("/{id}/activate", h.Activate)
-	r.Post("/{id}/pause", h.Pause)
-	r.Get("/{id}/stats", h.GetStats)
+
+	// Authenticated promotion management endpoints
+	r.Group(func(r chi.Router) {
+		r.Use(authMiddleware)
+		r.Get("/", h.List)
+		r.Post("/", h.Create)
+		r.Post("/{id}/activate", h.Activate)
+		r.Post("/{id}/pause", h.Pause)
+		r.Get("/{id}/stats", h.GetStats)
+	})
 
 	return r
 }
