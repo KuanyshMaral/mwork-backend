@@ -12,19 +12,33 @@ import (
 	"github.com/mwork/mwork-api/internal/pkg/password"
 )
 
+type EmployerProfile struct {
+	ID          uuid.UUID
+	UserID      uuid.UUID
+	CompanyName string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type EmployerProfileRepository interface {
+	Create(ctx context.Context, profile *EmployerProfile) error
+}
+
 // Service handles lead business logic
 type Service struct {
-	repo     Repository
-	orgRepo  *organization.Repository
-	userRepo user.Repository
+	repo             Repository
+	orgRepo          *organization.Repository
+	userRepo         user.Repository
+	employerProfRepo EmployerProfileRepository
 }
 
 // NewService creates lead service
-func NewService(repo Repository, orgRepo *organization.Repository, userRepo user.Repository) *Service {
+func NewService(repo Repository, orgRepo *organization.Repository, userRepo user.Repository, employerProfRepo EmployerProfileRepository) *Service {
 	return &Service{
-		repo:     repo,
-		orgRepo:  orgRepo,
-		userRepo: userRepo,
+		repo:             repo,
+		orgRepo:          orgRepo,
+		userRepo:         userRepo,
+		employerProfRepo: employerProfRepo,
 	}
 }
 
@@ -192,6 +206,14 @@ func (s *Service) Convert(ctx context.Context, leadID uuid.UUID, req *ConvertReq
 		// Rollback org creation
 		_ = s.orgRepo.Delete(ctx, org.ID)
 		return nil, nil, err
+	}
+
+	if s.employerProfRepo != nil {
+		if err := s.employerProfRepo.Create(ctx, &EmployerProfile{ID: uuid.New(), UserID: newUser.ID, CompanyName: lead.CompanyName, CreatedAt: now, UpdatedAt: now}); err != nil {
+			_ = s.userRepo.Delete(ctx, newUser.ID)
+			_ = s.orgRepo.Delete(ctx, org.ID)
+			return nil, nil, err
+		}
 	}
 
 	// Mark lead as converted

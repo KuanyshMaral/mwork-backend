@@ -14,14 +14,16 @@ import (
 type Service struct {
 	modelRepo    ModelRepository
 	employerRepo EmployerRepository
+	adminRepo    AdminRepository
 	userRepo     user.Repository
 }
 
 // NewService creates profile service
-func NewService(modelRepo ModelRepository, employerRepo EmployerRepository, userRepo user.Repository) *Service {
+func NewService(modelRepo ModelRepository, employerRepo EmployerRepository, adminRepo AdminRepository, userRepo user.Repository) *Service {
 	return &Service{
 		modelRepo:    modelRepo,
 		employerRepo: employerRepo,
+		adminRepo:    adminRepo,
 		userRepo:     userRepo,
 	}
 }
@@ -271,14 +273,10 @@ func (s *Service) GetEmployerProfileByUserID(ctx context.Context, userID uuid.UU
 }
 
 // UpdateModelProfile updates model profile
-func (s *Service) UpdateModelProfile(ctx context.Context, id uuid.UUID, userID uuid.UUID, req *UpdateModelProfileRequest) (*ModelProfile, error) {
-	profile, err := s.modelRepo.GetByID(ctx, id)
+func (s *Service) UpdateModelProfile(ctx context.Context, userID uuid.UUID, req *UpdateModelProfileRequest) (*ModelProfile, error) {
+	profile, err := s.modelRepo.GetByUserID(ctx, userID)
 	if err != nil || profile == nil {
 		return nil, ErrProfileNotFound
-	}
-
-	if profile.UserID != userID {
-		return nil, ErrNotProfileOwner
 	}
 
 	// Update fields
@@ -338,14 +336,10 @@ func (s *Service) UpdateModelProfile(ctx context.Context, id uuid.UUID, userID u
 }
 
 // UpdateEmployerProfile updates employer profile.
-func (s *Service) UpdateEmployerProfile(ctx context.Context, id uuid.UUID, userID uuid.UUID, req *UpdateEmployerProfileRequest) (*EmployerProfile, error) {
-	profile, err := s.employerRepo.GetByID(ctx, id)
+func (s *Service) UpdateEmployerProfile(ctx context.Context, userID uuid.UUID, req *UpdateEmployerProfileRequest) (*EmployerProfile, error) {
+	profile, err := s.employerRepo.GetByUserID(ctx, userID)
 	if err != nil || profile == nil {
 		return nil, ErrProfileNotFound
-	}
-
-	if profile.UserID != userID {
-		return nil, ErrNotProfileOwner
 	}
 
 	if req.CompanyName != "" {
@@ -392,4 +386,36 @@ func (s *Service) ListPromotedModels(ctx context.Context, city *string, limit in
 // IncrementModelViewCount increments mo view count
 func (s *Service) IncrementModelViewCount(ctx context.Context, id uuid.UUID) error {
 	return s.modelRepo.IncrementViewCount(ctx, id)
+}
+
+func (s *Service) GetAdminProfileByUserID(ctx context.Context, userID uuid.UUID) (*AdminProfile, error) {
+	profile, err := s.adminRepo.GetByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if profile == nil {
+		return nil, ErrProfileNotFound
+	}
+	return profile, nil
+}
+
+func (s *Service) UpdateAdminProfileByUserID(ctx context.Context, userID uuid.UUID, req *UpdateAdminProfileRequest) (*AdminProfile, error) {
+	profile, err := s.adminRepo.GetByUserID(ctx, userID)
+	if err != nil || profile == nil {
+		return nil, ErrProfileNotFound
+	}
+	if req.Name != "" {
+		profile.Name = sql.NullString{String: req.Name, Valid: true}
+	}
+	if req.Role != "" {
+		profile.Role = sql.NullString{String: req.Role, Valid: true}
+	}
+	if req.AvatarURL != "" {
+		profile.AvatarURL = sql.NullString{String: req.AvatarURL, Valid: true}
+	}
+	profile.UpdatedAt = time.Now()
+	if err := s.adminRepo.Update(ctx, profile); err != nil {
+		return nil, err
+	}
+	return profile, nil
 }
