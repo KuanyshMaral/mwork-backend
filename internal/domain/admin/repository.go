@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 )
 
 // Repository defines admin data access
@@ -88,6 +89,14 @@ type repository struct {
 	db *sqlx.DB
 }
 
+func isUndefinedTableErr(err error) bool {
+	var pqErr *pq.Error
+	if errors.As(err, &pqErr) {
+		return string(pqErr.Code) == "42P01"
+	}
+	return false
+}
+
 // NewRepository creates admin repository
 func NewRepository(db *sqlx.DB) Repository {
 	return &repository{db: db}
@@ -96,11 +105,17 @@ func NewRepository(db *sqlx.DB) Repository {
 // Admin users
 
 func (r *repository) CreateAdmin(ctx context.Context, admin *AdminUser) error {
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
 	query := `
 		INSERT INTO admin_users (id, email, password_hash, role, name, is_active, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`
-	_, err := r.db.ExecContext(ctx, query,
+	if _, err := tx.ExecContext(ctx, query,
 		admin.ID,
 		admin.Email,
 		admin.PasswordHash,
@@ -109,8 +124,17 @@ func (r *repository) CreateAdmin(ctx context.Context, admin *AdminUser) error {
 		admin.IsActive,
 		admin.CreatedAt,
 		admin.UpdatedAt,
-	)
-	return err
+	); err != nil {
+		return err
+	}
+
+	if _, err := tx.ExecContext(ctx, `INSERT INTO admin_profiles (id, user_id, name, role, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (user_id) DO NOTHING`, admin.ID, admin.ID, admin.Name, admin.Role, admin.CreatedAt, admin.UpdatedAt); err != nil {
+		if !isUndefinedTableErr(err) {
+			return err
+		}
+	}
+
+	return tx.Commit()
 }
 
 func (r *repository) GetAdminByID(ctx context.Context, id uuid.UUID) (*AdminUser, error) {
