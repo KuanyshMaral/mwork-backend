@@ -41,6 +41,7 @@ type Config struct {
 	AllowLegacyRefresh     bool
 
 	// Robokassa Payment
+	PaymentMode            string
 	RobokassaMerchantLogin string
 	RobokassaPassword1     string
 	RobokassaPassword2     string
@@ -101,6 +102,7 @@ func Load() *Config {
 		AllowLegacyRefresh:     parseBool(getEnv("ALLOW_LEGACY_REFRESH", "false"), false),
 
 		// Robokassa Payment
+		PaymentMode:            getEnv("PAYMENT_MODE", "real"),
 		RobokassaMerchantLogin: getEnv("ROBOKASSA_MERCHANT_LOGIN", ""),
 		RobokassaPassword1:     getEnv("ROBOKASSA_PASSWORD_1", ""),
 		RobokassaPassword2:     getEnv("ROBOKASSA_PASSWORD_2", ""),
