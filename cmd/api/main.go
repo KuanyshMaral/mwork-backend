@@ -111,6 +111,7 @@ func main() {
 	modelRepo := profile.NewModelRepository(db)
 	experienceRepo := experience.NewRepository(db)
 	employerRepo := profile.NewEmployerRepository(db)
+	adminProfRepo := profile.NewAdminRepository(db)
 	castingRepo := casting.NewRepository(db)
 	responseRepo := response.NewRepository(db)
 	photoRepo := photo.NewRepository(db)
@@ -165,7 +166,7 @@ func main() {
 	}
 
 	// ---------- Services ----------
-	profileService := profile.NewService(modelRepo, employerRepo, userRepo)
+	profileService := profile.NewService(modelRepo, employerRepo, adminProfRepo, userRepo)
 	castingService := casting.NewService(castingRepo, userRepo)
 	responseService := response.NewService(responseRepo, castingRepo, modelRepo, employerRepo)
 	photoService := photo.NewService(photoRepo, modelRepo, uploadSvc)
@@ -259,7 +260,7 @@ func main() {
 
 	orgRepo := organization.NewRepository(db)
 	leadRepo := lead.NewRepository(db)
-	leadService := lead.NewService(leadRepo, orgRepo, userRepo)
+	leadService := lead.NewService(leadRepo, orgRepo, userRepo, &leadEmployerProfileAdapter{repo: employerRepo})
 
 	// ---------- Handlers ----------
 	authHandler := auth.NewHandler(authService)
@@ -784,4 +785,10 @@ func (a *modelProfileIDProvider) ProfileIDByUserID(ctx context.Context, userID u
 		return uuid.Nil, err
 	}
 	return modelProfile.ID, nil
+}
+
+type leadEmployerProfileAdapter struct{ repo profile.EmployerRepository }
+
+func (a *leadEmployerProfileAdapter) Create(ctx context.Context, p *lead.EmployerProfile) error {
+	return a.repo.Create(ctx, &profile.EmployerProfile{ID: p.ID, UserID: p.UserID, CompanyName: p.CompanyName, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt})
 }
