@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"sync"
 	"testing"
 	"time"
@@ -132,10 +131,7 @@ func TestWalletInvalidAmount(t *testing.T) {
 }
 
 func setupTestDB(t *testing.T) *sqlx.DB {
-	dsn := os.Getenv("DATABASE_URL")
-	if dsn == "" {
-		dsn = "postgres://mwork:mwork_secret@localhost:5432/mwork_dev?sslmode=disable"
-	}
+	dsn := "postgres://mwork:mwork_secret@localhost:5432/mwork_dev?sslmode=disable"
 	db, err := sqlx.Connect("postgres", dsn)
 	if err != nil {
 		t.Skipf("db not available: %v", err)

@@ -58,74 +58,18 @@ It also verifies:
 
 ### Setup
 
-1. Start PostgreSQL (Docker) and wait until it is healthy:
+1. Start PostgreSQL and ensure `DATABASE_URL` points to your local DB (default used by tests is `postgres://mwork:mwork_secret@localhost:5432/mwork_dev?sslmode=disable`).
+2. Apply all migrations (including wallet migration):
    ```bash
-   docker compose up -d postgres
-   docker compose ps
+   make migrate-up
    ```
-
-2. Apply migrations (without requiring local `make`/`migrate` install):
-   ```bash
-   docker compose run --rm migrate
-   ```
-
-3. Run endpoint integration test:
-
-   **Linux/macOS (bash):**
+3. Run endpoint integration test script:
    ```bash
    ./scripts/test_demo_wallet_endpoints.sh
    ```
-
-   **Windows PowerShell:**
-   ```powershell
-   .\scripts\test_demo_wallet_endpoints.ps1
-   ```
-
-
-4. Verify DB credentials from host (important):
-
-   ```powershell
-   docker compose exec postgres psql -U mwork -d mwork_dev -c "SELECT current_user, current_database();"
-   ```
-
-   If this command fails with role/db errors, reset volume and recreate:
-
-   ```powershell
-   docker compose down -v
-   docker compose up -d postgres
-   docker compose run --rm migrate
-   ```
-
-> Note: `docker-compose.yml` publishes PostgreSQL on host port `5432`, so local `go test` from host can connect to `localhost:5432`.
 
 ### Direct go test alternative
 
 ```bash
 go test ./internal/domain/wallet -run TestWalletEndpointsIntegration -v
 ```
-
-
-### Troubleshooting (Windows / Docker)
-
-If you get an error like `pq: role "mwork" does not exist`, your existing Docker volume was initialized earlier with different credentials.
-
-Reset Postgres volume and recreate DB with the current credentials from `docker-compose.yml`:
-
-```powershell
-docker compose down -v
-docker compose up -d postgres
-docker compose run --rm migrate
-```
-
-Then run tests again:
-
-```powershell
-.\scripts\test_demo_wallet_endpoints.ps1
-```
-
-You can also override connection explicitly before running tests:
-
-```powershell
-$env:DATABASE_URL = "postgresql://mwork:mwork_secret@localhost:5432/mwork_dev?sslmode=disable"
-```
-
