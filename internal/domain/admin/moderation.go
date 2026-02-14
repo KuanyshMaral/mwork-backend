@@ -154,8 +154,8 @@ func (h *ModerationHandler) VerifyUser(w http.ResponseWriter, r *http.Request) {
 
 	if req.IsVerified != nil {
 		_, err = h.db.ExecContext(r.Context(),
-			`UPDATE users SET is_verified = $2, verified_at = CASE WHEN $2 THEN NOW() ELSE NULL END, verified_by = CASE WHEN $2 THEN $3 ELSE NULL END WHERE id = $1`,
-			userID, *req.IsVerified, adminID)
+			`UPDATE users SET email_verified = $2, updated_at = NOW() WHERE id = $1`,
+			userID, *req.IsVerified)
 	}
 	if req.IsIdentityVerified != nil {
 		_, err = h.db.ExecContext(r.Context(),

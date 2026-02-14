@@ -2,7 +2,6 @@ package lead
 
 import (
 	"database/sql"
-	"net"
 	"time"
 
 	"github.com/google/uuid"
@@ -70,7 +69,7 @@ type EmployerLead struct {
 	ReferrerURL sql.NullString `db:"referrer_url" json:"referrer_url,omitempty"`
 
 	// Metadata
-	IPAddress net.IP         `db:"ip_address" json:"-"`
+	IPAddress sql.NullString `db:"ip_address" json:"-"`
 	UserAgent sql.NullString `db:"user_agent" json:"-"`
 	CreatedAt time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt time.Time      `db:"updated_at" json:"updated_at"`

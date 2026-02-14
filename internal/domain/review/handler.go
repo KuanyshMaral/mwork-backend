@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
+	"github.com/mwork/mwork-api/internal/domain/profile"
 
 	"github.com/mwork/mwork-api/internal/middleware"
 	"github.com/mwork/mwork-api/internal/pkg/response"
@@ -17,19 +18,51 @@ import (
 
 // Handler handles review HTTP requests
 type Handler struct {
-	repo      *Repository
-	validator *validator.Validate
+	repo        *Repository
+	profileRepo profile.ModelRepository
+	validator   *validator.Validate
 }
 
 // NewHandler creates new review handler
-func NewHandler(repo *Repository) *Handler {
+func NewHandler(repo *Repository, profileRepo profile.ModelRepository) *Handler {
 	return &Handler{
-		repo:      repo,
-		validator: validator.New(),
+		repo:        repo,
+		profileRepo: profileRepo,
+		validator:   validator.New(),
 	}
 }
 
+func (h *Handler) resolveProfileID(ctx *http.Request, rawID string) (uuid.UUID, error) {
+	id, err := uuid.Parse(rawID)
+	if err != nil {
+		return uuid.Nil, err
+	}
+
+	if p, err := h.profileRepo.GetByID(ctx.Context(), id); err != nil {
+		return uuid.Nil, err
+	} else if p != nil {
+		return p.ID, nil
+	}
+
+	if p, err := h.profileRepo.GetByUserID(ctx.Context(), id); err != nil {
+		return uuid.Nil, err
+	} else if p != nil {
+		return p.ID, nil
+	}
+
+	return uuid.Nil, nil
+}
+
 // Create handles POST /reviews
+// @Summary Создать отзыв
+// @Tags Review
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body CreateRequest true "Данные отзыва"
+// @Success 201 {object} response.Response{data=ReviewResponse}
+// @Failure 400,401,409,500 {object} response.Response
+// @Router /reviews [post]
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 	if userID == uuid.Nil {
@@ -48,16 +81,32 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	profileID, _ := uuid.Parse(req.ProfileID)
+	profileID, err := h.resolveProfileID(r, req.ProfileID)
+	if err != nil {
+		response.BadRequest(w, "Invalid profile ID")
+		return
+	}
+	if profileID == uuid.Nil {
+		response.NotFound(w, "Profile not found")
+		return
+	}
 
 	// Check if already reviewed
 	var castingID uuid.NullUUID
 	if req.CastingID != "" {
-		cid, _ := uuid.Parse(req.CastingID)
+		cid, err := uuid.Parse(req.CastingID)
+		if err != nil {
+			response.BadRequest(w, "Invalid casting ID")
+			return
+		}
 		castingID = uuid.NullUUID{UUID: cid, Valid: true}
 	}
 
-	exists, _ := h.repo.HasReviewed(r.Context(), profileID, userID, castingID)
+	exists, err := h.repo.HasReviewed(r.Context(), profileID, userID, castingID)
+	if err != nil {
+		response.InternalError(w)
+		return
+	}
 	if exists {
 		response.Conflict(w, "You have already reviewed this profile")
 		return
@@ -85,10 +134,23 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 // ListByProfile handles GET /profiles/{id}/reviews
+// @Summary Список отзывов профиля
+// @Tags Review
+// @Produce json
+// @Param id path string true "ID профиля"
+// @Param page query int false "Страница"
+// @Param limit query int false "Лимит"
+// @Success 200 {object} response.Response{data=[]ReviewResponse}
+// @Failure 400,500 {object} response.Response
+// @Router /profiles/{id}/reviews [get]
 func (h *Handler) ListByProfile(w http.ResponseWriter, r *http.Request) {
-	profileID, err := uuid.Parse(chi.URLParam(r, "id"))
+	profileID, err := h.resolveProfileID(r, chi.URLParam(r, "id"))
 	if err != nil {
 		response.BadRequest(w, "Invalid profile ID")
+		return
+	}
+	if profileID == uuid.Nil {
+		response.NotFound(w, "Profile not found")
 		return
 	}
 
@@ -115,7 +177,11 @@ func (h *Handler) ListByProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	total, _ := h.repo.CountByProfileID(r.Context(), profileID)
+	total, err := h.repo.CountByProfileID(r.Context(), profileID)
+	if err != nil {
+		response.InternalError(w)
+		return
+	}
 
 	items := make([]*ReviewResponse, len(reviews))
 	for i, rev := range reviews {
@@ -133,19 +199,46 @@ func (h *Handler) ListByProfile(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetSummary handles GET /profiles/{id}/reviews/summary
+// @Summary Сводка рейтинга профиля
+// @Tags Review
+// @Produce json
+// @Param id path string true "ID профиля"
+// @Success 200 {object} response.Response{data=ProfileRatingSummary}
+// @Failure 400,500 {object} response.Response
+// @Router /profiles/{id}/reviews/summary [get]
 func (h *Handler) GetSummary(w http.ResponseWriter, r *http.Request) {
-	profileID, err := uuid.Parse(chi.URLParam(r, "id"))
+	profileID, err := h.resolveProfileID(r, chi.URLParam(r, "id"))
 	if err != nil {
 		response.BadRequest(w, "Invalid profile ID")
 		return
 	}
+	if profileID == uuid.Nil {
+		response.NotFound(w, "Profile not found")
+		return
+	}
 
-	avg, _ := h.repo.GetAverageRating(r.Context(), profileID)
-	total, _ := h.repo.CountByProfileID(r.Context(), profileID)
-	dist, _ := h.repo.GetRatingDistribution(r.Context(), profileID)
+	avg, err := h.repo.GetAverageRating(r.Context(), profileID)
+	if err != nil {
+		response.InternalError(w)
+		return
+	}
+	total, err := h.repo.CountByProfileID(r.Context(), profileID)
+	if err != nil {
+		response.InternalError(w)
+		return
+	}
+	dist, err := h.repo.GetRatingDistribution(r.Context(), profileID)
+	if err != nil {
+		response.InternalError(w)
+		return
+	}
 
 	// Get recent reviews
-	recent, _ := h.repo.GetByProfileID(r.Context(), profileID, 3, 0)
+	recent, err := h.repo.GetByProfileID(r.Context(), profileID, 3, 0)
+	if err != nil {
+		response.InternalError(w)
+		return
+	}
 	recentResp := make([]*ReviewResponse, len(recent))
 	for i, rev := range recent {
 		recentResp[i] = rev.ToResponse()
@@ -162,6 +255,14 @@ func (h *Handler) GetSummary(w http.ResponseWriter, r *http.Request) {
 }
 
 // Delete handles DELETE /reviews/{id}
+// @Summary Удалить отзыв
+// @Tags Review
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID отзыва"
+// @Success 204 {string} string "No Content"
+// @Failure 400,401,403,404,500 {object} response.Response
+// @Router /reviews/{id} [delete]
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	reviewID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {

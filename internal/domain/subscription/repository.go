@@ -36,7 +36,14 @@ func NewRepository(db *sqlx.DB) Repository {
 // Plans
 
 func (r *repository) GetPlanByID(ctx context.Context, id PlanID) (*Plan, error) {
-	query := `SELECT * FROM plans WHERE id = $1 AND is_active = true`
+	query := `
+		SELECT
+			id, name, description, price_monthly, price_yearly,
+			max_photos, max_responses_month, can_chat, can_see_viewers,
+			priority_search, max_team_members, is_active, created_at
+		FROM plans
+		WHERE id = $1 AND is_active = true
+	`
 	var plan Plan
 	err := r.db.GetContext(ctx, &plan, query, id)
 	if err != nil {
@@ -49,7 +56,15 @@ func (r *repository) GetPlanByID(ctx context.Context, id PlanID) (*Plan, error) 
 }
 
 func (r *repository) ListPlans(ctx context.Context) ([]*Plan, error) {
-	query := `SELECT * FROM plans WHERE is_active = true ORDER BY price_monthly`
+	query := `
+		SELECT
+			id, name, description, price_monthly, price_yearly,
+			max_photos, max_responses_month, can_chat, can_see_viewers,
+			priority_search, max_team_members, is_active, created_at
+		FROM plans
+		WHERE is_active = true
+		ORDER BY price_monthly
+	`
 	var plans []*Plan
 	err := r.db.SelectContext(ctx, &plans, query)
 	return plans, err
@@ -77,7 +92,13 @@ func (r *repository) Create(ctx context.Context, sub *Subscription) error {
 }
 
 func (r *repository) GetByID(ctx context.Context, id uuid.UUID) (*Subscription, error) {
-	query := `SELECT * FROM subscriptions WHERE id = $1`
+	query := `
+		SELECT
+			id, user_id, plan_id, started_at, expires_at, status,
+			cancelled_at, cancel_reason, billing_period, created_at, updated_at
+		FROM subscriptions
+		WHERE id = $1
+	`
 	var sub Subscription
 	err := r.db.GetContext(ctx, &sub, query, id)
 	if err != nil {
@@ -90,7 +111,15 @@ func (r *repository) GetByID(ctx context.Context, id uuid.UUID) (*Subscription, 
 }
 
 func (r *repository) GetActiveByUserID(ctx context.Context, userID uuid.UUID) (*Subscription, error) {
-	query := `SELECT * FROM subscriptions WHERE user_id = $1 AND status = 'active' ORDER BY created_at DESC LIMIT 1`
+	query := `
+		SELECT
+			id, user_id, plan_id, started_at, expires_at, status,
+			cancelled_at, cancel_reason, billing_period, created_at, updated_at
+		FROM subscriptions
+		WHERE user_id = $1 AND status = 'active'
+		ORDER BY created_at DESC
+		LIMIT 1
+	`
 	var sub Subscription
 	err := r.db.GetContext(ctx, &sub, query, userID)
 	if err != nil {

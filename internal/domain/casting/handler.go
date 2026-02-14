@@ -2,8 +2,8 @@ package casting
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -42,6 +42,15 @@ func NewHandler(service *Service, profileService ProfileService) *Handler {
 }
 
 // Create handles POST /castings
+// @Summary Создать кастинг
+// @Tags Casting
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body CreateCastingRequest true "Данные кастинга"
+// @Success 201 {object} response.Response{data=CastingResponse}
+// @Failure 400,403,422,500 {object} response.Response
+// @Router /castings [post]
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	var req CreateCastingRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -57,9 +66,38 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 	casting, err := h.service.Create(r.Context(), userID, &req)
 	if err != nil {
-		switch err {
-		case ErrOnlyEmployersCanCreate:
+		log.Error().
+			Str("request_id", middleware.GetRequestID(r.Context())).
+			Str("user_id", userID.String()).
+			Err(err).
+			Interface("payload", req).
+			Msg("create casting failed")
+
+		var validationErr ValidationErrors
+		if errors.As(err, &validationErr) {
+			response.ValidationError(w, validationErr)
+			return
+		}
+
+		switch {
+		case errors.Is(err, ErrOnlyEmployersCanCreate):
 			response.Forbidden(w, "Only employers can create castings")
+		case errors.Is(err, ErrEmployerNotVerified):
+			response.Forbidden(w, "Employer account is pending verification")
+		case errors.Is(err, ErrInvalidPayRange):
+			response.ValidationError(w, map[string]string{"pay_min": "pay_min must be <= pay_max"})
+		case errors.Is(err, ErrInvalidDateFromFormat):
+			response.ValidationError(w, map[string]string{"date_from": "date_from must be RFC3339, example: 2026-05-10T10:00:00Z"})
+		case errors.Is(err, ErrInvalidDateToFormat):
+			response.ValidationError(w, map[string]string{"date_to": "date_to must be RFC3339, example: 2026-05-10T18:00:00Z"})
+		case errors.Is(err, ErrInvalidDateRange):
+			response.ValidationError(w, map[string]string{"date_from": "date_from must be <= date_to"})
+		case errors.Is(err, ErrInvalidCreatorReference):
+			response.ValidationError(w, map[string]string{"creator_id": "invalid creator_id"})
+		case errors.Is(err, ErrDuplicateCasting):
+			response.Error(w, http.StatusConflict, "CONFLICT", "duplicate title")
+		case errors.Is(err, ErrCastingConstraint):
+			response.ValidationError(w, map[string]string{"request": "request violates database check constraint"})
 		default:
 			response.InternalError(w)
 		}
@@ -70,6 +108,13 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetByID handles GET /castings/{id}
+// @Summary Получить кастинг по ID
+// @Tags Casting
+// @Produce json
+// @Param id path string true "ID кастинга"
+// @Success 200 {object} response.Response{data=CastingResponse}
+// @Failure 400,403,404,500 {object} response.Response
+// @Router /castings/{id} [get]
 func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
@@ -124,6 +169,16 @@ func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
 }
 
 // Update handles PUT /castings/{id}
+// @Summary Обновить кастинг
+// @Tags Casting
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID кастинга"
+// @Param request body UpdateCastingRequest true "Поля для обновления"
+// @Success 200 {object} response.Response{data=CastingResponse}
+// @Failure 400,403,404,422,500 {object} response.Response
+// @Router /castings/{id} [put]
 func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -145,11 +200,27 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 	casting, err := h.service.Update(r.Context(), id, userID, &req)
 	if err != nil {
-		switch err {
-		case ErrCastingNotFound:
+		var validationErr ValidationErrors
+		if errors.As(err, &validationErr) {
+			response.ValidationError(w, validationErr)
+			return
+		}
+
+		switch {
+		case errors.Is(err, ErrCastingNotFound):
 			response.NotFound(w, "Casting not found")
-		case ErrNotCastingOwner:
+		case errors.Is(err, ErrNotCastingOwner):
 			response.Forbidden(w, "You can only edit your own castings")
+		case errors.Is(err, ErrInvalidDateFromFormat):
+			response.ValidationError(w, map[string]string{"date_from": "date_from must be RFC3339, example: 2026-05-10T10:00:00Z"})
+		case errors.Is(err, ErrInvalidDateToFormat):
+			response.ValidationError(w, map[string]string{"date_to": "date_to must be RFC3339, example: 2026-05-10T18:00:00Z"})
+		case errors.Is(err, ErrInvalidDateRange):
+			response.ValidationError(w, map[string]string{"date_from": "date_from must be <= date_to"})
+		case errors.Is(err, ErrInvalidPayRange):
+			response.ValidationError(w, map[string]string{"pay_min": "pay_min must be <= pay_max"})
+		case errors.Is(err, ErrCastingConstraint):
+			response.ValidationError(w, map[string]string{"request": "request violates database check constraint"})
 		default:
 			response.InternalError(w)
 		}
@@ -160,6 +231,16 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 }
 
 // UpdateStatus handles PATCH /castings/{id}/status
+// @Summary Обновить статус кастинга
+// @Tags Casting
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID кастинга"
+// @Param request body UpdateStatusRequest true "Новый статус"
+// @Success 200 {object} response.Response{data=CastingResponse}
+// @Failure 400,403,404,422,500 {object} response.Response
+// @Router /castings/{id}/status [patch]
 func (h *Handler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -181,11 +262,15 @@ func (h *Handler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 	casting, err := h.service.UpdateStatus(r.Context(), id, userID, Status(req.Status))
 	if err != nil {
-		switch err {
-		case ErrCastingNotFound:
+		switch {
+		case errors.Is(err, ErrCastingNotFound):
 			response.NotFound(w, "Casting not found")
-		case ErrNotCastingOwner:
-			response.Forbidden(w, "You can only manage your own castings")
+		case errors.Is(err, ErrNotCastingOwner):
+			response.Forbidden(w, "You can only edit your own castings")
+		case errors.Is(err, ErrInvalidStatusTransition):
+			response.ValidationError(w, map[string]string{"status": "invalid status transition"})
+		case errors.Is(err, ErrCastingConstraint):
+			response.ValidationError(w, map[string]string{"status": "invalid status value"})
 		default:
 			response.InternalError(w)
 		}
@@ -221,46 +306,54 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 
 // List handles GET /castings
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
 	filter := &Filter{}
-	query := r.URL.Query()
 
-	if q := query.Get("q"); q != "" {
-		filter.Query = &q
-	}
-	if city := query.Get("city"); city != "" {
+	if city := q.Get("city"); city != "" {
 		filter.City = &city
 	}
-	if payMin := query.Get("pay_min"); payMin != "" {
+	if query := q.Get("q"); query != "" {
+		filter.Query = &query
+	}
+	if status := q.Get("status"); status != "" {
+		s := Status(status)
+		switch s {
+		case StatusDraft, StatusActive, StatusClosed:
+			filter.Status = &s
+		default:
+			response.ValidationError(w, map[string]string{"status": "status must be one of: draft, active, closed"})
+			return
+		}
+	}
+	if creatorID := q.Get("creator_id"); creatorID != "" {
+		if id, err := uuid.Parse(creatorID); err == nil {
+			filter.CreatorID = &id
+		}
+	}
+	if payMin := q.Get("pay_min"); payMin != "" {
 		if v, err := strconv.ParseFloat(payMin, 64); err == nil {
 			filter.PayMin = &v
 		}
 	}
-	if payMax := query.Get("pay_max"); payMax != "" {
+	if payMax := q.Get("pay_max"); payMax != "" {
 		if v, err := strconv.ParseFloat(payMax, 64); err == nil {
 			filter.PayMax = &v
 		}
 	}
 
-	// Sort
-	sortBy := SortByNewest
-	if s := query.Get("sort"); s != "" {
-		switch s {
-		case "pay_desc":
-			sortBy = SortByPayDesc
-		case "popular":
-			sortBy = SortByPopular
-		}
+	sortBy := SortBy(q.Get("sort_by"))
+	if sortBy == "" {
+		sortBy = SortByNewest
 	}
 
-	// Pagination
 	page := 1
-	limit := 20
-	if p := query.Get("page"); p != "" {
+	if p := q.Get("page"); p != "" {
 		if v, err := strconv.Atoi(p); err == nil && v > 0 {
 			page = v
 		}
 	}
-	if l := query.Get("limit"); l != "" {
+	limit := 20
+	if l := q.Get("limit"); l != "" {
 		if v, err := strconv.Atoi(l); err == nil && v > 0 && v <= 100 {
 			limit = v
 		}
@@ -274,75 +367,39 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	items := make([]*CastingResponse, len(castings))
-	for i, c := range castings {
-		items[i] = CastingResponseFromEntity(c)
+	items := make([]*CastingResponse, 0, len(castings))
+	for _, c := range castings {
+		items = append(items, CastingResponseFromEntity(c))
+	}
+
+	pages := total / limit
+	if total%limit != 0 {
+		pages++
 	}
 
 	response.WithMeta(w, items, response.Meta{
 		Total:   total,
 		Page:    page,
 		Limit:   limit,
-		Pages:   (total + limit - 1) / limit,
-		HasNext: page*limit < total,
+		Pages:   pages,
+		HasNext: page < pages,
 		HasPrev: page > 1,
 	})
 }
 
 // ListMy handles GET /castings/my
 func (h *Handler) ListMy(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	userID := middleware.GetUserID(r.Context())
 
-	// Get current user
-	userID := middleware.GetUserID(ctx)
-	if userID == uuid.Nil {
-		response.Unauthorized(w, "unauthorized")
-		return
-	}
-
-	// Get employer profile to filter by creator_id
-	profile, err := h.profileService.GetEmployerProfileByUserID(ctx, userID)
-	if err != nil {
-		// If user has no profile yet, return empty list
-		if err == sql.ErrNoRows {
-			response.JSON(w, http.StatusOK, map[string]interface{}{
-				"success": true,
-				"data":    []interface{}{},
-				"meta": map[string]interface{}{
-					"total":    0,
-					"page":     1,
-					"limit":    20,
-					"pages":    0,
-					"has_next": false,
-					"has_prev": false,
-				},
-			})
-			return
-		}
-		response.Error(w, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to get profile")
-		return
-	}
-
-	// Build filter with employer profile ID
-	filter := &Filter{
-		CreatorID: &profile.ID,
-	}
-
-	query := r.URL.Query()
-	if status := query.Get("status"); status != "" {
-		s := Status(status)
-		filter.Status = &s
-	}
-
-	// Parse pagination
+	q := r.URL.Query()
 	page := 1
-	limit := 20
-	if p := query.Get("page"); p != "" {
+	if p := q.Get("page"); p != "" {
 		if v, err := strconv.Atoi(p); err == nil && v > 0 {
 			page = v
 		}
 	}
-	if l := query.Get("limit"); l != "" {
+	limit := 20
+	if l := q.Get("limit"); l != "" {
 		if v, err := strconv.Atoi(l); err == nil && v > 0 && v <= 100 {
 			limit = v
 		}
@@ -350,23 +407,28 @@ func (h *Handler) ListMy(w http.ResponseWriter, r *http.Request) {
 
 	pagination := &Pagination{Page: page, Limit: limit}
 
-	castings, total, err := h.service.List(ctx, filter, SortByNewest, pagination)
+	castings, total, err := h.service.ListByCreator(r.Context(), userID, pagination)
 	if err != nil {
 		response.InternalError(w)
 		return
 	}
 
-	items := make([]*CastingResponse, len(castings))
-	for i, c := range castings {
-		items[i] = CastingResponseFromEntity(c)
+	items := make([]*CastingResponse, 0, len(castings))
+	for _, c := range castings {
+		items = append(items, CastingResponseFromEntity(c))
+	}
+
+	pages := total / limit
+	if total%limit != 0 {
+		pages++
 	}
 
 	response.WithMeta(w, items, response.Meta{
 		Total:   total,
 		Page:    page,
 		Limit:   limit,
-		Pages:   (total + limit - 1) / limit,
-		HasNext: page*limit < total,
+		Pages:   pages,
+		HasNext: page < pages,
 		HasPrev: page > 1,
 	})
 }

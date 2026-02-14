@@ -2,7 +2,9 @@ package notification
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
@@ -72,11 +74,31 @@ func NewPreferencesRepository(db *sqlx.DB) *PreferencesRepository {
 // GetByUserID gets preferences for user (creates default if not exists)
 func (r *PreferencesRepository) GetByUserID(ctx context.Context, userID uuid.UUID) (*UserPreferences, error) {
 	var prefs UserPreferences
-	err := r.db.GetContext(ctx, &prefs, `
-		SELECT * FROM user_notification_preferences WHERE user_id = $1
-	`, userID)
+	const selectPreferencesQuery = `
+		SELECT
+			id,
+			user_id,
+			email_enabled,
+			push_enabled,
+			in_app_enabled,
+			new_response_channels,
+			response_accepted_channels,
+			response_rejected_channels,
+			new_message_channels,
+			profile_viewed_channels,
+			casting_expiring_channels,
+			digest_enabled,
+			digest_frequency
+		FROM user_notification_preferences
+		WHERE user_id = $1
+	`
+	err := r.db.GetContext(ctx, &prefs, selectPreferencesQuery, userID)
 
 	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			return nil, err
+		}
+
 		// Create default preferences
 		prefs = UserPreferences{
 			ID:              uuid.New(),
@@ -106,12 +128,17 @@ func (r *PreferencesRepository) GetByUserID(ctx context.Context, userID uuid.UUI
 				new_message_channels, profile_viewed_channels, casting_expiring_channels,
 				digest_enabled, digest_frequency
 			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+			ON CONFLICT (user_id) DO NOTHING
 		`, prefs.ID, prefs.UserID, prefs.EmailEnabled, prefs.PushEnabled, prefs.InAppEnabled,
 			prefs.NewResponseChannels, prefs.ResponseAcceptedChannels, prefs.ResponseRejectedChannels,
 			prefs.NewMessageChannels, prefs.ProfileViewedChannels, prefs.CastingExpiringChannels,
 			prefs.DigestEnabled, prefs.DigestFrequency)
 
 		if err != nil {
+			return nil, err
+		}
+
+		if err := r.db.GetContext(ctx, &prefs, selectPreferencesQuery, userID); err != nil {
 			return nil, err
 		}
 	}

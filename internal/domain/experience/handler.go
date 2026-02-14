@@ -24,7 +24,40 @@ func NewHandler(repo Repository, profileRepo profile.ModelRepository) *Handler {
 	return &Handler{repo: repo, profileRepo: profileRepo}
 }
 
+func (h *Handler) resolveProfileByPathID(r *http.Request) (*profile.ModelProfile, error) {
+	profileIDStr := chi.URLParam(r, "id")
+	if profileIDStr == "" {
+		return nil, nil
+	}
+
+	id, err := uuid.Parse(profileIDStr)
+	if err != nil {
+		return nil, err
+	}
+
+	p, err := h.profileRepo.GetByID(r.Context(), id)
+	if err != nil {
+		return nil, err
+	}
+	if p != nil {
+		return p, nil
+	}
+
+	// Backward compatibility: some clients send user_id in {id}.
+	return h.profileRepo.GetByUserID(r.Context(), id)
+}
+
 // Create adds new work experience
+// @Summary Добавить опыт работы
+// @Tags Experience
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID профиля"
+// @Param request body CreateRequest true "Данные опыта"
+// @Success 201 {object} response.Response{data=Entity}
+// @Failure 400,401,403,404,422,500 {object} response.Response
+// @Router /profiles/{id}/experience [post]
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	var req CreateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -45,20 +78,13 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	profileIDStr := chi.URLParam(r, "id")
-	if profileIDStr == "" {
-		response.BadRequest(w, "Missing profile ID")
-		return
-	}
-
-	profileID, err := uuid.Parse(profileIDStr)
+	p, err := h.resolveProfileByPathID(r)
 	if err != nil {
 		response.BadRequest(w, "Invalid profile ID")
 		return
 	}
 
-	p, err := h.profileRepo.GetByID(r.Context(), profileID)
-	if err != nil || p == nil {
+	if p == nil {
 		response.NotFound(w, "Profile not found")
 		return
 	}
@@ -73,7 +99,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 
 	// Create entity from request
 	exp := &Entity{
-		ProfileID:   profileIDStr,
+		ProfileID:   p.ID.String(),
 		Title:       req.Title,
 		Company:     req.Company,
 		Role:        req.Role,
@@ -91,15 +117,26 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 // List returns all experiences for profile
+// @Summary Список опыта работы профиля
+// @Tags Experience
+// @Produce json
+// @Param id path string true "ID профиля"
+// @Success 200 {object} response.Response{data=[]Entity}
+// @Failure 400,500 {object} response.Response
+// @Router /profiles/{id}/experience [get]
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
-	profileID := chi.URLParam(r, "id")
-	if profileID == "" {
-		response.BadRequest(w, "Missing profile ID")
+	p, err := h.resolveProfileByPathID(r)
+	if err != nil {
+		response.BadRequest(w, "Invalid profile ID")
+		return
+	}
+	if p == nil {
+		response.NotFound(w, "Profile not found")
 		return
 	}
 
 	// Get experiences
-	experiences, err := h.repo.ListByProfileID(r.Context(), profileID)
+	experiences, err := h.repo.ListByProfileID(r.Context(), p.ID.String())
 	if err != nil {
 		response.InternalError(w)
 		return
@@ -108,6 +145,15 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	response.OK(w, experiences)
 }
 
+// @Summary Удалить опыт работы
+// @Tags Experience
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID профиля"
+// @Param expId path string true "ID опыта"
+// @Success 204 {string} string "No Content"
+// @Failure 400,401,403,404,500 {object} response.Response
+// @Router /profiles/{id}/experience/{expId} [delete]
 // Delete removes work experience
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	expID := chi.URLParam(r, "expId")

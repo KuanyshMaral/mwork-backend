@@ -27,6 +27,7 @@ type Response struct {
 	// References
 	CastingID uuid.UUID `db:"casting_id"`
 	ModelID   uuid.UUID `db:"model_id"` // FK to model_profiles
+	UserID    uuid.UUID `db:"user_id"`
 
 	// Application details
 	Message      sql.NullString  `db:"message"`
@@ -41,9 +42,9 @@ type Response struct {
 	RatingGiven bool `db:"rating_given"`
 
 	// Joined data (not in DB)
-	CastingTitle string `db:"-"`
-	CastingCity  string `db:"-"`
-	ModelName    string `db:"-"`
+	CastingTitle string `db:"casting_title"`
+	CastingCity  string `db:"casting_city"`
+	ModelName    string `db:"model_name"`
 }
 
 // IsPending returns true if response is pending

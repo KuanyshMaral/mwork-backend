@@ -1,0 +1,2 @@
+-- No-op rollback.
+-- Constraints are part of the baseline schema and must stay enforced.

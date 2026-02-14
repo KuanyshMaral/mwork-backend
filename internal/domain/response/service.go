@@ -122,7 +122,7 @@ func (s *Service) Apply(ctx context.Context, userID uuid.UUID, castingID uuid.UU
 			if errors.Is(err, credit.ErrInsufficientCredits) { // ✅ FIXED: Using credit.ErrInsufficientCredits
 				return nil, ErrInsufficientCredits
 			}
-			return nil, err
+			return nil, fmt.Errorf("%w: %v", ErrCreditOperationFailed, err)
 		}
 	}
 
@@ -132,6 +132,7 @@ func (s *Service) Apply(ctx context.Context, userID uuid.UUID, castingID uuid.UU
 		CastingID: castingID,
 		ModelID:   prof.ID,
 		Status:    StatusPending,
+		UserID:    userID,
 		CreatedAt: now,
 		UpdatedAt: now,
 	}

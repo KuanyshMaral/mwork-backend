@@ -18,17 +18,12 @@ func (h *Handler) Routes(authMiddleware func(http.Handler) http.Handler) chi.Rou
 	// Protected routes
 	r.Group(func(r chi.Router) {
 		r.Use(authMiddleware)
-		// Create
-		r.Post("/models", h.CreateModel)
-		r.Post("/employers", h.CreateEmployer)
-
 		// Current User Profile
 		r.Get("/me", h.GetMe)
 
-		// Update (Only models implemented fully for now)
+		// Update
 		r.Put("/models/{id}", h.UpdateModel)
-
-		// TODO: Add employer list/update routes
+		r.Put("/employers/{id}", h.UpdateEmployer)
 	})
 
 	return r

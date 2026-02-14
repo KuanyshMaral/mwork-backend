@@ -33,6 +33,16 @@ func NewHandler(service *Service, limitChecker LimitChecker) *Handler {
 
 // Apply handles POST /castings/{id}/responses
 // B1: Returns HTTP 402 when user has insufficient credits
+// @Summary Откликнуться на кастинг
+// @Tags Response
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID кастинга"
+// @Param request body ApplyRequest false "Комментарий к отклику"
+// @Success 201 {object} response.Response{data=ResponseResponse}
+// @Failure 400,402,403,404,409,422,500 {object} response.Response
+// @Router /castings/{id}/responses [post]
 func (h *Handler) Apply(w http.ResponseWriter, r *http.Request) {
 	castingID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -87,6 +97,8 @@ func (h *Handler) Apply(w http.ResponseWriter, r *http.Request) {
 			// B1: HTTP 402 Payment Required for insufficient credits
 			// ✅ FIXED: Added error code parameter
 			response.Error(w, http.StatusPaymentRequired, "INSUFFICIENT_CREDITS", "Insufficient credits to apply to this casting")
+		case errors.Is(err, ErrCreditOperationFailed):
+			response.Error(w, http.StatusServiceUnavailable, "CREDIT_SERVICE_UNAVAILABLE", "Credit operation is temporarily unavailable")
 		default:
 			response.InternalError(w)
 		}
@@ -97,6 +109,16 @@ func (h *Handler) Apply(w http.ResponseWriter, r *http.Request) {
 }
 
 // ListByCasting handles GET /castings/{id}/responses
+// @Summary Список откликов по кастингу
+// @Tags Response
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID кастинга"
+// @Param page query int false "Страница"
+// @Param limit query int false "Лимит"
+// @Success 200 {object} response.Response{data=[]ResponseResponse}
+// @Failure 400,403,404,500 {object} response.Response
+// @Router /castings/{id}/responses [get]
 func (h *Handler) ListByCasting(w http.ResponseWriter, r *http.Request) {
 	castingID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -150,6 +172,16 @@ func (h *Handler) ListByCasting(w http.ResponseWriter, r *http.Request) {
 }
 
 // UpdateStatus handles PATCH /responses/{id}/status
+// @Summary Обновить статус отклика
+// @Tags Response
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID отклика"
+// @Param request body UpdateStatusRequest true "Новый статус"
+// @Success 200 {object} response.Response{data=ResponseResponse}
+// @Failure 400,403,404,409,422,500 {object} response.Response
+// @Router /responses/{id}/status [patch]
 func (h *Handler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 	responseID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -190,6 +222,15 @@ func (h *Handler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 // ListMyApplications handles GET /responses/my
+// @Summary Мои отклики
+// @Tags Response
+// @Produce json
+// @Security BearerAuth
+// @Param page query int false "Страница"
+// @Param limit query int false "Лимит"
+// @Success 200 {object} response.Response{data=[]ResponseResponse}
+// @Failure 400,500 {object} response.Response
+// @Router /responses/my [get]
 func (h *Handler) ListMyApplications(w http.ResponseWriter, r *http.Request) {
 	// Pagination
 	page := 1

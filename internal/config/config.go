@@ -36,22 +36,22 @@ type Config struct {
 	R2PublicURL       string
 
 	// Email
-	ResendAPIKey string
+	ResendAPIKey           string
+	VerificationCodePepper string
+	AllowLegacyRefresh     bool
 
-	// Kaspi Payment (DEPRECATED - use RoboKassa)
-	KaspiBaseURL    string
-	KaspiMerchantID string
-	KaspiSecretKey  string
-
-	// RoboKassa Payment
-	RoboKassaMerchantLogin string
-	RoboKassaPassword1     string
-	RoboKassaPassword2     string
-	RoboKassaTestMode      bool
-
-	// Payment URLs
-	FrontendURL string
-	BackendURL  string
+	// Robokassa Payment
+	RobokassaMerchantLogin string
+	RobokassaPassword1     string
+	RobokassaPassword2     string
+	RobokassaTestPassword1 string
+	RobokassaTestPassword2 string
+	RobokassaIsTest        bool
+	RobokassaHashAlgo      string
+	RobokassaPaymentURL    string
+	RobokassaResultURL     string
+	RobokassaSuccessURL    string
+	RobokassaFailURL       string
 
 	// PhotoStudio
 	PhotoStudioBaseURL        string
@@ -96,22 +96,22 @@ func Load() *Config {
 		R2PublicURL:       getEnv("R2_PUBLIC_URL", ""),
 
 		// Email
-		ResendAPIKey: getEnv("RESEND_API_KEY", ""),
+		ResendAPIKey:           getEnv("RESEND_API_KEY", ""),
+		VerificationCodePepper: getEnv("VERIFICATION_CODE_PEPPER", "dev-only-change-me"),
+		AllowLegacyRefresh:     parseBool(getEnv("ALLOW_LEGACY_REFRESH", "false"), false),
 
-		// Kaspi Payment (DEPRECATED)
-		KaspiBaseURL:    getEnv("KASPI_BASE_URL", "https://api.kaspi.kz"),
-		KaspiMerchantID: getEnv("KASPI_MERCHANT_ID", ""),
-		KaspiSecretKey:  getEnv("KASPI_SECRET_KEY", ""),
-
-		// RoboKassa Payment
-		RoboKassaMerchantLogin: getEnv("ROBOKASSA_MERCHANT_LOGIN", ""),
-		RoboKassaPassword1:     getEnv("ROBOKASSA_PASSWORD1", ""),
-		RoboKassaPassword2:     getEnv("ROBOKASSA_PASSWORD2", ""),
-		RoboKassaTestMode:      parseBool(getEnv("ROBOKASSA_TEST_MODE", "false"), false),
-
-		// Payment URLs
-		FrontendURL: getEnv("FRONTEND_URL", "http://localhost:3000"),
-		BackendURL:  getEnv("BACKEND_URL", "http://localhost:8080"),
+		// Robokassa Payment
+		RobokassaMerchantLogin: getEnv("ROBOKASSA_MERCHANT_LOGIN", ""),
+		RobokassaPassword1:     getEnv("ROBOKASSA_PASSWORD_1", ""),
+		RobokassaPassword2:     getEnv("ROBOKASSA_PASSWORD_2", ""),
+		RobokassaTestPassword1: getEnv("ROBOKASSA_TEST_PASSWORD_1", ""),
+		RobokassaTestPassword2: getEnv("ROBOKASSA_TEST_PASSWORD_2", ""),
+		RobokassaIsTest:        parseBool(getEnv("ROBOKASSA_IS_TEST", "false"), false),
+		RobokassaHashAlgo:      getEnv("ROBOKASSA_HASH_ALGO", "MD5"),
+		RobokassaPaymentURL:    getEnv("ROBOKASSA_PAYMENT_URL", "https://auth.robokassa.kz/Merchant/Index.aspx"),
+		RobokassaResultURL:     getEnv("ROBOKASSA_RESULT_URL", "/webhooks/robokassa/result"),
+		RobokassaSuccessURL:    getEnv("ROBOKASSA_SUCCESS_URL", "/api/v1/payments/robokassa/success"),
+		RobokassaFailURL:       getEnv("ROBOKASSA_FAIL_URL", "/api/v1/payments/robokassa/fail"),
 
 		// PhotoStudio
 		PhotoStudioBaseURL:        getEnv("PHOTOSTUDIO_BASE_URL", ""),

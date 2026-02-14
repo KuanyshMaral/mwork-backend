@@ -24,6 +24,7 @@ import (
 	"github.com/mwork/mwork-api/internal/domain/credit"
 	"github.com/mwork/mwork-api/internal/domain/dashboard"
 	"github.com/mwork/mwork-api/internal/domain/experience"
+	"github.com/mwork/mwork-api/internal/domain/favorite"
 	"github.com/mwork/mwork-api/internal/domain/lead"
 	"github.com/mwork/mwork-api/internal/domain/moderation"
 	"github.com/mwork/mwork-api/internal/domain/notification"
@@ -40,8 +41,8 @@ import (
 	"github.com/mwork/mwork-api/internal/domain/user"
 	"github.com/mwork/mwork-api/internal/middleware"
 	"github.com/mwork/mwork-api/internal/pkg/database"
+	emailpkg "github.com/mwork/mwork-api/internal/pkg/email"
 	"github.com/mwork/mwork-api/internal/pkg/jwt"
-	paymentpkg "github.com/mwork/mwork-api/internal/pkg/payment"
 	"github.com/mwork/mwork-api/internal/pkg/photostudio"
 	pkgresponse "github.com/mwork/mwork-api/internal/pkg/response"
 	"github.com/mwork/mwork-api/internal/pkg/robokassa"
@@ -60,7 +61,6 @@ import (
 // @contact.name    API Support
 // @contact.email   support@swagger.io
 
-// @host            localhost:8080
 // @BasePath        /api/v1
 
 // @securityDefinitions.apikey BearerAuth
@@ -90,6 +90,13 @@ func main() {
 
 	jwtService := jwt.NewService(cfg.JWTSecret, cfg.JWTAccessTTL, cfg.JWTRefreshTTL)
 
+	emailService := emailpkg.NewService(emailpkg.SendGridConfig{
+		APIKey:    cfg.ResendAPIKey,
+		FromEmail: "noreply@mwork.kz",
+		FromName:  "MWork",
+	})
+	defer emailService.Close()
+
 	// Legacy upload service used by photo module (as in your current main)
 	uploadSvc := upload.NewService(&upload.Config{
 		AccountID:       cfg.R2AccountID,
@@ -115,6 +122,7 @@ func main() {
 	dashboardRepo := dashboard.NewRepository(db)
 	dashboardSvc := dashboard.NewService(db)
 	promotionRepo := promotion.NewRepository(db)
+	favoriteRepo := favorite.NewRepository(db)
 
 	// ---------- Upload domain (2-phase) ----------
 	// R2 storage client (presign/move/exists)
@@ -168,6 +176,9 @@ func main() {
 	paymentService := payment.NewService(paymentRepo, nil)
 
 	// ---------- Adapters ----------
+	// Adapter for auth model profile repository
+	authModelRepo := &authModelProfileAdapter{repo: modelRepo}
+
 	// Adapter for auth employer profile repository
 	authEmployerRepo := &authEmployerProfileAdapter{repo: employerRepo}
 
@@ -180,26 +191,49 @@ func main() {
 	// Adapter for casting profile service
 	castingProfileService := &castingProfileServiceAdapter{service: profileService}
 
-	// Adapter for subscription payment service
-	subscriptionPaymentService := &subscriptionPaymentAdapter{service: paymentService}
-
-	// Setup payment provider factory
-	providerFactory := setupPaymentProviders(cfg)
+	verificationCodeRepo := auth.NewVerificationCodeRepository(db)
+	refreshTokenRepo := auth.NewRefreshTokenRepository(db)
 
 	// Update authService with authEmployerRepo
 	authService := auth.NewService(
 		userRepo,
+		authModelRepo,
 		jwtService,
-		redis,
+		refreshTokenRepo,
 		authEmployerRepo,
 		photoStudioClient,
 		photoStudioSyncEnabled,
 		photoStudioTimeout,
+		verificationCodeRepo,
+		cfg.VerificationCodePepper,
+		cfg.IsDevelopment(),
+		cfg.AllowLegacyRefresh,
+		emailService,
 	)
 
 	// Update services with proper dependencies
 	subscriptionService = subscription.NewService(subscriptionRepo, subscriptionPhotoRepo, subscriptionResponseRepo, subscriptionCastingRepo, subscriptionProfileRepo)
 	paymentService = payment.NewService(paymentRepo, subscriptionService)
+	hashAlgo, err := robokassa.NormalizeHashAlgorithm(cfg.RobokassaHashAlgo)
+	if err != nil {
+		log.Fatal().Err(err).Msg("invalid ROBOKASSA_HASH_ALGO")
+	}
+	paymentService.SetRobokassaConfig(payment.RobokassaConfig{
+		MerchantLogin: cfg.RobokassaMerchantLogin,
+		Password1:     cfg.RobokassaPassword1,
+		Password2:     cfg.RobokassaPassword2,
+		TestPassword1: cfg.RobokassaTestPassword1,
+		TestPassword2: cfg.RobokassaTestPassword2,
+		IsTest:        cfg.RobokassaIsTest,
+		HashAlgo:      hashAlgo,
+		PaymentURL:    cfg.RobokassaPaymentURL,
+		ResultURL:     cfg.RobokassaResultURL,
+		SuccessURL:    cfg.RobokassaSuccessURL,
+		FailURL:       cfg.RobokassaFailURL,
+	})
+
+	// Adapter for subscription payment service (must use configured paymentService instance)
+	subscriptionPaymentService := &subscriptionPaymentAdapter{service: paymentService}
 	limitChecker := subscription.NewLimitChecker(subscriptionService)
 	chatService = chat.NewService(chatRepo, userRepo, chatHub, moderationService, limitChecker)
 
@@ -242,19 +276,20 @@ func main() {
 	deviceRepo := notification.NewDeviceTokenRepository(db)
 	preferencesHandler := notification.NewPreferencesHandler(prefsRepo, deviceRepo)
 
-	subscriptionHandler := subscription.NewHandler(subscriptionService, subscriptionPaymentService, providerFactory, &subscription.Config{
-		FrontendURL: cfg.FrontendURL,
-		BackendURL:  cfg.BackendURL,
+	subscriptionHandler := subscription.NewHandler(subscriptionService, subscriptionPaymentService, &subscription.Config{
+		FrontendURL: "http://localhost:3000",
+		BackendURL:  "http://localhost:8080",
 	})
-	paymentHandler := payment.NewHandler(paymentService, providerFactory)
+	paymentHandler := payment.NewHandler(paymentService)
 
 	dashboardHandler := dashboard.NewHandler(dashboardRepo, dashboardSvc)
 	promotionHandler := promotion.NewHandler(promotionRepo)
+	favoriteHandler := favorite.NewHandler(favoriteRepo)
 
 	savedCastingsHandler := casting.NewSavedCastingsHandler(db)
 	socialLinksHandler := profile.NewSocialLinksHandler(db, modelRepo)
 	reviewRepo := review.NewRepository(db)
-	reviewHandler := review.NewHandler(reviewRepo)
+	reviewHandler := review.NewHandler(reviewRepo, modelRepo)
 	faqHandler := content.NewFAQHandler(db)
 
 	creditHandler := admin.NewCreditHandler(creditService, adminService)
@@ -269,6 +304,24 @@ func main() {
 	photoStudioBookingHandler := photostudio_booking.NewHandler(photoStudioBookingService)
 
 	authMiddleware := middleware.Auth(jwtService)
+	emailVerificationWhitelist := []string{
+		"/api/v1/auth/login",
+		"/api/v1/auth/register",
+		"/api/v1/auth/refresh",
+		"/api/v1/auth/logout",
+		"/api/v1/auth/verify/request",
+		"/api/v1/auth/verify/confirm",
+		"/api/v1/auth/verify/request/me",
+		"/api/v1/auth/verify/confirm/me",
+		"/health",
+		"/healthz",
+		"/swagger",
+		"/docs",
+	}
+	emailVerifiedMiddleware := middleware.RequireVerifiedEmail(userRepo, emailVerificationWhitelist)
+	authWithVerifiedEmailMiddleware := func(next http.Handler) http.Handler {
+		return authMiddleware(emailVerifiedMiddleware(next))
+	}
 	responseLimitMiddleware := middleware.RequireResponseLimit(limitChecker, &responseLimitCounter{repo: responseRepo})
 	chatLimitMiddleware := middleware.RequireChatLimit(limitChecker)
 	photoLimitMiddleware := middleware.RequirePhotoLimit(limitChecker, &photoLimitCounter{repo: photoRepo}, &modelProfileIDProvider{repo: modelRepo})
@@ -278,9 +331,8 @@ func main() {
 
 	r.Use(chimw.RealIP)
 	r.Use(middleware.RequestID)
-	r.Use(middleware.Logger)
-	r.Use(middleware.Recover)
 	r.Use(middleware.CORSHandler(cfg.AllowedOrigins))
+	r.Use(chimw.Compress(5))
 
 	// Swagger будет доступен по адресу: http://localhost:PORT/swagger/index.html
 	r.Get("/swagger/*", httpSwagger.Handler(
@@ -288,18 +340,13 @@ func main() {
 	))
 
 	// ======================
-	// WebSocket endpoint (before Compress)
+	// WebSocket endpoint
 	r.Get("/ws", func(w http.ResponseWriter, r *http.Request) {
 		token := r.URL.Query().Get("token")
 		if token != "" {
 			r.Header.Set("Authorization", "Bearer "+token)
 		}
-		authMiddleware(http.HandlerFunc(chatHandler.WebSocket)).ServeHTTP(w, r)
-	})
-
-	// Compress for everything else
-	r.Group(func(r chi.Router) {
-		r.Use(chimw.Compress(5))
+		authWithVerifiedEmailMiddleware(http.HandlerFunc(chatHandler.WebSocket)).ServeHTTP(w, r)
 	})
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -314,32 +361,39 @@ func main() {
 			pkgresponse.OK(w, map[string]string{"message": "pong"})
 		})
 
-		r.Mount("/auth", authHandler.Routes(authMiddleware))
-		r.Mount("/profiles", profileHandler.Routes(authMiddleware))
-		r.Mount("/castings", castingHandler.Routes(authMiddleware))
+		r.Mount("/auth", authHandler.Routes(authWithVerifiedEmailMiddleware))
+		r.Mount("/profiles", profileHandler.Routes(authWithVerifiedEmailMiddleware))
+		mountProfileExperienceRoutes(
+			r,
+			authWithVerifiedEmailMiddleware,
+			experienceHandler.List,
+			experienceHandler.Create,
+			experienceHandler.Delete,
+		)
+		r.Mount("/castings", castingHandler.Routes(authWithVerifiedEmailMiddleware))
 
 		r.Route("/castings/saved", func(r chi.Router) {
-			r.Use(authMiddleware)
+			r.Use(authWithVerifiedEmailMiddleware)
 			r.Get("/", savedCastingsHandler.ListSaved)
 		})
 		r.Route("/castings/{id}/save", func(r chi.Router) {
-			r.Use(authMiddleware)
+			r.Use(authWithVerifiedEmailMiddleware)
 			r.Post("/", savedCastingsHandler.Save)
 			r.Delete("/", savedCastingsHandler.Unsave)
 			r.Get("/", savedCastingsHandler.CheckSaved)
 		})
 
 		r.Route("/castings/{id}/responses", func(r chi.Router) {
-			r.Use(authMiddleware)
+			r.Use(authWithVerifiedEmailMiddleware)
 			r.With(responseLimitMiddleware).Post("/", responseHandler.Apply)
 			r.Get("/", responseHandler.ListByCasting)
 		})
-		r.Mount("/responses", responseHandler.Routes(authMiddleware))
+		r.Mount("/responses", responseHandler.Routes(authWithVerifiedEmailMiddleware))
 
 		// legacy uploads/photos
-		r.Mount("/uploads", photoHandler.UploadRoutes(authMiddleware))
+		r.Mount("/uploads", photoHandler.UploadRoutes(authWithVerifiedEmailMiddleware))
 		r.Route("/photos", func(r chi.Router) {
-			r.Use(authMiddleware)
+			r.Use(authWithVerifiedEmailMiddleware)
 			r.With(photoLimitMiddleware).Post("/", photoHandler.ConfirmUpload)
 			r.Delete("/{id}", photoHandler.Delete)
 			r.Patch("/{id}/avatar", photoHandler.SetAvatar)
@@ -348,7 +402,7 @@ func main() {
 
 		// NEW: 2-phase file uploads
 		r.Route("/files", func(r chi.Router) {
-			r.Use(authMiddleware)
+			r.Use(authWithVerifiedEmailMiddleware)
 
 			// New 2-phase endpoints
 			r.Post("/init", uploadHandler.Init)
@@ -364,12 +418,10 @@ func main() {
 
 		r.Get("/profiles/{id}/photos", photoHandler.ListByProfile)
 
-		r.Mount("/", experienceHandler.Routes(authMiddleware))
-
 		r.Route("/profiles/{id}/social-links", func(r chi.Router) {
 			r.Get("/", socialLinksHandler.List)
 			r.Group(func(r chi.Router) {
-				r.Use(authMiddleware)
+				r.Use(authWithVerifiedEmailMiddleware)
 				r.Post("/", socialLinksHandler.Create)
 				r.Delete("/{platform}", socialLinksHandler.Delete)
 			})
@@ -381,7 +433,7 @@ func main() {
 		r.Get("/profiles/{id}/reviews/summary", reviewHandler.GetSummary)
 
 		r.Route("/chat", func(r chi.Router) {
-			r.Use(authMiddleware)
+			r.Use(authWithVerifiedEmailMiddleware)
 			r.With(chatLimitMiddleware).Post("/rooms", chatHandler.CreateRoom)
 			r.Get("/rooms", chatHandler.ListRooms)
 
@@ -391,26 +443,27 @@ func main() {
 
 			r.Get("/unread", chatHandler.GetUnreadCount)
 		})
-		r.Mount("/moderation", moderationHandler.Routes(authMiddleware))
-		r.Mount("/notifications", notificationHandler.Routes(authMiddleware))
-		r.Mount("/notifications/preferences", preferencesHandler.Routes(authMiddleware))
+		r.Mount("/moderation", moderationHandler.Routes(authWithVerifiedEmailMiddleware))
+		r.Mount("/notifications", notificationHandler.Routes(authWithVerifiedEmailMiddleware))
+		r.Mount("/notifications/preferences", preferencesHandler.Routes(authWithVerifiedEmailMiddleware))
 
-		r.Mount("/subscriptions", subscriptionHandler.Routes(authMiddleware))
-		r.Mount("/payments", paymentHandler.Routes(authMiddleware))
+		r.Mount("/subscriptions", subscriptionHandler.Routes(authWithVerifiedEmailMiddleware))
+		r.Mount("/payments", paymentHandler.Routes(authWithVerifiedEmailMiddleware))
 
-		r.Mount("/dashboard", dashboard.Routes(dashboardHandler, authMiddleware))
-		r.Mount("/promotions", promotion.Routes(promotionHandler, authMiddleware))
-		r.Mount("/reviews", review.Routes(reviewHandler, authMiddleware))
+		r.Mount("/dashboard", dashboard.Routes(dashboardHandler, authWithVerifiedEmailMiddleware))
+		r.Mount("/promotions", promotion.Routes(promotionHandler, authWithVerifiedEmailMiddleware))
+		r.Mount("/favorites", favorite.Routes(favoriteHandler, authWithVerifiedEmailMiddleware))
+		r.Mount("/reviews", review.Routes(reviewHandler, authWithVerifiedEmailMiddleware))
 		r.Mount("/faq", faqHandler.Routes())
 
 		// PhotoStudio booking integration
-		r.Mount("/photostudio", photoStudioBookingHandler.Routes(authMiddleware))
+		r.Mount("/photostudio", photoStudioBookingHandler.Routes(authWithVerifiedEmailMiddleware))
 	})
 
 	r.Mount("/webhooks", paymentHandler.WebhookRoutes())
 	r.Mount("/api/v1/leads", leadHandler.PublicRoutes())
 
-	r.Route("/api/admin", func(r chi.Router) {
+	r.Route("/api/v1/admin", func(r chi.Router) {
 		r.Mount("/", adminHandler.Routes())
 		r.Mount("/moderation", adminModerationHandler.Routes(adminJWTService, adminService))
 
@@ -422,10 +475,10 @@ func main() {
 		r.Mount("/leads", leadHandler.AdminRoutes(adminJWTService, adminService))
 		r.Mount("/users", userAdminHandler.Routes(adminJWTService, adminService))
 	})
-
+	rootHandler := middleware.Logger(middleware.Recover(r))
 	server := &http.Server{
 		Addr:         ":" + cfg.Port,
-		Handler:      r,
+		Handler:      rootHandler,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
@@ -452,6 +505,59 @@ func main() {
 	}
 
 	log.Info().Msg("Server exited properly")
+}
+
+func mountProfileExperienceRoutes(
+	r chi.Router,
+	authMiddleware func(http.Handler) http.Handler,
+	listHandler http.HandlerFunc,
+	createHandler http.HandlerFunc,
+	deleteHandler http.HandlerFunc,
+) {
+	r.Get("/profiles/{id}/experience", listHandler)
+	r.With(authMiddleware).Post("/profiles/{id}/experience", createHandler)
+	r.With(authMiddleware).Delete("/profiles/{id}/experience/{expId}", deleteHandler)
+}
+
+// authModelProfileAdapter adapts profile.ModelRepository to auth.ModelProfileRepository
+type authModelProfileAdapter struct {
+	repo profile.ModelRepository
+}
+
+func (a *authModelProfileAdapter) Create(ctx context.Context, authProfile *auth.ModelProfile) error {
+	modelProfile := &profile.ModelProfile{
+		ID:           authProfile.ID,
+		UserID:       authProfile.UserID,
+		IsPublic:     true,
+		ProfileViews: 0,
+		Rating:       0,
+		TotalReviews: 0,
+		CreatedAt:    authProfile.CreatedAt,
+		UpdatedAt:    authProfile.UpdatedAt,
+	}
+	modelProfile.SetLanguages(nil)
+	modelProfile.SetCategories(nil)
+	modelProfile.SetSkills(nil)
+	modelProfile.SetTravelCities(nil)
+
+	return a.repo.Create(ctx, modelProfile)
+}
+
+func (a *authModelProfileAdapter) GetByUserID(ctx context.Context, userID uuid.UUID) (*auth.ModelProfile, error) {
+	modelProfile, err := a.repo.GetByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if modelProfile == nil {
+		return nil, nil
+	}
+
+	return &auth.ModelProfile{
+		ID:        modelProfile.ID,
+		UserID:    modelProfile.UserID,
+		CreatedAt: modelProfile.CreatedAt,
+		UpdatedAt: modelProfile.UpdatedAt,
+	}, nil
 }
 
 func setupLogger(cfg *config.Config) {
@@ -520,6 +626,40 @@ func (a *authEmployerProfileAdapter) Create(ctx context.Context, authProfile *au
 	return a.repo.Create(ctx, employerProfile)
 }
 
+func (a *authEmployerProfileAdapter) GetByUserID(ctx context.Context, userID uuid.UUID) (*auth.EmployerProfile, error) {
+	employerProfile, err := a.repo.GetByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if employerProfile == nil {
+		return nil, nil
+	}
+
+	description := ""
+	if employerProfile.Description.Valid {
+		description = employerProfile.Description.String
+	}
+	website := ""
+	if employerProfile.Website.Valid {
+		website = employerProfile.Website.String
+	}
+	contactPerson := ""
+	if employerProfile.ContactPerson.Valid {
+		contactPerson = employerProfile.ContactPerson.String
+	}
+
+	return &auth.EmployerProfile{
+		ID:            employerProfile.ID,
+		UserID:        employerProfile.UserID,
+		CompanyName:   employerProfile.CompanyName,
+		Description:   description,
+		Website:       website,
+		ContactPerson: contactPerson,
+		CreatedAt:     employerProfile.CreatedAt,
+		UpdatedAt:     employerProfile.UpdatedAt,
+	}, nil
+}
+
 // Additional adapters for interface mismatches
 
 type castingProfileServiceAdapter struct {
@@ -555,6 +695,24 @@ func (a *subscriptionPaymentAdapter) CreatePayment(ctx context.Context, userID, 
 		Amount:         payment.Amount,
 		Status:         string(payment.Status),
 		CreatedAt:      payment.CreatedAt,
+	}, nil
+}
+
+func (a *subscriptionPaymentAdapter) InitRobokassaPayment(ctx context.Context, req subscription.InitRobokassaPaymentRequest) (*subscription.InitRobokassaPaymentResponse, error) {
+	out, err := a.service.InitRobokassaPayment(ctx, payment.InitRobokassaPaymentRequest{
+		UserID:         req.UserID,
+		SubscriptionID: req.SubscriptionID,
+		Amount:         req.Amount,
+		Description:    req.Description,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &subscription.InitRobokassaPaymentResponse{
+		PaymentID:  out.PaymentID,
+		InvID:      out.InvID,
+		PaymentURL: out.PaymentURL,
+		Status:     out.Status,
 	}, nil
 }
 
@@ -626,21 +784,4 @@ func (a *modelProfileIDProvider) ProfileIDByUserID(ctx context.Context, userID u
 		return uuid.Nil, err
 	}
 	return modelProfile.ID, nil
-}
-
-// setupPaymentProviders creates and initializes the payment provider factory with all supported providers
-func setupPaymentProviders(cfg *config.Config) *paymentpkg.ProviderFactory {
-	factory := paymentpkg.NewProviderFactory()
-
-	// Register RoboKassa provider
-	roboConfig := robokassa.Config{
-		MerchantLogin: cfg.RoboKassaMerchantLogin,
-		Password1:     cfg.RoboKassaPassword1,
-		Password2:     cfg.RoboKassaPassword2,
-		TestMode:      cfg.RoboKassaTestMode,
-	}
-	roboProvider := paymentpkg.NewRoboKassaProvider(roboConfig)
-	factory.Register(paymentpkg.ProviderRoboKassa, roboProvider)
-
-	return factory
 }

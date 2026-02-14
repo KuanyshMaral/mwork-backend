@@ -36,8 +36,95 @@ func (s *Service) SetNotificationService(notifService NotificationService) {
 	s.notifService = notifService
 }
 
+func validateCreateCastingRequest(req *CreateCastingRequest) ValidationErrors {
+	errs := ValidationErrors{}
+
+	if req.PayMin != nil && req.PayMax != nil && *req.PayMin > *req.PayMax {
+		errs["pay_min"] = "pay_min must be <= pay_max"
+	}
+
+	if reqErrs := validateRequirementsRange(req.Requirements); reqErrs != nil {
+		for k, v := range reqErrs {
+			errs[k] = v
+		}
+	}
+
+	if len(errs) == 0 {
+		return nil
+	}
+	return errs
+}
+
+func validateRequirementsRange(req *RequirementsRequest) ValidationErrors {
+	if req == nil {
+		return nil
+	}
+
+	errs := ValidationErrors{}
+	if req.AgeMin != nil && req.AgeMax != nil && *req.AgeMin > *req.AgeMax {
+		errs["requirements.age_min"] = "requirements.age_min must be <= requirements.age_max"
+	}
+	if req.HeightMin != nil && req.HeightMax != nil && *req.HeightMin > *req.HeightMax {
+		errs["requirements.height_min"] = "requirements.height_min must be <= requirements.height_max"
+	}
+	if len(errs) == 0 {
+		return nil
+	}
+	return errs
+}
+
+func validateStatusTransition(current Status, next Status) error {
+	if current == next {
+		return nil
+	}
+
+	switch current {
+	case StatusDraft:
+		if next == StatusActive || next == StatusClosed {
+			return nil
+		}
+	case StatusActive:
+		if next == StatusClosed {
+			return nil
+		}
+	case StatusClosed:
+		// Closed is terminal and cannot be reopened.
+	}
+
+	return ErrInvalidStatusTransition
+}
+
+func parseRFC3339Field(value *string) (sql.NullTime, error) {
+	if value == nil {
+		return sql.NullTime{}, nil
+	}
+
+	t, err := time.Parse(time.RFC3339, *value)
+	if err != nil {
+		return sql.NullTime{}, err
+	}
+
+	return sql.NullTime{Time: t, Valid: true}, nil
+}
+
 // Create creates a new casting
 func (s *Service) Create(ctx context.Context, userID uuid.UUID, req *CreateCastingRequest) (*Casting, error) {
+	if verr := validateCreateCastingRequest(req); verr != nil {
+		return nil, verr
+	}
+
+	dateFrom, err := parseRFC3339Field(req.DateFrom)
+	if err != nil {
+		return nil, ErrInvalidDateFromFormat
+	}
+	dateTo, err := parseRFC3339Field(req.DateTo)
+	if err != nil {
+		return nil, ErrInvalidDateToFormat
+	}
+	if dateFrom.Valid && dateTo.Valid && dateFrom.Time.After(dateTo.Time) {
+		return nil, ErrInvalidDateRange
+	}
+
 	// Check if user is employer
 	u, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil || u == nil {
@@ -46,7 +133,12 @@ func (s *Service) Create(ctx context.Context, userID uuid.UUID, req *CreateCasti
 	if !u.CanCreateCasting() {
 		return nil, ErrOnlyEmployersCanCreate
 	}
-	if (u.Role == user.RoleEmployer || u.Role == user.RoleAgency) && !u.IsVerificationApproved() {
+	requestedStatus := StatusActive
+	if req.Status != "" {
+		requestedStatus = Status(req.Status)
+	}
+
+	if (u.Role == user.RoleEmployer || u.Role == user.RoleAgency) && !u.IsVerificationApproved() && requestedStatus != StatusDraft {
 		return nil, ErrEmployerNotVerified
 	}
 
@@ -64,67 +156,51 @@ func (s *Service) Create(ctx context.Context, userID uuid.UUID, req *CreateCasti
 		ResponseCount: 0,
 		CreatedAt:     now,
 		UpdatedAt:     now,
+		DateFrom:      dateFrom,
+		DateTo:        dateTo,
 	}
 
-	// Task 3: CASTING PRE-MODERATION
-	// Set moderation status based on employer verification
-	// Unverified employers must have their castings moderated before they go live
 	if u.IsCompanyVerified() {
 		casting.ModerationStatus = ModerationApproved
 	} else {
 		casting.ModerationStatus = ModerationPending
 	}
 
-	// Address
 	if req.Address != "" {
 		casting.Address = sql.NullString{String: req.Address, Valid: true}
 	}
 
-	// Payment
-	if req.PayMin != nil {
-		casting.PayMin = sql.NullFloat64{Float64: *req.PayMin, Valid: true}
-	}
-	if req.PayMax != nil {
-		casting.PayMax = sql.NullFloat64{Float64: *req.PayMax, Valid: true}
-	}
 	if req.PayType != "" {
 		casting.PayType = req.PayType
 	}
 
-	// Dates
-	if req.DateFrom != nil {
-		if t, err := time.Parse(time.RFC3339, *req.DateFrom); err == nil {
-			casting.DateFrom = sql.NullTime{Time: t, Valid: true}
-		}
-	}
-	if req.DateTo != nil {
-		if t, err := time.Parse(time.RFC3339, *req.DateTo); err == nil {
-			casting.DateTo = sql.NullTime{Time: t, Valid: true}
-		}
-	}
-
-	// Cover image URL
 	if req.CoverImageURL != "" {
 		casting.CoverImageURL = sql.NullString{String: req.CoverImageURL, Valid: true}
 	}
 
-	// Requirements (JSONB)
 	if req.Requirements != nil {
 		reqData := Requirements{
 			Gender:             req.Requirements.Gender,
-			AgeMin:             req.Requirements.AgeMin,
-			AgeMax:             req.Requirements.AgeMax,
-			HeightMin:          req.Requirements.HeightMin,
-			HeightMax:          req.Requirements.HeightMax,
 			ExperienceRequired: req.Requirements.ExperienceRequired,
 			Languages:          req.Requirements.Languages,
+		}
+		if req.Requirements.AgeMin != nil {
+			reqData.AgeMin = *req.Requirements.AgeMin
+		}
+		if req.Requirements.AgeMax != nil {
+			reqData.AgeMax = *req.Requirements.AgeMax
+		}
+		if req.Requirements.HeightMin != nil {
+			reqData.HeightMin = *req.Requirements.HeightMin
+		}
+		if req.Requirements.HeightMax != nil {
+			reqData.HeightMax = *req.Requirements.HeightMax
 		}
 		casting.Requirements, _ = json.Marshal(reqData)
 	} else {
 		casting.Requirements, _ = json.Marshal(Requirements{})
 	}
 
-	// Status
 	if req.Status != "" {
 		casting.Status = Status(req.Status)
 	}
@@ -159,7 +235,38 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, re
 		return nil, ErrNotCastingOwner
 	}
 
-	// Update fields
+	if req.PayMin != nil {
+		casting.PayMin = sql.NullFloat64{Float64: *req.PayMin, Valid: true}
+	}
+	if req.PayMax != nil {
+		casting.PayMax = sql.NullFloat64{Float64: *req.PayMax, Valid: true}
+	}
+	if casting.PayMin.Valid && casting.PayMax.Valid && casting.PayMin.Float64 > casting.PayMax.Float64 {
+		return nil, ValidationErrors{"pay_min": "pay_min must be <= pay_max"}
+	}
+
+	if reqErrs := validateRequirementsRange(req.Requirements); reqErrs != nil {
+		return nil, reqErrs
+	}
+
+	if req.DateFrom != nil {
+		t, err := parseRFC3339Field(req.DateFrom)
+		if err != nil {
+			return nil, ErrInvalidDateFromFormat
+		}
+		casting.DateFrom = t
+	}
+	if req.DateTo != nil {
+		t, err := parseRFC3339Field(req.DateTo)
+		if err != nil {
+			return nil, ErrInvalidDateToFormat
+		}
+		casting.DateTo = t
+	}
+	if casting.DateFrom.Valid && casting.DateTo.Valid && casting.DateFrom.Time.After(casting.DateTo.Time) {
+		return nil, ErrInvalidDateRange
+	}
+
 	if req.Title != "" {
 		casting.Title = req.Title
 	}
@@ -181,30 +288,27 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, re
 	if req.PayType != "" {
 		casting.PayType = req.PayType
 	}
-	if req.DateFrom != nil {
-		if t, err := time.Parse(time.RFC3339, *req.DateFrom); err == nil {
-			casting.DateFrom = sql.NullTime{Time: t, Valid: true}
-		}
-	}
-	if req.DateTo != nil {
-		if t, err := time.Parse(time.RFC3339, *req.DateTo); err == nil {
-			casting.DateTo = sql.NullTime{Time: t, Valid: true}
-		}
-	}
 	if req.CoverImageURL != "" {
 		casting.CoverImageURL = sql.NullString{String: req.CoverImageURL, Valid: true}
 	}
 
-	// Update requirements
 	if req.Requirements != nil {
 		reqData := Requirements{
 			Gender:             req.Requirements.Gender,
-			AgeMin:             req.Requirements.AgeMin,
-			AgeMax:             req.Requirements.AgeMax,
-			HeightMin:          req.Requirements.HeightMin,
-			HeightMax:          req.Requirements.HeightMax,
 			ExperienceRequired: req.Requirements.ExperienceRequired,
 			Languages:          req.Requirements.Languages,
+		}
+		if req.Requirements.AgeMin != nil {
+			reqData.AgeMin = *req.Requirements.AgeMin
+		}
+		if req.Requirements.AgeMax != nil {
+			reqData.AgeMax = *req.Requirements.AgeMax
+		}
+		if req.Requirements.HeightMin != nil {
+			reqData.HeightMin = *req.Requirements.HeightMin
+		}
+		if req.Requirements.HeightMax != nil {
+			reqData.HeightMax = *req.Requirements.HeightMax
 		}
 		casting.Requirements, _ = json.Marshal(reqData)
 	}
@@ -227,6 +331,10 @@ func (s *Service) UpdateStatus(ctx context.Context, id uuid.UUID, userID uuid.UU
 
 	if !casting.CanBeEditedBy(userID) {
 		return nil, ErrNotCastingOwner
+	}
+
+	if err := validateStatusTransition(casting.Status, status); err != nil {
+		return nil, err
 	}
 
 	if err := s.repo.UpdateStatus(ctx, id, status); err != nil {
@@ -259,4 +367,9 @@ func (s *Service) List(ctx context.Context, filter *Filter, sortBy SortBy, pagin
 // IncrementViewCount increments view count
 func (s *Service) IncrementViewCount(ctx context.Context, id uuid.UUID) error {
 	return s.repo.IncrementViewCount(ctx, id)
+}
+
+// ListByCreator returns castings by creator
+func (s *Service) ListByCreator(ctx context.Context, creatorID uuid.UUID, pagination *Pagination) ([]*Casting, int, error) {
+	return s.repo.ListByCreator(ctx, creatorID, pagination)
 }

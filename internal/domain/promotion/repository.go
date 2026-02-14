@@ -3,6 +3,7 @@ package promotion
 import (
 	"context"
 	"database/sql"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
@@ -17,6 +18,24 @@ type Repository struct {
 // NewRepository creates a new promotion repository
 func NewRepository(db *sqlx.DB) *Repository {
 	return &Repository{db: db}
+}
+
+// GetProfileIDByUserID returns profile ID for authenticated user
+func (r *Repository) GetProfileIDByUserID(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
+	var profileID uuid.UUID
+	err := r.db.GetContext(ctx, &profileID, `
+		SELECT id
+		FROM profiles
+		WHERE user_id = $1
+	`, userID)
+	if err == sql.ErrNoRows {
+		return uuid.Nil, ErrProfileNotFound
+	}
+	if err != nil {
+		return uuid.Nil, err
+	}
+
+	return profileID, nil
 }
 
 // Create inserts a new promotion
@@ -65,11 +84,12 @@ func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (*Promotion, err
 	var targetCities pq.StringArray
 
 	row := r.db.QueryRowContext(ctx, query, id)
+	var paymentID sql.NullString
 	err := row.Scan(
 		&p.ID, &p.ProfileID, &p.Title, &p.Description, &p.PhotoURL, &p.Specialization,
 		&p.TargetAudience, &targetCities, &p.BudgetAmount, &p.DailyBudget,
 		&p.DurationDays, &p.Status, &p.StartsAt, &p.EndsAt, &p.Impressions, &p.Clicks,
-		&p.Responses, &p.SpentAmount, &p.PaymentID, &p.CreatedAt, &p.UpdatedAt,
+		&p.Responses, &p.SpentAmount, &paymentID, &p.CreatedAt, &p.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, ErrPromotionNotFound
@@ -79,6 +99,13 @@ func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (*Promotion, err
 	}
 
 	p.TargetCities = targetCities
+	if paymentID.Valid {
+		parsedPaymentID, parseErr := uuid.Parse(strings.TrimSpace(paymentID.String))
+		if parseErr != nil {
+			return nil, parseErr
+		}
+		p.PaymentID = &parsedPaymentID
+	}
 	return &p, nil
 }
 
@@ -104,19 +131,31 @@ func (r *Repository) GetByProfileID(ctx context.Context, profileID uuid.UUID) ([
 	for rows.Next() {
 		var p Promotion
 		var targetCities pq.StringArray
+		var paymentID sql.NullString
 
 		err := rows.Scan(
 			&p.ID, &p.ProfileID, &p.Title, &p.Description, &p.PhotoURL, &p.Specialization,
 			&p.TargetAudience, &targetCities, &p.BudgetAmount, &p.DailyBudget,
 			&p.DurationDays, &p.Status, &p.StartsAt, &p.EndsAt, &p.Impressions, &p.Clicks,
-			&p.Responses, &p.SpentAmount, &p.PaymentID, &p.CreatedAt, &p.UpdatedAt,
+			&p.Responses, &p.SpentAmount, &paymentID, &p.CreatedAt, &p.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err
 		}
 
 		p.TargetCities = targetCities
+		if paymentID.Valid {
+			parsedPaymentID, parseErr := uuid.Parse(strings.TrimSpace(paymentID.String))
+			if parseErr != nil {
+				return nil, parseErr
+			}
+			p.PaymentID = &parsedPaymentID
+		}
 		promotions = append(promotions, p)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
 	return promotions, nil
@@ -138,7 +177,7 @@ func (r *Repository) UpdateStatus(ctx context.Context, id uuid.UUID, status Stat
 }
 
 // Activate activates a promotion with start/end times
-func (r *Repository) Activate(ctx context.Context, id uuid.UUID, startsAt, endsAt sql.NullTime, paymentID uuid.UUID) error {
+func (r *Repository) Activate(ctx context.Context, id uuid.UUID, startsAt, endsAt sql.NullTime, paymentID *uuid.UUID) error {
 	query := `
 		UPDATE profile_promotions 
 		SET status = 'active', starts_at = $2, ends_at = $3, payment_id = $4, updated_at = NOW()
@@ -207,19 +246,31 @@ func (r *Repository) GetActivePromotions(ctx context.Context) ([]Promotion, erro
 	for rows.Next() {
 		var p Promotion
 		var targetCities pq.StringArray
+		var paymentID sql.NullString
 
 		err := rows.Scan(
 			&p.ID, &p.ProfileID, &p.Title, &p.Description, &p.PhotoURL, &p.Specialization,
 			&p.TargetAudience, &targetCities, &p.BudgetAmount, &p.DailyBudget,
 			&p.DurationDays, &p.Status, &p.StartsAt, &p.EndsAt, &p.Impressions, &p.Clicks,
-			&p.Responses, &p.SpentAmount, &p.PaymentID, &p.CreatedAt, &p.UpdatedAt,
+			&p.Responses, &p.SpentAmount, &paymentID, &p.CreatedAt, &p.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err
 		}
 
 		p.TargetCities = targetCities
+		if paymentID.Valid {
+			parsedPaymentID, parseErr := uuid.Parse(strings.TrimSpace(paymentID.String))
+			if parseErr != nil {
+				return nil, parseErr
+			}
+			p.PaymentID = &parsedPaymentID
+		}
 		promotions = append(promotions, p)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
 	return promotions, nil

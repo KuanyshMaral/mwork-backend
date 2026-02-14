@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -18,6 +19,7 @@ type Repository interface {
 	Update(ctx context.Context, user *User) error
 	Delete(ctx context.Context, id uuid.UUID) error
 	UpdateEmailVerified(ctx context.Context, id uuid.UUID, verified bool) error
+	UpdateVerificationFlags(ctx context.Context, id uuid.UUID, emailVerified bool, isVerified bool) error
 	UpdatePassword(ctx context.Context, id uuid.UUID, passwordHash string) error
 	UpdateStatus(ctx context.Context, id uuid.UUID, status Status) error
 	UpdateLastLogin(ctx context.Context, id uuid.UUID, ip string) error
@@ -36,8 +38,8 @@ func NewRepository(db *sqlx.DB) Repository {
 // Create creates a new user
 func (r *repository) Create(ctx context.Context, user *User) error {
 	query := `
-		INSERT INTO users (id, email, password_hash, role, email_verified, is_banned, credit_balance)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO users (id, email, password_hash, role, email_verified, is_verified, is_banned, credit_balance)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`
 
 	_, err := r.db.ExecContext(ctx, query,
@@ -46,17 +48,22 @@ func (r *repository) Create(ctx context.Context, user *User) error {
 		user.PasswordHash,
 		user.Role,
 		user.EmailVerified,
+		user.IsVerified,
 		user.IsBanned,
 		user.CreditBalance,
 	)
+	if err != nil {
+		return fmt.Errorf("user repository create: %w", err)
+	}
 
-	return err
+	return nil
 }
 
 // GetByID returns user by ID
 func (r *repository) GetByID(ctx context.Context, id uuid.UUID) (*User, error) {
 	query := `
-		SELECT id, email, password_hash, role, email_verified, is_banned, credit_balance,
+		SELECT id, email, password_hash, role, email_verified, is_verified, is_banned, credit_balance,
+		       user_verification_status,
 		       created_at, updated_at
 		FROM users WHERE id = $1
 	`
@@ -75,7 +82,8 @@ func (r *repository) GetByID(ctx context.Context, id uuid.UUID) (*User, error) {
 // GetByEmail returns user by email
 func (r *repository) GetByEmail(ctx context.Context, email string) (*User, error) {
 	query := `
-		SELECT id, email, password_hash, role, email_verified, is_banned, credit_balance,
+		SELECT id, email, password_hash, role, email_verified, is_verified, is_banned, credit_balance,
+		       user_verification_status,
 		       created_at, updated_at
 		FROM users WHERE email = $1
 	`
@@ -109,14 +117,23 @@ func (r *repository) Update(ctx context.Context, user *User) error {
 		user.IsBanned,
 		user.CreditBalance,
 	)
+	if err != nil {
+		return fmt.Errorf("user repository update: %w", err)
+	}
 
-	return err
+	return nil
 }
 
 // UpdateEmailVerified updates email verified status
 func (r *repository) UpdateEmailVerified(ctx context.Context, id uuid.UUID, verified bool) error {
 	query := `UPDATE users SET email_verified = $2, updated_at = NOW() WHERE id = $1`
 	_, err := r.db.ExecContext(ctx, query, id, verified)
+	return err
+}
+
+func (r *repository) UpdateVerificationFlags(ctx context.Context, id uuid.UUID, emailVerified bool, isVerified bool) error {
+	query := `UPDATE users SET email_verified = $2, is_verified = $3, updated_at = NOW() WHERE id = $1`
+	_, err := r.db.ExecContext(ctx, query, id, emailVerified, isVerified)
 	return err
 }
 

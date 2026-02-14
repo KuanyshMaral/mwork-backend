@@ -9,6 +9,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
+	"github.com/rs/zerolog/log"
+
+	"github.com/mwork/mwork-api/internal/middleware"
 )
 
 // Filter represents search filters
@@ -57,6 +61,14 @@ type repository struct {
 	db *sqlx.DB
 }
 
+const castingSelectColumns = `
+	id, creator_id, title, description, city, address,
+	pay_min, pay_max, pay_type, date_from, date_to,
+	requirements, status, is_promoted, view_count, response_count,
+	created_at, updated_at, moderation_status, required_models_count,
+	accepted_models_count, cover_image_url
+`
+
 // NewRepository creates new casting repository
 func NewRepository(db *sqlx.DB) Repository {
 	return &repository{db: db}
@@ -83,13 +95,62 @@ func (r *repository) Create(ctx context.Context, casting *Casting) error {
 		casting.CoverImageURL,
 		casting.Requirements, casting.Status, casting.IsPromoted, casting.ViewCount, casting.ResponseCount,
 	)
+	if err != nil {
+		evt := log.Error().
+			Str("request_id", middleware.GetRequestID(ctx)).
+			Str("query", "castings.create").
+			Str("casting_id", casting.ID.String()).
+			Str("creator_id", casting.CreatorID.String()).
+			Str("status", string(casting.Status)).
+			Str("pay_type", casting.PayType).
+			Interface("date_from", casting.DateFrom).
+			Interface("date_to", casting.DateTo).
+			Bytes("requirements", casting.Requirements).
+			Err(err)
 
-	return err
+		var pqErr *pq.Error
+		if errors.As(err, &pqErr) {
+			evt = evt.
+				Str("pg_code", string(pqErr.Code)).
+				Str("pg_constraint", pqErr.Constraint)
+		}
+
+		evt.Msg("casting insert failed")
+		return mapCreateDBError(err)
+	}
+
+	return nil
+}
+
+func mapCreateDBError(err error) error {
+	var pqErr *pq.Error
+	if !errors.As(err, &pqErr) {
+		return err
+	}
+
+	constraint := strings.ToLower(pqErr.Constraint)
+	switch pqErr.Code {
+	case "23514":
+		switch {
+		case constraint == "valid_pay_range" || strings.Contains(constraint, "pay_range"):
+			return fmt.Errorf("%w: %w", ErrInvalidPayRange, err)
+		case constraint == "valid_date_range" || strings.Contains(constraint, "date_range"):
+			return fmt.Errorf("%w: %w", ErrInvalidDateRange, err)
+		default:
+			return fmt.Errorf("%w: %w", ErrCastingConstraint, err)
+		}
+	case "23503":
+		return fmt.Errorf("%w: %w", ErrInvalidCreatorReference, err)
+	case "23505":
+		return fmt.Errorf("%w: %w", ErrDuplicateCasting, err)
+	default:
+		return err
+	}
 }
 
 func (r *repository) GetByID(ctx context.Context, id uuid.UUID) (*Casting, error) {
 	query := `
-		SELECT * FROM castings
+		SELECT ` + castingSelectColumns + ` FROM castings
 		WHERE id = $1 AND status != 'deleted'
 	`
 
@@ -122,16 +183,23 @@ func (r *repository) Update(ctx context.Context, casting *Casting) error {
 		casting.Title, casting.Description, casting.City, casting.Address,
 		casting.PayMin, casting.PayMax, casting.PayType,
 		casting.DateFrom, casting.DateTo,
+		casting.CoverImageURL,
 		casting.Requirements, casting.Status,
 	)
+	if err != nil {
+		return mapCreateDBError(err)
+	}
 
-	return err
+	return nil
 }
 
 func (r *repository) UpdateStatus(ctx context.Context, id uuid.UUID, status Status) error {
 	query := `UPDATE castings SET status = $2, updated_at = NOW() WHERE id = $1`
 	_, err := r.db.ExecContext(ctx, query, id, status)
-	return err
+	if err != nil {
+		return mapCreateDBError(err)
+	}
+	return nil
 }
 
 func (r *repository) Delete(ctx context.Context, id uuid.UUID) error {
@@ -210,10 +278,10 @@ func (r *repository) List(ctx context.Context, filter *Filter, sortBy SortBy, pa
 	// Get castings with pagination
 	offset := (pagination.Page - 1) * pagination.Limit
 	query := fmt.Sprintf(`
-		SELECT * FROM castings c
+		SELECT %s FROM castings c
 		%s %s
 		LIMIT $%d OFFSET $%d
-	`, where, orderBy, argIndex, argIndex+1)
+	`, castingSelectColumns, where, orderBy, argIndex, argIndex+1)
 	args = append(args, pagination.Limit, offset)
 
 	var castings []*Casting
@@ -292,7 +360,7 @@ func (r *repository) ListByCreator(ctx context.Context, creatorID uuid.UUID, pag
 	// List
 	offset := (pagination.Page - 1) * pagination.Limit
 	query := `
-		SELECT * FROM castings 
+		SELECT ` + castingSelectColumns + ` FROM castings 
 		WHERE creator_id = $1 AND status != 'deleted'
 		ORDER BY created_at DESC
 		LIMIT $2 OFFSET $3

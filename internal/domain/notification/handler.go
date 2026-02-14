@@ -22,6 +22,15 @@ func NewHandler(service *Service) *Handler {
 }
 
 // List handles GET /notifications
+// @Summary Список уведомлений
+// @Tags Notification
+// @Produce json
+// @Security BearerAuth
+// @Param limit query int false "Лимит"
+// @Param offset query int false "Смещение"
+// @Success 200 {object} response.Response{data=[]NotificationResponse}
+// @Failure 500 {object} response.Response
+// @Router /notifications [get]
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 
@@ -53,6 +62,12 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetUnreadCount handles GET /notifications/unread-count
+// @Summary Количество непрочитанных уведомлений
+// @Tags Notification
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} response.Response{data=UnreadCountResponse}
+// @Router /notifications/unread-count [get]
 func (h *Handler) GetUnreadCount(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 	count, _ := h.service.GetUnreadCount(r.Context(), userID)
@@ -60,6 +75,14 @@ func (h *Handler) GetUnreadCount(w http.ResponseWriter, r *http.Request) {
 }
 
 // MarkAsRead handles POST /notifications/{id}/read
+// @Summary Отметить уведомление как прочитанное
+// @Tags Notification
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID уведомления"
+// @Success 200 {object} response.Response
+// @Failure 400,500 {object} response.Response
+// @Router /notifications/{id}/read [post]
 func (h *Handler) MarkAsRead(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -76,6 +99,13 @@ func (h *Handler) MarkAsRead(w http.ResponseWriter, r *http.Request) {
 }
 
 // MarkAllAsRead handles POST /notifications/read-all
+// @Summary Отметить все уведомления как прочитанные
+// @Tags Notification
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /notifications/read-all [post]
 func (h *Handler) MarkAllAsRead(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 

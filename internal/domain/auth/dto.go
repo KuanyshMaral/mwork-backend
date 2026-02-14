@@ -10,7 +10,6 @@ import (
 type RegisterRequest struct {
 	Email    string `json:"email" validate:"required,email,max=255"`
 	Password string `json:"password" validate:"required,min=8,max=128"`
-	Role     string `json:"role" validate:"required,oneof=model employer"`
 }
 
 // AgencyRegisterRequest represents agency registration data
@@ -34,6 +33,24 @@ type RefreshRequest struct {
 	RefreshToken string `json:"refresh_token" validate:"required"`
 }
 
+type VerifyRequestBody struct {
+	Email string `json:"email" validate:"required,email,max=255" binding:"required,email" example:"user@example.com"`
+}
+
+type VerifyConfirmBody struct {
+	Email string `json:"email" validate:"required,email,max=255" binding:"required,email" example:"user@example.com"`
+	Code  string `json:"code" validate:"required,len=6,numeric" binding:"required,len=6" pattern:"^\\d{6}$" example:"123456"`
+}
+
+type VerifyRequestStatusData struct {
+	Status string `json:"status" example:"sent" enums:"already_verified,sent"`
+}
+
+type RegisterResponse struct {
+	User             UserResponse `json:"user"`
+	VerificationSent bool         `json:"verification_sent"`
+}
+
 // AuthResponse returned after login/register
 type AuthResponse struct {
 	User   UserResponse   `json:"user"`
@@ -46,6 +63,7 @@ type UserResponse struct {
 	Email         string    `json:"email"`
 	Role          string    `json:"role"`
 	EmailVerified bool      `json:"email_verified"`
+	IsVerified    bool      `json:"is_verified"`
 	CreatedAt     string    `json:"created_at"`
 }
 
@@ -54,15 +72,17 @@ type TokensResponse struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
 	ExpiresIn    int    `json:"expires_in"` // seconds until access token expires
+	TokenType    string `json:"token_type"`
 }
 
 // NewUserResponse creates UserResponse from user data
-func NewUserResponse(id uuid.UUID, email, role string, emailVerified bool, createdAt time.Time) UserResponse {
+func NewUserResponse(id uuid.UUID, email, role string, emailVerified, isVerified bool, createdAt time.Time) UserResponse {
 	return UserResponse{
 		ID:            id,
 		Email:         email,
 		Role:          role,
 		EmailVerified: emailVerified,
+		IsVerified:    isVerified,
 		CreatedAt:     createdAt.Format(time.RFC3339),
 	}
 }

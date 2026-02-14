@@ -66,6 +66,8 @@ func (s *Service) loadTemplates() {
 		"lead_approved":     LeadApprovedTemplate,
 		"lead_rejected":     LeadRejectedTemplate,
 		"digest":            DigestTemplate,
+		"verification":      VerificationTemplate,
+		"password_reset":    PasswordResetTemplate,
 	}
 
 	for name, content := range templates {

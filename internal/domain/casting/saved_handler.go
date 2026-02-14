@@ -27,6 +27,14 @@ func NewSavedCastingsHandler(db *sqlx.DB) *SavedCastingsHandler {
 }
 
 // Save handles POST /castings/{id}/save
+// @Summary Сохранить кастинг
+// @Tags Casting
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID кастинга"
+// @Success 201 {object} response.Response
+// @Failure 400,401,500 {object} response.Response
+// @Router /castings/{id}/save [post]
 func (h *SavedCastingsHandler) Save(w http.ResponseWriter, r *http.Request) {
 	castingID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -61,6 +69,14 @@ func (h *SavedCastingsHandler) Save(w http.ResponseWriter, r *http.Request) {
 }
 
 // Unsave handles DELETE /castings/{id}/save
+// @Summary Убрать кастинг из сохраненных
+// @Tags Casting
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID кастинга"
+// @Success 200 {object} response.Response
+// @Failure 400,401,404,500 {object} response.Response
+// @Router /castings/{id}/save [delete]
 func (h *SavedCastingsHandler) Unsave(w http.ResponseWriter, r *http.Request) {
 	castingID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -91,6 +107,15 @@ func (h *SavedCastingsHandler) Unsave(w http.ResponseWriter, r *http.Request) {
 }
 
 // ListSaved handles GET /castings/saved
+// @Summary Список сохраненных кастингов
+// @Tags Casting
+// @Produce json
+// @Security BearerAuth
+// @Param page query int false "Страница"
+// @Param limit query int false "Лимит"
+// @Success 200 {object} response.Response
+// @Failure 401,500 {object} response.Response
+// @Router /castings/saved [get]
 func (h *SavedCastingsHandler) ListSaved(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 	if userID == uuid.Nil {
@@ -149,6 +174,14 @@ func (h *SavedCastingsHandler) ListSaved(w http.ResponseWriter, r *http.Request)
 }
 
 // CheckSaved handles GET /castings/{id}/saved (check if saved by current user)
+// @Summary Проверить, сохранен ли кастинг
+// @Tags Casting
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID кастинга"
+// @Success 200 {object} response.Response
+// @Failure 400,500 {object} response.Response
+// @Router /castings/{id}/saved [get]
 func (h *SavedCastingsHandler) CheckSaved(w http.ResponseWriter, r *http.Request) {
 	castingID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
