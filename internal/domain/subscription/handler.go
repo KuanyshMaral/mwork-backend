@@ -155,7 +155,7 @@ func (h *Handler) GetLimits(w http.ResponseWriter, r *http.Request) {
 	response.OK(w, limits)
 }
 
-// Subscribe handles POST /subscriptions/subscribe
+// Subscribe handles POST /subscriptions
 // @Summary Оформление подписки
 // @Description Создает новую подписку и инициирует процесс оплаты через Robokassa
 // @Tags Subscription
@@ -171,7 +171,6 @@ func (h *Handler) GetLimits(w http.ResponseWriter, r *http.Request) {
 // @Failure 422 {object} response.Response
 // @Failure 500 {object} response.Response
 // @Failure 502 {object} response.Response
-// @Router /subscriptions/subscribe [post]
 // @Router /subscriptions [post]
 func (h *Handler) Subscribe(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
