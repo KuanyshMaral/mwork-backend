@@ -1,12 +1,13 @@
 package subscription
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 )
 
-// SubscribeRequest for POST /subscriptions/subscribe
+// SubscribeRequest for POST /subscriptions
 type SubscribeRequest struct {
 	PlanID        string `json:"plan_id" validate:"required,oneof=pro agency"`
 	BillingPeriod string `json:"billing_period" validate:"required,oneof=monthly yearly"`
@@ -63,7 +64,7 @@ func buildFeatureList(p *Plan) []string {
 		if p.MaxPhotos >= 100 {
 			features = append(features, "Unlimited photos")
 		} else {
-			features = append(features, "Up to "+string(rune('0'+p.MaxPhotos))+" photos")
+			features = append(features, fmt.Sprintf("Up to %d photos", p.MaxPhotos))
 		}
 	}
 
