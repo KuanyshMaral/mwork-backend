@@ -97,6 +97,8 @@ func (h *Handler) Apply(w http.ResponseWriter, r *http.Request) {
 			// B1: HTTP 402 Payment Required for insufficient credits
 			// ✅ FIXED: Added error code parameter
 			response.Error(w, http.StatusPaymentRequired, "INSUFFICIENT_CREDITS", "Insufficient credits to apply to this casting")
+		case errors.Is(err, ErrCreditOperationFailed):
+			response.Error(w, http.StatusServiceUnavailable, "CREDIT_SERVICE_UNAVAILABLE", "Credit operation is temporarily unavailable")
 		default:
 			response.InternalError(w)
 		}
