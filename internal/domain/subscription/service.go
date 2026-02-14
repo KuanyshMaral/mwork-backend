@@ -56,6 +56,22 @@ func NewService(repo Repository, photoRepo PhotoRepository, responseRepo Respons
 	}
 }
 
+func defaultFreePlan() *Plan {
+	return &Plan{
+		ID:                PlanFree,
+		Name:              "Free",
+		Description:       "Базовый бесплатный план",
+		PriceMonthly:      0,
+		MaxPhotos:         3,
+		MaxResponsesMonth: 5,
+		CanChat:           false,
+		CanSeeViewers:     false,
+		PrioritySearch:    false,
+		MaxTeamMembers:    0,
+		IsActive:          true,
+	}
+}
+
 // GetPlans returns all available plans
 func (s *Service) GetPlans(ctx context.Context) ([]*Plan, error) {
 	return s.repo.ListPlans(ctx)
@@ -80,6 +96,9 @@ func (s *Service) GetCurrentSubscription(ctx context.Context, userID uuid.UUID) 
 	// If no subscription, return virtual "free" subscription
 	if sub == nil {
 		freePlan, _ := s.repo.GetPlanByID(ctx, PlanFree)
+		if freePlan == nil {
+			freePlan = defaultFreePlan()
+		}
 		return &Subscription{
 			UserID:        userID,
 			PlanID:        PlanFree,
@@ -212,6 +231,9 @@ func (s *Service) GetLimitsWithUsage(ctx context.Context, userID uuid.UUID) (*Li
 		if err != nil {
 			return nil, fmt.Errorf("failed to get free plan: %w", err)
 		}
+		if plan == nil {
+			plan = defaultFreePlan()
+		}
 	} else if err != nil {
 		return nil, fmt.Errorf("failed to get subscription: %w", err)
 	} else {
@@ -219,6 +241,9 @@ func (s *Service) GetLimitsWithUsage(ctx context.Context, userID uuid.UUID) (*Li
 		plan, err = s.repo.GetPlanByID(ctx, sub.PlanID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get plan: %w", err)
+		}
+		if plan == nil {
+			plan = defaultFreePlan()
 		}
 	}
 
