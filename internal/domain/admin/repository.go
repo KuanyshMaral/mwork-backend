@@ -96,11 +96,17 @@ func NewRepository(db *sqlx.DB) Repository {
 // Admin users
 
 func (r *repository) CreateAdmin(ctx context.Context, admin *AdminUser) error {
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
 	query := `
 		INSERT INTO admin_users (id, email, password_hash, role, name, is_active, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`
-	_, err := r.db.ExecContext(ctx, query,
+	if _, err := tx.ExecContext(ctx, query,
 		admin.ID,
 		admin.Email,
 		admin.PasswordHash,
@@ -109,8 +115,15 @@ func (r *repository) CreateAdmin(ctx context.Context, admin *AdminUser) error {
 		admin.IsActive,
 		admin.CreatedAt,
 		admin.UpdatedAt,
-	)
-	return err
+	); err != nil {
+		return err
+	}
+
+	if _, err := tx.ExecContext(ctx, `INSERT INTO admin_profiles (id, user_id, name, role, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (user_id) DO NOTHING`, admin.ID, admin.ID, admin.Name, admin.Role, admin.CreatedAt, admin.UpdatedAt); err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }
 
 func (r *repository) GetAdminByID(ctx context.Context, id uuid.UUID) (*AdminUser, error) {
