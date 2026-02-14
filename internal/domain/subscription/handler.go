@@ -103,6 +103,10 @@ func (h *Handler) ListPlans(w http.ResponseWriter, r *http.Request) {
 // @Router /subscriptions/current [get]
 func (h *Handler) GetCurrent(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
+	if userID == uuid.Nil {
+		response.Unauthorized(w, "unauthorized")
+		return
+	}
 
 	sub, plan, err := h.service.GetCurrentSubscription(r.Context(), userID)
 	if err != nil {
@@ -125,6 +129,10 @@ func (h *Handler) GetCurrent(w http.ResponseWriter, r *http.Request) {
 // @Router /subscriptions/limits [get]
 func (h *Handler) GetLimits(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
+	if userID == uuid.Nil {
+		response.Unauthorized(w, "unauthorized")
+		return
+	}
 
 	// Use the new comprehensive GetLimitsWithUsage method
 	limitsData, err := h.service.GetLimitsWithUsage(r.Context(), userID)
@@ -136,6 +144,10 @@ func (h *Handler) GetLimits(w http.ResponseWriter, r *http.Request) {
 	// Get plan info for additional fields
 	plan, err := h.service.GetPlanLimits(r.Context(), userID)
 	if err != nil {
+		response.InternalError(w)
+		return
+	}
+	if plan == nil {
 		response.InternalError(w)
 		return
 	}
@@ -289,6 +301,10 @@ func (h *Handler) Cancel(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID := middleware.GetUserID(r.Context())
+	if userID == uuid.Nil {
+		response.Unauthorized(w, "unauthorized")
+		return
+	}
 	if err := h.service.Cancel(r.Context(), userID, req.Reason); err != nil {
 		switch err {
 		case ErrSubscriptionNotFound:
