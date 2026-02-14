@@ -74,9 +74,25 @@ func NewPreferencesRepository(db *sqlx.DB) *PreferencesRepository {
 // GetByUserID gets preferences for user (creates default if not exists)
 func (r *PreferencesRepository) GetByUserID(ctx context.Context, userID uuid.UUID) (*UserPreferences, error) {
 	var prefs UserPreferences
-	err := r.db.GetContext(ctx, &prefs, `
-		SELECT * FROM user_notification_preferences WHERE user_id = $1
-	`, userID)
+	const selectPreferencesQuery = `
+		SELECT
+			id,
+			user_id,
+			email_enabled,
+			push_enabled,
+			in_app_enabled,
+			new_response_channels,
+			response_accepted_channels,
+			response_rejected_channels,
+			new_message_channels,
+			profile_viewed_channels,
+			casting_expiring_channels,
+			digest_enabled,
+			digest_frequency
+		FROM user_notification_preferences
+		WHERE user_id = $1
+	`
+	err := r.db.GetContext(ctx, &prefs, selectPreferencesQuery, userID)
 
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
@@ -122,9 +138,7 @@ func (r *PreferencesRepository) GetByUserID(ctx context.Context, userID uuid.UUI
 			return nil, err
 		}
 
-		if err := r.db.GetContext(ctx, &prefs, `
-			SELECT * FROM user_notification_preferences WHERE user_id = $1
-		`, userID); err != nil {
+		if err := r.db.GetContext(ctx, &prefs, selectPreferencesQuery, userID); err != nil {
 			return nil, err
 		}
 	}
