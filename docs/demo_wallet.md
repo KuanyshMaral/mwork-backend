@@ -58,30 +58,15 @@ It also verifies:
 
 ### Setup
 
-1. Start PostgreSQL (Docker) and wait until it is healthy:
+1. Start PostgreSQL and ensure `DATABASE_URL` points to your local DB (default used by tests is `postgres://mwork:mwork_secret@localhost:5432/mwork_dev?sslmode=disable`).
+2. Apply all migrations (including wallet migration):
    ```bash
-   docker compose up -d postgres
-   docker compose ps
+   make migrate-up
    ```
-
-2. Apply migrations (without requiring local `make`/`migrate` install):
-   ```bash
-   docker compose run --rm migrate
-   ```
-
-3. Run endpoint integration test:
-
-   **Linux/macOS (bash):**
+3. Run endpoint integration test script:
    ```bash
    ./scripts/test_demo_wallet_endpoints.sh
    ```
-
-   **Windows PowerShell:**
-   ```powershell
-   .\scripts\test_demo_wallet_endpoints.ps1
-   ```
-
-> Note: `docker-compose.yml` publishes PostgreSQL on host port `5432`, so local `go test` from host can connect to `localhost:5432`.
 
 ### Direct go test alternative
 
