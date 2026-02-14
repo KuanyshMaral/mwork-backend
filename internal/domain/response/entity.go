@@ -42,9 +42,9 @@ type Response struct {
 	RatingGiven bool `db:"rating_given"`
 
 	// Joined data (not in DB)
-	CastingTitle string `db:"-"`
-	CastingCity  string `db:"-"`
-	ModelName    string `db:"-"`
+	CastingTitle string `db:"casting_title"`
+	CastingCity  string `db:"casting_city"`
+	ModelName    string `db:"model_name"`
 }
 
 // IsPending returns true if response is pending
