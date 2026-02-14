@@ -42,7 +42,17 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	promotions, err := h.repo.GetByProfileID(r.Context(), userID)
+	profileID, err := h.repo.GetProfileIDByUserID(r.Context(), userID)
+	if err == ErrProfileNotFound {
+		response.NotFound(w, "profile not found")
+		return
+	}
+	if err != nil {
+		response.InternalError(w)
+		return
+	}
+
+	promotions, err := h.repo.GetByProfileID(r.Context(), profileID)
 	if err != nil {
 		response.InternalError(w)
 		return
@@ -98,9 +108,19 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 // @Failure 400,401,422,500 {object} response.Response
 // @Router /promotions [post]
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
-	profileID := middleware.GetUserID(r.Context())
-	if profileID == uuid.Nil {
+	userID := middleware.GetUserID(r.Context())
+	if userID == uuid.Nil {
 		response.Unauthorized(w, "unauthorized")
+		return
+	}
+
+	profileID, err := h.repo.GetProfileIDByUserID(r.Context(), userID)
+	if err == ErrProfileNotFound {
+		response.NotFound(w, "profile not found")
+		return
+	}
+	if err != nil {
+		response.InternalError(w)
 		return
 	}
 
@@ -185,7 +205,7 @@ func (h *Handler) Activate(w http.ResponseWriter, r *http.Request) {
 	now := time.Now()
 	startsAt := sql.NullTime{Time: now, Valid: true}
 	endsAt := sql.NullTime{Time: now.AddDate(0, 0, promo.DurationDays), Valid: true}
-	paymentID := uuid.New()
+	var paymentID *uuid.UUID
 
 	if err := h.repo.Activate(r.Context(), id, startsAt, endsAt, paymentID); err != nil {
 		response.InternalError(w)
@@ -285,14 +305,19 @@ func (h *Handler) GetStats(w http.ResponseWriter, r *http.Request) {
 // Routes returns promotion routes
 func Routes(h *Handler, authMiddleware func(http.Handler) http.Handler) chi.Router {
 	r := chi.NewRouter()
-	r.Use(authMiddleware)
 
-	r.Get("/", h.List)
-	r.Post("/", h.Create)
+	// Public promotion card/details endpoint
 	r.Get("/{id}", h.Get)
-	r.Post("/{id}/activate", h.Activate)
-	r.Post("/{id}/pause", h.Pause)
-	r.Get("/{id}/stats", h.GetStats)
+
+	// Authenticated promotion management endpoints
+	r.Group(func(r chi.Router) {
+		r.Use(authMiddleware)
+		r.Get("/", h.List)
+		r.Post("/", h.Create)
+		r.Post("/{id}/activate", h.Activate)
+		r.Post("/{id}/pause", h.Pause)
+		r.Get("/{id}/stats", h.GetStats)
+	})
 
 	return r
 }
