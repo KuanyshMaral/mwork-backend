@@ -154,14 +154,17 @@ func (h *Handler) GetLimits(w http.ResponseWriter, r *http.Request) {
 
 	// Build response with both usage and plan features
 	limits := &LimitsResponse{
-		PlanID:         string(plan.ID),
-		MaxPhotos:      limitsData.PhotosLimit,
-		PhotosUsed:     limitsData.PhotosUsed,
-		MaxResponses:   limitsData.ResponsesLimit,
-		ResponsesUsed:  limitsData.ResponsesUsed,
-		CanChat:        plan.CanChat,
-		CanSeeViewers:  plan.CanSeeViewers,
-		PrioritySearch: plan.PrioritySearch,
+		PlanID:             limitsData.PlanID,
+		PlanName:           limitsData.PlanName,
+		MaxPhotos:          limitsData.PhotosLimit,
+		PhotosUsed:         limitsData.PhotosUsed,
+		MaxResponses:       limitsData.ResponsesLimit,
+		ResponsesUsed:      limitsData.ResponsesUsed,
+		ResponsesRemaining: limitsData.ResponsesRemaining,
+		ResponsesResetAt:   limitsData.ResponsesResetAt.Format(time.RFC3339),
+		CanChat:            plan.CanChat,
+		CanSeeViewers:      plan.CanSeeViewers,
+		PrioritySearch:     plan.PrioritySearch,
 	}
 
 	response.OK(w, limits)

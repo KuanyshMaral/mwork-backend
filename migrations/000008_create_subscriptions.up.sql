@@ -23,7 +23,7 @@ CREATE TABLE plans (
 
 -- Default plans
 INSERT INTO plans (id, name, description, price_monthly, price_yearly, max_photos, max_responses_month, can_chat, can_see_viewers, priority_search, max_team_members) VALUES
-('free', 'Free', 'Базовый бесплатный план', 0, NULL, 3, 5, false, false, false, 0),
+('free', 'Free', 'Базовый бесплатный план', 0, NULL, 3, 20, false, false, false, 0),
 ('pro', 'Pro', 'Профессиональный план для моделей', 3990, 39900, 100, -1, true, true, true, 0),
 ('agency', 'Agency', 'План для модельных агентств', 14990, 149900, 100, -1, true, true, true, 5);
 
