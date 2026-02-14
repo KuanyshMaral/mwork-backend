@@ -5,6 +5,8 @@ services:
       POSTGRES_USER: mwork
       POSTGRES_PASSWORD: mwork_secret
       POSTGRES_DB: mwork_dev
+    ports:
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
