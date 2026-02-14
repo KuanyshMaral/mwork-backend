@@ -52,6 +52,12 @@ func (h *Handler) GetMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	adminProfile, err := h.service.GetAdminProfileByUserID(r.Context(), userID)
+	if err == nil && adminProfile != nil {
+		response.OK(w, AdminProfileResponseFromEntity(adminProfile))
+		return
+	}
+
 	response.NotFound(w, "Profile not found")
 }
 
@@ -68,7 +74,7 @@ func (h *Handler) GetMe(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetModelByID(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		response.BadRequest(w, "Invalid profile ID")
+		response.BadRequest(w, "Invalid user ID")
 		return
 	}
 
@@ -78,20 +84,18 @@ func (h *Handler) GetModelByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Increment view count (async)
 	go h.service.IncrementModelViewCount(context.Background(), id)
-
 	response.OK(w, ModelProfileResponseFromEntity(profile))
 }
 
-// UpdateModel handles PUT /profiles/models/{id}
+// UpdateModel handles PUT /profiles/models/{userId}
 // @Summary Обновление профиля модели
 // @Description Обновляет профиль модели. Доступно только владельцу профиля.
 // @Tags Profile
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param id path string true "ID профиля"
+// @Param userId path string true "ID пользователя"
 // @Param request body UpdateModelProfileRequest true "Обновление профиля модели"
 // @Success 200 {object} response.Response{data=ModelProfileResponse}
 // @Failure 400 {object} response.Response
@@ -100,9 +104,9 @@ func (h *Handler) GetModelByID(w http.ResponseWriter, r *http.Request) {
 // @Failure 404 {object} response.Response
 // @Failure 422 {object} response.Response
 // @Failure 500 {object} response.Response
-// @Router /profiles/models/{id} [put]
+// @Router /profiles/models/{userId} [put]
 func (h *Handler) UpdateModel(w http.ResponseWriter, r *http.Request) {
-	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	userIDParam, err := uuid.Parse(chi.URLParam(r, "userId"))
 	if err != nil {
 		response.BadRequest(w, "Invalid profile ID")
 		return
@@ -119,8 +123,13 @@ func (h *Handler) UpdateModel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID := middleware.GetUserID(r.Context())
-	profile, err := h.service.UpdateModelProfile(r.Context(), id, userID, &req)
+	callerID := middleware.GetUserID(r.Context())
+	if userIDParam != callerID {
+		response.Forbidden(w, "You can only edit your own profile")
+		return
+	}
+
+	profile, err := h.service.UpdateModelProfile(r.Context(), callerID, &req)
 	if err != nil {
 		switch err {
 		case ErrProfileNotFound:
@@ -136,14 +145,14 @@ func (h *Handler) UpdateModel(w http.ResponseWriter, r *http.Request) {
 	response.OK(w, ModelProfileResponseFromEntity(profile))
 }
 
-// UpdateEmployer handles PUT /profiles/employers/{id}
+// UpdateEmployer handles PUT /profiles/employers/{userId}
 // @Summary Обновление профиля работодателя
 // @Description Обновляет профиль работодателя. Доступно только владельцу профиля.
 // @Tags Profile
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param id path string true "ID профиля"
+// @Param userId path string true "ID пользователя"
 // @Param request body UpdateEmployerProfileRequest true "Обновление профиля работодателя"
 // @Success 200 {object} response.Response{data=EmployerProfileResponse}
 // @Failure 400 {object} response.Response
@@ -152,11 +161,11 @@ func (h *Handler) UpdateModel(w http.ResponseWriter, r *http.Request) {
 // @Failure 404 {object} response.Response
 // @Failure 422 {object} response.Response
 // @Failure 500 {object} response.Response
-// @Router /profiles/employers/{id} [put]
+// @Router /profiles/employers/{userId} [put]
 func (h *Handler) UpdateEmployer(w http.ResponseWriter, r *http.Request) {
-	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	userIDParam, err := uuid.Parse(chi.URLParam(r, "userId"))
 	if err != nil {
-		response.BadRequest(w, "Invalid profile ID")
+		response.BadRequest(w, "Invalid user ID")
 		return
 	}
 
@@ -171,8 +180,13 @@ func (h *Handler) UpdateEmployer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID := middleware.GetUserID(r.Context())
-	profile, err := h.service.UpdateEmployerProfile(r.Context(), id, userID, &req)
+	callerID := middleware.GetUserID(r.Context())
+	if userIDParam != callerID {
+		response.Forbidden(w, "You can only edit your own profile")
+		return
+	}
+
+	profile, err := h.service.UpdateEmployerProfile(r.Context(), callerID, &req)
 	if err != nil {
 		switch err {
 		case ErrProfileNotFound:
@@ -316,4 +330,58 @@ func (h *Handler) ListPromotedModels(w http.ResponseWriter, r *http.Request) {
 		"items": items,
 		"total": len(items),
 	})
+}
+
+// UpdateAdmin handles PUT /profiles/admins/{userId}
+// @Summary Обновление профиля администратора
+// @Description Обновляет профиль администратора. Доступно только владельцу профиля.
+// @Tags Profile
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param userId path string true "ID пользователя"
+// @Param request body UpdateAdminProfileRequest true "Обновление профиля администратора"
+// @Success 200 {object} response.Response{data=AdminProfileResponse}
+// @Failure 400 {object} response.Response
+// @Failure 401 {object} response.Response
+// @Failure 403 {object} response.Response
+// @Failure 404 {object} response.Response
+// @Failure 422 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /profiles/admins/{userId} [put]
+func (h *Handler) UpdateAdmin(w http.ResponseWriter, r *http.Request) {
+	userIDParam, err := uuid.Parse(chi.URLParam(r, "userId"))
+	if err != nil {
+		response.BadRequest(w, "Invalid user ID")
+		return
+	}
+
+	callerID := middleware.GetUserID(r.Context())
+	if userIDParam != callerID {
+		response.Forbidden(w, "You can only edit your own profile")
+		return
+	}
+
+	var req UpdateAdminProfileRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.BadRequest(w, "Invalid JSON body")
+		return
+	}
+	if errors := validator.Validate(&req); errors != nil {
+		response.ValidationError(w, errors)
+		return
+	}
+
+	profile, err := h.service.UpdateAdminProfileByUserID(r.Context(), callerID, &req)
+	if err != nil {
+		switch err {
+		case ErrProfileNotFound:
+			response.NotFound(w, "Profile not found")
+		default:
+			response.InternalError(w)
+		}
+		return
+	}
+
+	response.OK(w, AdminProfileResponseFromEntity(profile))
 }
