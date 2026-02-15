@@ -31,9 +31,10 @@ type InitRequest struct {
 	FileSize    int64  `json:"file_size" validate:"required,max=10485760"`
 }
 type InitResponse struct {
-	UploadID  string `json:"upload_id"`
-	UploadURL string `json:"upload_url"`
-	ExpiresAt string `json:"expires_at"`
+	UploadID   string `json:"upload_id"`
+	UploadURL  string `json:"upload_url,omitempty"`
+	UploadMode string `json:"upload_mode"`
+	ExpiresAt  string `json:"expires_at"`
 }
 
 type ConfirmRequest struct {
@@ -57,16 +58,18 @@ type UploadStorage interface {
 type Handler struct {
 	service        *Service
 	stagingBaseURL string
+	proxyUpload    bool
 
 	storage UploadStorage
 	repo    Repository
 }
 
 // NewHandler creates upload handler
-func NewHandler(service *Service, stagingBaseURL string, st UploadStorage, repo Repository) *Handler {
+func NewHandler(service *Service, stagingBaseURL string, st UploadStorage, repo Repository, proxyUpload bool) *Handler {
 	return &Handler{
 		service:        service,
 		stagingBaseURL: stagingBaseURL,
+		proxyUpload:    proxyUpload,
 		storage:        st,
 		repo:           repo,
 	}
@@ -74,13 +77,14 @@ func NewHandler(service *Service, stagingBaseURL string, st UploadStorage, repo 
 
 // Init handles POST /files/init
 // @Summary Инициализировать загрузку файла
+// @Description Purpose enum: avatar, portfolio, casting_cover, chat_file (and legacy photo/document where applicable).
 // @Tags Upload
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param request body InitRequest true "Метаданные файла"
-// @Success 200 {object} response.Response{data=InitResponse}
-// @Failure 400,401,413,422,502,500 {object} response.Response
+// @Param request body InitRequestDoc true "Метаданные файла"
+// @Success 200 {object} response.Response{data=InitResponseDoc}
+// @Failure 400,401,413,422,502,500 {object} response.ErrorResponse
 // @Router /files/init [post]
 func (h *Handler) Init(w http.ResponseWriter, r *http.Request) {
 	var req InitRequest
@@ -110,10 +114,17 @@ func (h *Handler) Init(w http.ResponseWriter, r *http.Request) {
 
 	stagingKey := fmt.Sprintf("uploads/staging/%s/%s/%s", userID.String(), uploadID.String(), fileName)
 
-	uploadURL, err := h.storage.GeneratePresignedPutURL(r.Context(), stagingKey, PresignExpiry, req.ContentType)
-	if err != nil {
-		response.Error(w, http.StatusBadGateway, "STORAGE_ERROR", "storage error")
-		return
+	uploadMode := "direct"
+	uploadURL := ""
+	if h.proxyUpload {
+		uploadMode = "proxy"
+	} else {
+		var err error
+		uploadURL, err = h.storage.GeneratePresignedPutURL(r.Context(), stagingKey, PresignExpiry, req.ContentType)
+		if err != nil {
+			response.Error(w, http.StatusBadGateway, "STORAGE_ERROR", "storage error")
+			return
+		}
 	}
 
 	now := time.Now().UTC()
@@ -138,21 +149,24 @@ func (h *Handler) Init(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.OK(w, InitResponse{
-		UploadID:  uploadID.String(),
-		UploadURL: uploadURL,
-		ExpiresAt: expiresAt.Format(time.RFC3339),
+		UploadID:   uploadID.String(),
+		UploadURL:  uploadURL,
+		UploadMode: uploadMode,
+		ExpiresAt:  expiresAt.Format(time.RFC3339),
 	})
 }
 
 // Confirm handles POST /files/confirm
 // @Summary Подтвердить загрузку файла
+// @Description Confirm is idempotent: committed uploads return 200 with current fields.
+// @Description Possible error codes: UPLOAD_NOT_FOUND, UPLOAD_FORBIDDEN, UPLOAD_EXPIRED, UPLOAD_INVALID_STATUS, INVALID_CONTENT_TYPE, FILE_TOO_LARGE, STORAGE_ERROR
 // @Tags Upload
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param request body ConfirmRequest true "ID загрузки"
-// @Success 200 {object} response.Response{data=ConfirmResponse}
-// @Failure 400,401,403,404,422,502,500 {object} response.Response
+// @Param request body ConfirmRequestDoc true "ID загрузки"
+// @Success 200 {object} response.Response{data=ConfirmResponseDoc}
+// @Failure 400,401,403,404,422,502,500 {object} response.ErrorResponse
 // @Router /files/confirm [post]
 func (h *Handler) Confirm(w http.ResponseWriter, r *http.Request) {
 	var req ConfirmRequest
@@ -178,51 +192,30 @@ func (h *Handler) Confirm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	up, err := h.repo.GetByID(r.Context(), uploadID)
+	up, err := h.service.Confirm(r.Context(), uploadID, userID)
 	if err != nil {
-		response.InternalError(w)
-		return
-	}
-	if up == nil {
-		response.NotFound(w, "Upload not found")
-		return
-	}
-	if up.UserID != userID {
-		response.Forbidden(w, "Not upload owner")
-		return
-	}
-
-	exists, err := h.storage.Exists(r.Context(), up.StagingKey)
-	if err != nil {
-		response.Error(w, http.StatusBadGateway, "STORAGE_ERROR", "storage error")
-		return
-	}
-	if !exists {
-		response.Error(w, http.StatusBadRequest, "FILE_NOT_FOUND", "file not found in staging")
-		return
-	}
-
-	now := time.Now().UTC()
-	finalKey := fmt.Sprintf("uploads/final/%s/%d_%s", userID.String(), now.Unix(), sanitizeFileName(up.OriginalName))
-
-	if err := h.storage.Move(r.Context(), up.StagingKey, finalKey); err != nil {
-		response.Error(w, http.StatusBadGateway, "STORAGE_ERROR", "storage error")
-		return
-	}
-
-	up.Status = StatusCommitted // или "committed"
-	up.PermanentKey = finalKey
-	up.PermanentURL = h.storage.GetURL(finalKey)
-	up.CommittedAt = &now
-
-	if err := h.repo.Update(r.Context(), up); err != nil {
-		response.InternalError(w)
+		switch err {
+		case ErrUploadNotFound:
+			response.NotFound(w, "Upload not found")
+		case ErrNotUploadOwner:
+			response.Forbidden(w, "Not upload owner")
+		case ErrInvalidStatus:
+			response.Error(w, http.StatusBadRequest, "INVALID_UPLOAD_STATUS", "invalid upload status")
+		case ErrUploadExpired:
+			response.Error(w, http.StatusGone, "UPLOAD_EXPIRED", "upload has expired")
+		case ErrMetadataMismatch:
+			response.Error(w, http.StatusBadRequest, "UPLOAD_METADATA_MISMATCH", "uploaded file metadata mismatch")
+		case ErrStagingFileNotFound:
+			response.Error(w, http.StatusBadRequest, "FILE_NOT_FOUND", "file not found in staging")
+		default:
+			response.Error(w, http.StatusBadGateway, "STORAGE_ERROR", "storage error")
+		}
 		return
 	}
 
 	response.OK(w, ConfirmResponse{
 		FileURL:   up.PermanentURL,
-		FinalPath: finalKey,
+		FinalPath: up.PermanentKey,
 	})
 }
 
@@ -264,7 +257,20 @@ func (h *Handler) Stage(w http.ResponseWriter, r *http.Request) {
 
 	userID := middleware.GetUserID(r.Context())
 
-	upload, err := h.service.Stage(r.Context(), userID, Category(category), header.Filename, file)
+	uploadIDRaw := strings.TrimSpace(r.FormValue("upload_id"))
+
+	var upload *Upload
+	if uploadIDRaw != "" {
+		uploadID, parseErr := uuid.Parse(uploadIDRaw)
+		if parseErr != nil {
+			response.BadRequest(w, "Invalid upload ID")
+			return
+		}
+		upload, err = h.service.StageExisting(r.Context(), uploadID, userID, Category(category), header.Filename, file)
+	} else {
+		upload, err = h.service.Stage(r.Context(), userID, Category(category), header.Filename, file)
+	}
+
 	if err != nil {
 		switch {
 		case errors.Is(err, storage.ErrFileTooLarge):
@@ -273,6 +279,10 @@ func (h *Handler) Stage(w http.ResponseWriter, r *http.Request) {
 			response.BadRequest(w, "File type not allowed")
 		case errors.Is(err, storage.ErrEmptyFile):
 			response.BadRequest(w, "File is empty")
+		case ErrUploadNotFound:
+			response.NotFound(w, "Upload not found")
+		case ErrNotUploadOwner:
+			response.Forbidden(w, "Not upload owner")
 		default:
 			response.InternalError(w)
 		}
