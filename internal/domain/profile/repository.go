@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -137,46 +137,63 @@ func (r *modelRepository) Update(ctx context.Context, p *ModelProfile) error {
 	return err
 }
 func (r *modelRepository) List(ctx context.Context, filter *Filter, pagination *Pagination) ([]*ModelProfile, int, error) {
+	if filter == nil {
+		filter = &Filter{}
+	}
+	if pagination == nil {
+		pagination = &Pagination{Page: 1, Limit: 20}
+	}
+	if pagination.Page <= 0 {
+		pagination.Page = 1
+	}
+	if pagination.Limit <= 0 {
+		pagination.Limit = 20
+	}
+
 	conditions := []string{"is_public = true"}
 	args := []interface{}{}
 	argIndex := 1
+	placeholder := func(i int) string { return "$" + strconv.Itoa(i) }
+
 	if filter.City != nil && *filter.City != "" {
-		conditions = append(conditions, fmt.Sprintf("city ILIKE $%d", argIndex))
+		conditions = append(conditions, "city ILIKE "+placeholder(argIndex))
 		args = append(args, "%"+*filter.City+"%")
 		argIndex++
 	}
 	if filter.Gender != nil && *filter.Gender != "" {
-		conditions = append(conditions, fmt.Sprintf("gender=$%d", argIndex))
+		conditions = append(conditions, "gender="+placeholder(argIndex))
 		args = append(args, *filter.Gender)
 		argIndex++
 	}
 	if filter.AgeMin != nil {
-		conditions = append(conditions, fmt.Sprintf("age >= $%d", argIndex))
+		conditions = append(conditions, "age >= "+placeholder(argIndex))
 		args = append(args, *filter.AgeMin)
 		argIndex++
 	}
 	if filter.AgeMax != nil {
-		conditions = append(conditions, fmt.Sprintf("age <= $%d", argIndex))
+		conditions = append(conditions, "age <= "+placeholder(argIndex))
 		args = append(args, *filter.AgeMax)
 		argIndex++
 	}
 	if filter.HeightMin != nil {
-		conditions = append(conditions, fmt.Sprintf("height >= $%d", argIndex))
+		conditions = append(conditions, "height >= "+placeholder(argIndex))
 		args = append(args, *filter.HeightMin)
 		argIndex++
 	}
 	if filter.HeightMax != nil {
-		conditions = append(conditions, fmt.Sprintf("height <= $%d", argIndex))
+		conditions = append(conditions, "height <= "+placeholder(argIndex))
 		args = append(args, *filter.HeightMax)
 		argIndex++
 	}
 	if filter.Query != nil && *filter.Query != "" {
-		conditions = append(conditions, fmt.Sprintf("(name ILIKE $%d OR bio ILIKE $%d)", argIndex, argIndex))
+		p := placeholder(argIndex)
+		conditions = append(conditions, "(name ILIKE "+p+" OR bio ILIKE "+p+")")
 		args = append(args, "%"+*filter.Query+"%")
 		argIndex++
 	}
+
 	where := "WHERE " + strings.Join(conditions, " AND ")
-	countQ := fmt.Sprintf("SELECT COUNT(*) FROM model_profiles %s", where)
+	countQ := "SELECT COUNT(*) FROM model_profiles " + where
 
 	var total int
 	if err := r.db.GetContext(ctx, &total, countQ, args...); err != nil {
@@ -184,10 +201,12 @@ func (r *modelRepository) List(ctx context.Context, filter *Filter, pagination *
 	}
 
 	offset := (pagination.Page - 1) * pagination.Limit
-	q := fmt.Sprintf(`SELECT id,user_id,name,bio,description,age,height,weight,gender,clothing_size,shoe_size,experience,
+	q := `SELECT id,user_id,name,bio,description,age,height,weight,gender,clothing_size,shoe_size,experience,
 	hourly_rate,city,country,languages,categories,skills,barter_accepted,accept_remote_work,travel_cities,visibility,
-	profile_views,rating,total_reviews,is_public,created_at,updated_at FROM model_profiles %s ORDER BY rating DESC, created_at DESC LIMIT $%d OFFSET $%d`, where, argIndex, argIndex+1)
+	profile_views,rating,total_reviews,is_public,created_at,updated_at FROM model_profiles ` + where +
+		" ORDER BY rating DESC, created_at DESC LIMIT " + placeholder(argIndex) + " OFFSET " + placeholder(argIndex+1)
 	args = append(args, pagination.Limit, offset)
+
 	var profiles []*ModelProfile
 	if err := r.db.SelectContext(ctx, &profiles, q, args...); err != nil {
 		return nil, 0, err
@@ -212,14 +231,14 @@ func (r *modelRepository) ListPromoted(ctx context.Context, city *string, limit 
 	var args []interface{}
 	argNum := 1
 	if city != nil && *city != "" {
-		q += fmt.Sprintf(" AND p.city = $%d", argNum)
+		q += " AND p.city = $" + strconv.Itoa(argNum)
 		args = append(args, *city)
 		argNum++
 	}
 
 	q += ` ORDER BY p.id, COALESCE(pr.daily_budget,0) DESC, pr.created_at DESC`
 	if limit > 0 {
-		q += fmt.Sprintf(" LIMIT $%d", argNum)
+		q += " LIMIT $" + strconv.Itoa(argNum)
 		args = append(args, limit)
 	} else {
 		q += " LIMIT 20"
