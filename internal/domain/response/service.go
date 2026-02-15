@@ -114,10 +114,9 @@ func (s *Service) Apply(ctx context.Context, userID uuid.UUID, castingID uuid.UU
 		return nil, ErrGeoBlocked
 	}
 
-	referenceID := fmt.Sprintf("response_apply:%s:%s", userID.String(), castingID.String())
-
 	// Charge before creating response to prevent unpaid applications.
 	if s.paymentProvider != nil {
+		referenceID := fmt.Sprintf("response_apply:%s:%s", userID.String(), castingID.String())
 		err := s.paymentProvider.Charge(ctx, userID, 1, referenceID)
 		if err != nil {
 			if errors.Is(err, credit.ErrInsufficientCredits) || strings.Contains(strings.ToLower(err.Error()), "insufficient") {
@@ -162,16 +161,15 @@ func (s *Service) Apply(ctx context.Context, userID uuid.UUID, castingID uuid.UU
 	// Create response
 	err = s.repo.Create(ctx, response)
 	if err != nil {
-		// Automatic rollback refund if response creation fails.
-		bgCtx := context.Background()
-		if s.paymentProvider != nil {
-			_ = s.paymentProvider.Refund(bgCtx, userID, 1, referenceID)
-		} else if s.creditSvc != nil {
+		// B1: AUTOMATIC ROLLBACK - Refund credit if response creation fails
+		if s.creditSvc != nil {
 			refundMeta := credit.TransactionMeta{
 				RelatedEntityType: "response",
 				RelatedEntityID:   response.ID,
 				Description:       fmt.Sprintf("Automatic rollback refund for response %s", response.ID.String()),
 			}
+			// Use background context to ensure refund completes even if request is cancelled
+			bgCtx := context.Background()
 			_ = s.creditSvc.Add(bgCtx, userID, 1, credit.TransactionTypeRefund, refundMeta)
 		}
 		return nil, err
