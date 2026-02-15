@@ -39,9 +39,11 @@ import (
 	"github.com/mwork/mwork-api/internal/domain/subscription"
 	uploadDomain "github.com/mwork/mwork-api/internal/domain/upload"
 	"github.com/mwork/mwork-api/internal/domain/user"
+	"github.com/mwork/mwork-api/internal/domain/wallet"
 	"github.com/mwork/mwork-api/internal/middleware"
 	"github.com/mwork/mwork-api/internal/pkg/database"
 	emailpkg "github.com/mwork/mwork-api/internal/pkg/email"
+	"github.com/mwork/mwork-api/internal/pkg/featurepayment"
 	"github.com/mwork/mwork-api/internal/pkg/jwt"
 	"github.com/mwork/mwork-api/internal/pkg/photostudio"
 	pkgresponse "github.com/mwork/mwork-api/internal/pkg/response"
@@ -123,6 +125,7 @@ func main() {
 	dashboardSvc := dashboard.NewService(db)
 	promotionRepo := promotion.NewRepository(db)
 	favoriteRepo := favorite.NewRepository(db)
+	walletRepo := wallet.NewRepository(db)
 
 	// ---------- Upload domain (2-phase) ----------
 	// R2 storage client (presign/move/exists)
@@ -174,6 +177,7 @@ func main() {
 	notificationService := notification.NewService(notificationRepo)
 	subscriptionService := subscription.NewService(subscriptionRepo, nil, nil, nil, nil)
 	paymentService := payment.NewService(paymentRepo, nil)
+	walletService := wallet.NewService(walletRepo)
 
 	// ---------- Adapters ----------
 	// Adapter for auth model profile repository
@@ -247,8 +251,14 @@ func main() {
 	// Credit service initialization
 	creditService := credit.NewService(db)
 
-	// Inject credit service into response service for B1 and B2
+	featurePayProvider, err := featurepayment.NewPaymentProvider(cfg.PaymentMode, walletService, creditService)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to initialize payment provider")
+	}
+
+	// Inject payment abstractions into response service
 	responseService.SetCreditService(creditService)
+	responseService.SetPaymentProvider(featurePayProvider)
 
 	// TASK 1: Inject chat service into response service via adapter
 	// This enables auto-creation of chat rooms when responses are accepted
@@ -285,6 +295,7 @@ func main() {
 	dashboardHandler := dashboard.NewHandler(dashboardRepo, dashboardSvc)
 	promotionHandler := promotion.NewHandler(promotionRepo)
 	favoriteHandler := favorite.NewHandler(favoriteRepo)
+	walletHandler := wallet.NewHandler(walletService)
 
 	savedCastingsHandler := casting.NewSavedCastingsHandler(db)
 	socialLinksHandler := profile.NewSocialLinksHandler(db, modelRepo)
@@ -453,6 +464,7 @@ func main() {
 		r.Mount("/dashboard", dashboard.Routes(dashboardHandler, authWithVerifiedEmailMiddleware))
 		r.Mount("/promotions", promotion.Routes(promotionHandler, authWithVerifiedEmailMiddleware))
 		r.Mount("/favorites", favorite.Routes(favoriteHandler, authWithVerifiedEmailMiddleware))
+		r.Mount("/demo/wallet", walletHandler.Routes(authWithVerifiedEmailMiddleware))
 		r.Mount("/reviews", review.Routes(reviewHandler, authWithVerifiedEmailMiddleware))
 		r.Mount("/faq", faqHandler.Routes())
 
