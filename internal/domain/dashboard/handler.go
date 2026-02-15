@@ -145,10 +145,10 @@ func (r *Repository) GetModelStats(ctx context.Context, userID uuid.UUID) (*Mode
 		ResponsesLimit: 20,
 	}
 
-	// Get profile views from profiles table
+	// Get profile views from model_profiles table
 	_ = r.db.GetContext(ctx, &stats.ProfileViews, `
-		SELECT COALESCE(profile_views, 0) 
-		FROM profiles WHERE user_id = $1
+		SELECT COALESCE(profile_views, 0)
+		FROM model_profiles WHERE user_id = $1
 	`, userID)
 
 	// Get responses count this month
@@ -156,19 +156,19 @@ func (r *Repository) GetModelStats(ctx context.Context, userID uuid.UUID) (*Mode
 	startOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
 
 	_ = r.db.GetContext(ctx, &stats.ResponsesThisMonth, `
-		SELECT COUNT(*) FROM responses 
+		SELECT COUNT(*) FROM casting_responses
 		WHERE user_id = $1 AND created_at >= $2
 	`, userID, startOfMonth)
 
 	// Get pending responses
 	_ = r.db.GetContext(ctx, &stats.PendingResponses, `
-		SELECT COUNT(*) FROM responses 
+		SELECT COUNT(*) FROM casting_responses
 		WHERE user_id = $1 AND status = 'pending'
 	`, userID)
 
-	// Get rating from profile
+	// Get rating from model profile
 	_ = r.db.GetContext(ctx, &stats.Rating, `
-		SELECT COALESCE(rating, 0) FROM profiles WHERE user_id = $1
+		SELECT COALESCE(rating, 0) FROM model_profiles WHERE user_id = $1
 	`, userID)
 
 	// Get new castings today
@@ -180,9 +180,10 @@ func (r *Repository) GetModelStats(ctx context.Context, userID uuid.UUID) (*Mode
 
 	stats.ResponsesUsed = stats.ResponsesThisMonth
 
-	// Get earnings from profiles (denormalized)
+	// Get total earnings from completed payments
 	_ = r.db.GetContext(ctx, &stats.TotalEarnings, `
-		SELECT COALESCE(total_earnings, 0) FROM profiles WHERE user_id = $1
+		SELECT COALESCE(SUM(amount), 0) FROM payments
+		WHERE user_id = $1 AND status = 'completed'
 	`, userID)
 
 	return stats, nil

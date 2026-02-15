@@ -37,6 +37,9 @@ type Config struct {
 
 	// Email
 	ResendAPIKey           string
+	SendGridAPIKey         string
+	SendGridFromEmail      string
+	SendGridFromName       string
 	VerificationCodePepper string
 	AllowLegacyRefresh     bool
 
@@ -97,6 +100,9 @@ func Load() *Config {
 
 		// Email
 		ResendAPIKey:           getEnv("RESEND_API_KEY", ""),
+		SendGridAPIKey:         firstNonEmpty(getEnv("SENDGRID_API_KEY", ""), getEnv("RESEND_API_KEY", "")),
+		SendGridFromEmail:      getEnv("SENDGRID_FROM_EMAIL", "noreply@mwork.kz"),
+		SendGridFromName:       getEnv("SENDGRID_FROM_NAME", "MWork"),
 		VerificationCodePepper: getEnv("VERIFICATION_CODE_PEPPER", "dev-only-change-me"),
 		AllowLegacyRefresh:     parseBool(getEnv("ALLOW_LEGACY_REFRESH", "false"), false),
 
@@ -171,6 +177,15 @@ func parseStringSlice(s string) []string {
 		}
 	}
 	return result
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 // IsDevelopment returns true if running in development mode

@@ -89,12 +89,14 @@ BEGIN
           AND table_name = 'model_profiles'
           AND column_name = 'email'
     ) THEN
-        UPDATE model_profiles mp
-        SET user_id = u.id
-        FROM users u
-        WHERE mp.user_id IS NULL
-          AND mp.email IS NOT NULL
-          AND u.email = mp.email;
+        EXECUTE $sql$
+            UPDATE model_profiles mp
+            SET user_id = u.id
+            FROM users u
+            WHERE mp.user_id IS NULL
+              AND mp.email IS NOT NULL
+              AND u.email = mp.email
+        $sql$;
     END IF;
 END $$;
 
