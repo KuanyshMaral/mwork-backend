@@ -4,12 +4,21 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 )
+
+func isUndefinedTableError(err error) bool {
+	var pqErr *pq.Error
+	if errors.As(err, &pqErr) {
+		return string(pqErr.Code) == "42P01"
+	}
+	return false
+}
 
 // Filter represents search filters for models
 type Filter struct {
@@ -117,6 +126,7 @@ func (r *modelRepository) GetByUserID(ctx context.Context, userID uuid.UUID) (*M
 	}
 	return &p, nil
 }
+
 func (r *modelRepository) Update(ctx context.Context, p *ModelProfile) error {
 	q := `UPDATE model_profiles SET
 	name=$2,bio=$3,description=$4,age=$5,height=$6,weight=$7,gender=$8,clothing_size=$9,shoe_size=$10,
@@ -127,55 +137,76 @@ func (r *modelRepository) Update(ctx context.Context, p *ModelProfile) error {
 	return err
 }
 func (r *modelRepository) List(ctx context.Context, filter *Filter, pagination *Pagination) ([]*ModelProfile, int, error) {
+	if filter == nil {
+		filter = &Filter{}
+	}
+	if pagination == nil {
+		pagination = &Pagination{Page: 1, Limit: 20}
+	}
+	if pagination.Page <= 0 {
+		pagination.Page = 1
+	}
+	if pagination.Limit <= 0 {
+		pagination.Limit = 20
+	}
+
 	conditions := []string{"is_public = true"}
 	args := []interface{}{}
 	argIndex := 1
+	placeholder := func(i int) string { return "$" + strconv.Itoa(i) }
+
 	if filter.City != nil && *filter.City != "" {
-		conditions = append(conditions, fmt.Sprintf("city ILIKE $%d", argIndex))
+		conditions = append(conditions, "city ILIKE "+placeholder(argIndex))
 		args = append(args, "%"+*filter.City+"%")
 		argIndex++
 	}
 	if filter.Gender != nil && *filter.Gender != "" {
-		conditions = append(conditions, fmt.Sprintf("gender=$%d", argIndex))
+		conditions = append(conditions, "gender="+placeholder(argIndex))
 		args = append(args, *filter.Gender)
 		argIndex++
 	}
 	if filter.AgeMin != nil {
-		conditions = append(conditions, fmt.Sprintf("age >= $%d", argIndex))
+		conditions = append(conditions, "age >= "+placeholder(argIndex))
 		args = append(args, *filter.AgeMin)
 		argIndex++
 	}
 	if filter.AgeMax != nil {
-		conditions = append(conditions, fmt.Sprintf("age <= $%d", argIndex))
+		conditions = append(conditions, "age <= "+placeholder(argIndex))
 		args = append(args, *filter.AgeMax)
 		argIndex++
 	}
 	if filter.HeightMin != nil {
-		conditions = append(conditions, fmt.Sprintf("height >= $%d", argIndex))
+		conditions = append(conditions, "height >= "+placeholder(argIndex))
 		args = append(args, *filter.HeightMin)
 		argIndex++
 	}
 	if filter.HeightMax != nil {
-		conditions = append(conditions, fmt.Sprintf("height <= $%d", argIndex))
+		conditions = append(conditions, "height <= "+placeholder(argIndex))
 		args = append(args, *filter.HeightMax)
 		argIndex++
 	}
 	if filter.Query != nil && *filter.Query != "" {
-		conditions = append(conditions, fmt.Sprintf("(name ILIKE $%d OR bio ILIKE $%d)", argIndex, argIndex))
+		p := placeholder(argIndex)
+		conditions = append(conditions, "(name ILIKE "+p+" OR bio ILIKE "+p+")")
 		args = append(args, "%"+*filter.Query+"%")
 		argIndex++
 	}
+
 	where := "WHERE " + strings.Join(conditions, " AND ")
-	countQ := fmt.Sprintf("SELECT COUNT(*) FROM model_profiles %s", where)
+	countQ := "SELECT COUNT(*) FROM model_profiles " + where
+
 	var total int
 	if err := r.db.GetContext(ctx, &total, countQ, args...); err != nil {
 		return nil, 0, err
 	}
+
 	offset := (pagination.Page - 1) * pagination.Limit
-	q := fmt.Sprintf(`SELECT id,user_id,name,bio,description,age,height,weight,gender,clothing_size,shoe_size,experience,
+	q := `SELECT id,user_id,name,bio,description,age,height,weight,gender,clothing_size,shoe_size,experience,
 	hourly_rate,city,country,languages,categories,skills,barter_accepted,accept_remote_work,travel_cities,visibility,
-	profile_views,rating,total_reviews,is_public,created_at,updated_at FROM model_profiles %s ORDER BY rating DESC, created_at DESC LIMIT $%d OFFSET $%d`, where, argIndex, argIndex+1)
+	profile_views,rating,total_reviews,is_public,created_at,updated_at FROM model_profiles ` + where +
+		" ORDER BY rating DESC, created_at DESC LIMIT " + placeholder(argIndex) + " OFFSET " + placeholder(argIndex+1)
 	args = append(args, pagination.Limit, offset)
+
 	var profiles []*ModelProfile
 	if err := r.db.SelectContext(ctx, &profiles, q, args...); err != nil {
 		return nil, 0, err
@@ -196,16 +227,18 @@ func (r *modelRepository) ListPromoted(ctx context.Context, city *string, limit 
 	FROM model_profiles p
 	INNER JOIN profile_promotions pr ON pr.profile_id = p.id
 	WHERE p.is_public = true AND pr.status='active' AND pr.starts_at <= NOW() AND pr.ends_at >= NOW()`
+
 	var args []interface{}
 	argNum := 1
 	if city != nil && *city != "" {
-		q += fmt.Sprintf(" AND p.city = $%d", argNum)
+		q += " AND p.city = $" + strconv.Itoa(argNum)
 		args = append(args, *city)
 		argNum++
 	}
+
 	q += ` ORDER BY p.id, COALESCE(pr.daily_budget,0) DESC, pr.created_at DESC`
 	if limit > 0 {
-		q += fmt.Sprintf(" LIMIT $%d", argNum)
+		q += " LIMIT $" + strconv.Itoa(argNum)
 		args = append(args, limit)
 	} else {
 		q += " LIMIT 20"
@@ -226,6 +259,7 @@ func (r *modelRepository) Delete(ctx context.Context, id uuid.UUID) error {
 type employerRepository struct{ db *sqlx.DB }
 
 func NewEmployerRepository(db *sqlx.DB) EmployerRepository { return &employerRepository{db: db} }
+
 func (r *employerRepository) Create(ctx context.Context, p *EmployerProfile) error {
 	q := `INSERT INTO employer_profiles (id,user_id,company_name,company_type,description,website,contact_person,contact_phone,city,country,rating,total_reviews,castings_posted,is_verified,verified_at,created_at,updated_at)
 	VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`
@@ -256,25 +290,29 @@ func (r *employerRepository) GetByUserID(ctx context.Context, userID uuid.UUID) 
 	}
 	return &p, nil
 }
+
 func (r *employerRepository) Update(ctx context.Context, p *EmployerProfile) error {
 	q := `UPDATE employer_profiles SET company_name=$2,company_type=$3,description=$4,website=$5,contact_person=$6,contact_phone=$7,city=$8,country=$9,updated_at=NOW() WHERE id=$1`
 	_, err := r.db.ExecContext(ctx, q, p.ID, p.CompanyName, p.CompanyType, p.Description, p.Website, p.ContactPerson, p.ContactPhone, p.City, p.Country)
 	return err
 }
+
 func (r *employerRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	_, err := r.db.ExecContext(ctx, `DELETE FROM employer_profiles WHERE id=$1`, id)
 	return err
 }
 
-// admin
+// ---- ADMIN REPOSITORY ----
 
 type adminRepository struct{ db *sqlx.DB }
 
 func NewAdminRepository(db *sqlx.DB) AdminRepository { return &adminRepository{db: db} }
+
 func (r *adminRepository) Create(ctx context.Context, p *AdminProfile) error {
 	_, err := r.db.ExecContext(ctx, `INSERT INTO admin_profiles (id,user_id,name,role,avatar_url,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7)`, p.ID, p.UserID, p.Name, p.Role, p.AvatarURL, p.CreatedAt, p.UpdatedAt)
 	return err
 }
+
 func (r *adminRepository) GetByID(ctx context.Context, id uuid.UUID) (*AdminProfile, error) {
 	var p AdminProfile
 	err := r.db.GetContext(ctx, &p, `SELECT id,user_id,name,role,avatar_url,created_at,updated_at FROM admin_profiles WHERE id=$1`, id)
@@ -286,6 +324,7 @@ func (r *adminRepository) GetByID(ctx context.Context, id uuid.UUID) (*AdminProf
 	}
 	return &p, nil
 }
+
 func (r *adminRepository) GetByUserID(ctx context.Context, userID uuid.UUID) (*AdminProfile, error) {
 	var p AdminProfile
 	err := r.db.GetContext(ctx, &p, `SELECT id,user_id,name,role,avatar_url,created_at,updated_at FROM admin_profiles WHERE user_id=$1`, userID)
@@ -297,6 +336,7 @@ func (r *adminRepository) GetByUserID(ctx context.Context, userID uuid.UUID) (*A
 	}
 	return &p, nil
 }
+
 func (r *adminRepository) Update(ctx context.Context, p *AdminProfile) error {
 	_, err := r.db.ExecContext(ctx, `UPDATE admin_profiles SET name=$2,role=$3,avatar_url=$4,updated_at=NOW() WHERE id=$1`, p.ID, p.Name, p.Role, p.AvatarURL)
 	return err
