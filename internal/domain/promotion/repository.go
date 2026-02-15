@@ -24,9 +24,13 @@ func NewRepository(db *sqlx.DB) *Repository {
 func (r *Repository) GetProfileIDByUserID(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
 	var profileID uuid.UUID
 	err := r.db.GetContext(ctx, &profileID, `
-		SELECT id
-		FROM profiles
-		WHERE user_id = $1
+		SELECT id FROM (
+			SELECT id, created_at FROM model_profiles WHERE user_id = $1
+			UNION ALL
+			SELECT id, created_at FROM employer_profiles WHERE user_id = $1
+		) p
+		ORDER BY created_at DESC
+		LIMIT 1
 	`, userID)
 	if err == sql.ErrNoRows {
 		return uuid.Nil, ErrProfileNotFound
