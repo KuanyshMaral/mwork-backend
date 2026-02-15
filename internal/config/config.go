@@ -28,12 +28,13 @@ type Config struct {
 	// CORS
 	AllowedOrigins []string
 
-	// Storage (R2)
+	// Storage (R2/local)
 	R2AccountID       string
 	R2AccessKeyID     string
 	R2AccessKeySecret string
 	R2BucketName      string
 	R2PublicURL       string
+	UploadLocalPath   string
 
 	// Email
 	ResendAPIKey           string
@@ -97,6 +98,7 @@ func Load() *Config {
 		R2AccessKeySecret: getEnv("R2_ACCESS_KEY_SECRET", ""),
 		R2BucketName:      getEnv("R2_BUCKET_NAME", "mwork-uploads"),
 		R2PublicURL:       getEnv("R2_PUBLIC_URL", ""),
+		UploadLocalPath:   getEnv("UPLOAD_LOCAL_PATH", "./uploads"),
 
 		// Email
 		ResendAPIKey:           getEnv("RESEND_API_KEY", ""),

@@ -7721,7 +7721,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/uploads": {
+        "/files": {
             "get": {
                 "security": [
                     {
@@ -7774,7 +7774,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/uploads/confirm": {
+        "/files/confirm": {
             "post": {
                 "security": [
                     {
@@ -7866,7 +7866,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/uploads/init": {
+        "/files/init": {
             "post": {
                 "security": [
                     {
@@ -8008,7 +8008,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/uploads/stage": {
+        "/files/stage": {
             "post": {
                 "security": [
                     {
@@ -8074,7 +8074,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/uploads/{id}": {
+        "/files/{id}": {
             "get": {
                 "produces": [
                     "application/json"
@@ -8181,7 +8181,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/uploads/{id}/commit": {
+        "/files/{id}/commit": {
             "post": {
                 "security": [
                     {

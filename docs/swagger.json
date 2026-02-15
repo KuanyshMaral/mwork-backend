@@ -7714,7 +7714,7 @@
                 }
             }
         },
-        "/uploads": {
+        "/files": {
             "get": {
                 "security": [
                     {
@@ -7767,7 +7767,7 @@
                 }
             }
         },
-        "/uploads/confirm": {
+        "/files/confirm": {
             "post": {
                 "security": [
                     {
@@ -7859,7 +7859,7 @@
                 }
             }
         },
-        "/uploads/init": {
+        "/files/init": {
             "post": {
                 "security": [
                     {
@@ -8001,7 +8001,7 @@
                 }
             }
         },
-        "/uploads/stage": {
+        "/files/stage": {
             "post": {
                 "security": [
                     {
@@ -8067,7 +8067,7 @@
                 }
             }
         },
-        "/uploads/{id}": {
+        "/files/{id}": {
             "get": {
                 "produces": [
                     "application/json"
@@ -8174,7 +8174,7 @@
                 }
             }
         },
-        "/uploads/{id}/commit": {
+        "/files/{id}/commit": {
             "post": {
                 "security": [
                     {
