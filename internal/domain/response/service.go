@@ -13,6 +13,7 @@ import (
 	"github.com/mwork/mwork-api/internal/domain/casting"
 	"github.com/mwork/mwork-api/internal/domain/credit"
 	"github.com/mwork/mwork-api/internal/domain/profile"
+	"github.com/mwork/mwork-api/internal/pkg/featurepayment"
 )
 
 // NotificationService interface for notification operations
@@ -43,13 +44,14 @@ type ChatRoom struct {
 
 // Service handles response business logic
 type Service struct {
-	repo         Repository
-	castingRepo  casting.Repository
-	modelRepo    profile.ModelRepository
-	employerRepo profile.EmployerRepository
-	notifService NotificationService
-	creditSvc    credit.Service       // ✅ FIXED: Using standard credit.Service interface
-	chatSvc      ChatServiceInterface // Chat service for auto-creating rooms on acceptance
+	repo            Repository
+	castingRepo     casting.Repository
+	modelRepo       profile.ModelRepository
+	employerRepo    profile.EmployerRepository
+	notifService    NotificationService
+	creditSvc       credit.Service
+	paymentProvider featurepayment.PaymentProvider
+	chatSvc         ChatServiceInterface
 }
 
 // NewService creates response service
@@ -68,8 +70,13 @@ func (s *Service) SetNotificationService(notifService NotificationService) {
 }
 
 // SetCreditService sets the credit service (optional, to avoid circular dependency)
-func (s *Service) SetCreditService(creditSvc credit.Service) { // ✅ FIXED: Using credit.Service
+func (s *Service) SetCreditService(creditSvc credit.Service) {
 	s.creditSvc = creditSvc
+}
+
+// SetPaymentProvider sets unified payment provider for paid feature charges.
+func (s *Service) SetPaymentProvider(paymentProvider featurepayment.PaymentProvider) {
+	s.paymentProvider = paymentProvider
 }
 
 // SetChatService sets the chat service (optional, to avoid circular dependency)
@@ -107,10 +114,19 @@ func (s *Service) Apply(ctx context.Context, userID uuid.UUID, castingID uuid.UU
 		return nil, ErrGeoBlocked
 	}
 
-	// B1: DEDUCT CREDIT BEFORE CREATING RESPONSE
-	// This ensures no response is created without payment
-	if s.creditSvc != nil {
-		creditMeta := credit.TransactionMeta{ // ✅ FIXED: Using credit.TransactionMeta
+	referenceID := fmt.Sprintf("response_apply:%s:%s", userID.String(), castingID.String())
+
+	// Charge before creating response to prevent unpaid applications.
+	if s.paymentProvider != nil {
+		err := s.paymentProvider.Charge(ctx, userID, 1, referenceID)
+		if err != nil {
+			if errors.Is(err, credit.ErrInsufficientCredits) || strings.Contains(strings.ToLower(err.Error()), "insufficient") {
+				return nil, ErrInsufficientCredits
+			}
+			return nil, fmt.Errorf("%w: %v", ErrCreditOperationFailed, err)
+		}
+	} else if s.creditSvc != nil {
+		creditMeta := credit.TransactionMeta{
 			RelatedEntityType: "casting",
 			RelatedEntityID:   castingID,
 			Description:       fmt.Sprintf("Applied to casting %s", cast.Title),
@@ -118,8 +134,7 @@ func (s *Service) Apply(ctx context.Context, userID uuid.UUID, castingID uuid.UU
 
 		err := s.creditSvc.Deduct(ctx, userID, 1, creditMeta)
 		if err != nil {
-			// Check if it's insufficient credits error
-			if errors.Is(err, credit.ErrInsufficientCredits) { // ✅ FIXED: Using credit.ErrInsufficientCredits
+			if errors.Is(err, credit.ErrInsufficientCredits) {
 				return nil, ErrInsufficientCredits
 			}
 			return nil, fmt.Errorf("%w: %v", ErrCreditOperationFailed, err)
@@ -147,16 +162,17 @@ func (s *Service) Apply(ctx context.Context, userID uuid.UUID, castingID uuid.UU
 	// Create response
 	err = s.repo.Create(ctx, response)
 	if err != nil {
-		// B1: AUTOMATIC ROLLBACK - Refund credit if response creation fails
-		if s.creditSvc != nil {
-			refundMeta := credit.TransactionMeta{ // ✅ FIXED: Using credit.TransactionMeta
+		// Automatic rollback refund if response creation fails.
+		bgCtx := context.Background()
+		if s.paymentProvider != nil {
+			_ = s.paymentProvider.Refund(bgCtx, userID, 1, referenceID)
+		} else if s.creditSvc != nil {
+			refundMeta := credit.TransactionMeta{
 				RelatedEntityType: "response",
 				RelatedEntityID:   response.ID,
 				Description:       fmt.Sprintf("Automatic rollback refund for response %s", response.ID.String()),
 			}
-			// Use background context to ensure refund completes even if request is cancelled
-			bgCtx := context.Background()
-			_ = s.creditSvc.Add(bgCtx, userID, 1, credit.TransactionTypeRefund, refundMeta) // ✅ FIXED: Using credit.TransactionTypeRefund
+			_ = s.creditSvc.Add(bgCtx, userID, 1, credit.TransactionTypeRefund, refundMeta)
 		}
 		return nil, err
 	}
@@ -258,19 +274,19 @@ func (s *Service) UpdateStatus(ctx context.Context, userID uuid.UUID, responseID
 	// Only refund when transitioning to rejected status
 	if s.creditSvc != nil && newStatus == StatusRejected && oldStatus == StatusPending {
 		// Check idempotency - ensure we don't refund twice
-		hasRefund, err := s.creditSvc.HasRefund(ctx, responseID) // ✅ FIXED: Using standard HasRefund method
+		hasRefund, err := s.creditSvc.HasRefund(ctx, responseID)
 		if err == nil && !hasRefund {
 			// Get model's user ID for refund
 			model, err := s.modelRepo.GetByID(ctx, resp.ModelID)
 			if err == nil && model != nil {
-				refundMeta := credit.TransactionMeta{ // ✅ FIXED: Using credit.TransactionMeta
+				refundMeta := credit.TransactionMeta{
 					RelatedEntityType: "response",
 					RelatedEntityID:   responseID,
 					Description:       fmt.Sprintf("Refund due to rejection for response %s", responseID.String()),
 				}
 
 				// Refund 1 credit
-				_ = s.creditSvc.Add(ctx, model.UserID, 1, credit.TransactionTypeRefund, refundMeta) // ✅ FIXED: Using credit.TransactionTypeRefund
+				_ = s.creditSvc.Add(ctx, model.UserID, 1, credit.TransactionTypeRefund, refundMeta)
 			}
 		}
 	}
