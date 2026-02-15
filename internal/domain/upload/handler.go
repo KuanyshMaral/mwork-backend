@@ -71,7 +71,7 @@ func NewHandler(service *Service, stagingBaseURL string, st UploadStorage, repo 
 	}
 }
 
-// Init handles POST /uploads/init
+// Init handles POST /files/init
 // @Summary Инициализировать загрузку файла
 // @Tags Upload
 // @Accept json
@@ -80,7 +80,7 @@ func NewHandler(service *Service, stagingBaseURL string, st UploadStorage, repo 
 // @Param request body InitRequest true "Метаданные файла"
 // @Success 200 {object} response.Response{data=InitResponse}
 // @Failure 400,401,413,422,502,500 {object} response.Response
-// @Router /uploads/init [post]
+// @Router /files/init [post]
 func (h *Handler) Init(w http.ResponseWriter, r *http.Request) {
 	var req InitRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -143,7 +143,7 @@ func (h *Handler) Init(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Confirm handles POST /uploads/confirm
+// Confirm handles POST /files/confirm
 // @Summary Подтвердить загрузку файла
 // @Tags Upload
 // @Accept json
@@ -152,7 +152,7 @@ func (h *Handler) Init(w http.ResponseWriter, r *http.Request) {
 // @Param request body ConfirmRequest true "ID загрузки"
 // @Success 200 {object} response.Response{data=ConfirmResponse}
 // @Failure 400,401,403,404,422,502,500 {object} response.Response
-// @Router /uploads/confirm [post]
+// @Router /files/confirm [post]
 func (h *Handler) Confirm(w http.ResponseWriter, r *http.Request) {
 	var req ConfirmRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -225,7 +225,7 @@ func (h *Handler) Confirm(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Stage handles POST /uploads/stage
+// Stage handles POST /files/stage
 // Multipart form: file + category
 // @Summary Загрузить файл во временное хранилище
 // @Tags Upload
@@ -236,7 +236,7 @@ func (h *Handler) Confirm(w http.ResponseWriter, r *http.Request) {
 // @Param file formData file true "Файл"
 // @Success 201 {object} response.Response{data=UploadResponse}
 // @Failure 400,500 {object} response.Response
-// @Router /uploads/stage [post]
+// @Router /files/stage [post]
 func (h *Handler) Stage(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, MaxUploadSize)
 
@@ -281,7 +281,7 @@ func (h *Handler) Stage(w http.ResponseWriter, r *http.Request) {
 	response.Created(w, UploadResponseFromEntity(upload, h.stagingBaseURL))
 }
 
-// Commit handles POST /uploads/{id}/commit
+// Commit handles POST /files/{id}/commit
 // @Summary Закоммитить загруженный файл
 // @Tags Upload
 // @Produce json
@@ -289,7 +289,7 @@ func (h *Handler) Stage(w http.ResponseWriter, r *http.Request) {
 // @Param id path string true "ID загрузки"
 // @Success 200 {object} response.Response{data=UploadResponse}
 // @Failure 400,403,404,500 {object} response.Response
-// @Router /uploads/{id}/commit [post]
+// @Router /files/{id}/commit [post]
 func (h *Handler) Commit(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -319,14 +319,14 @@ func (h *Handler) Commit(w http.ResponseWriter, r *http.Request) {
 	response.OK(w, UploadResponseFromEntity(upload, h.stagingBaseURL))
 }
 
-// GetByID handles GET /uploads/{id}
+// GetByID handles GET /files/{id}
 // @Summary Получить загрузку по ID
 // @Tags Upload
 // @Produce json
 // @Param id path string true "ID загрузки"
 // @Success 200 {object} response.Response{data=UploadResponse}
 // @Failure 400,404 {object} response.Response
-// @Router /uploads/{id} [get]
+// @Router /files/{id} [get]
 func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -343,7 +343,7 @@ func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
 	response.OK(w, UploadResponseFromEntity(upload, h.stagingBaseURL))
 }
 
-// Delete handles DELETE /uploads/{id}
+// Delete handles DELETE /files/{id}
 // @Summary Удалить загрузку
 // @Tags Upload
 // @Produce json
@@ -351,7 +351,7 @@ func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
 // @Param id path string true "ID загрузки"
 // @Success 204 {string} string "No Content"
 // @Failure 400,403,404,500 {object} response.Response
-// @Router /uploads/{id} [delete]
+// @Router /files/{id} [delete]
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -376,7 +376,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	response.NoContent(w)
 }
 
-// ListMy handles GET /uploads
+// ListMy handles GET /files
 // @Summary Список моих загрузок
 // @Tags Upload
 // @Produce json
@@ -384,7 +384,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 // @Param category query string false "Категория"
 // @Success 200 {object} response.Response{data=[]UploadResponse}
 // @Failure 500 {object} response.Response
-// @Router /uploads [get]
+// @Router /files [get]
 func (h *Handler) ListMy(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 	category := Category(r.URL.Query().Get("category"))

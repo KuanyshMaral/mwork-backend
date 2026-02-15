@@ -49,9 +49,12 @@ func (h *ModerationHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 
 	query := `
 		SELECT u.id, u.email, u.role, u.is_banned, u.is_verified, u.created_at,
-		       p.first_name, p.last_name, p.avatar_url
+		       COALESCE(mp.name, ep.company_name, ap.name, '') AS profile_name,
+		       ap.avatar_url
 		FROM users u
-		LEFT JOIN profiles p ON u.id = p.user_id
+		LEFT JOIN model_profiles mp ON u.id = mp.user_id
+		LEFT JOIN employer_profiles ep ON u.id = ep.user_id
+		LEFT JOIN admin_profiles ap ON u.id = ap.user_id
 		ORDER BY u.created_at DESC
 		LIMIT $1 OFFSET $2
 	`
@@ -69,22 +72,21 @@ func (h *ModerationHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 		var email, role string
 		var isBanned, isVerified sql.NullBool
 		var createdAt time.Time
-		var firstName, lastName, avatarURL sql.NullString
+		var profileName, avatarURL sql.NullString
 
-		if err := rows.Scan(&id, &email, &role, &isBanned, &isVerified, &createdAt, &firstName, &lastName, &avatarURL); err != nil {
+		if err := rows.Scan(&id, &email, &role, &isBanned, &isVerified, &createdAt, &profileName, &avatarURL); err != nil {
 			continue
 		}
 
 		users = append(users, map[string]interface{}{
-			"id":          id,
-			"email":       email,
-			"role":        role,
-			"is_banned":   isBanned.Bool,
-			"is_verified": isVerified.Bool,
-			"created_at":  createdAt.Format(time.RFC3339),
-			"first_name":  firstName.String,
-			"last_name":   lastName.String,
-			"avatar_url":  avatarURL.String,
+			"id":           id,
+			"email":        email,
+			"role":         role,
+			"is_banned":    isBanned.Bool,
+			"is_verified":  isVerified.Bool,
+			"created_at":   createdAt.Format(time.RFC3339),
+			"profile_name": profileName.String,
+			"avatar_url":   avatarURL.String,
 		})
 	}
 
@@ -183,25 +185,50 @@ func (h *ModerationHandler) ListPendingProfiles(w http.ResponseWriter, r *http.R
 	}
 
 	query := `
-		SELECT p.*, u.email 
-		FROM profiles p
-		JOIN users u ON p.user_id = u.id
-		WHERE p.moderation_status = $1
-		ORDER BY p.created_at DESC
+		SELECT u.id, u.email, u.role, u.user_verification_status,
+		       u.verification_submitted_at, u.verification_reviewed_at,
+		       COALESCE(ep.company_name, mp.name, ap.name, '') AS profile_name
+		FROM users u
+		LEFT JOIN employer_profiles ep ON ep.user_id = u.id
+		LEFT JOIN model_profiles mp ON mp.user_id = u.id
+		LEFT JOIN admin_profiles ap ON ap.user_id = u.id
+		WHERE u.user_verification_status = $1
+		ORDER BY COALESCE(u.verification_submitted_at, u.created_at) DESC
 		LIMIT 50
 	`
 
-	rows, err := h.db.QueryContext(r.Context(), query, status)
-	if err != nil {
+	type pendingProfileRow struct {
+		UserID                  uuid.UUID    `db:"id"`
+		Email                   string       `db:"email"`
+		Role                    string       `db:"role"`
+		Status                  string       `db:"user_verification_status"`
+		VerificationSubmittedAt sql.NullTime `db:"verification_submitted_at"`
+		VerificationReviewedAt  sql.NullTime `db:"verification_reviewed_at"`
+		ProfileName             string       `db:"profile_name"`
+	}
+
+	var rows []pendingProfileRow
+	if err := h.db.SelectContext(r.Context(), &rows, query, status); err != nil {
 		response.InternalError(w)
 		return
 	}
-	defer rows.Close()
 
-	var profiles []map[string]interface{}
-	for rows.Next() {
-		// Simplified - just return raw data
-		profiles = append(profiles, map[string]interface{}{"status": status})
+	profiles := make([]map[string]interface{}, 0, len(rows))
+	for _, row := range rows {
+		item := map[string]interface{}{
+			"user_id":      row.UserID,
+			"email":        row.Email,
+			"role":         row.Role,
+			"status":       row.Status,
+			"profile_name": row.ProfileName,
+		}
+		if row.VerificationSubmittedAt.Valid {
+			item["verification_submitted_at"] = row.VerificationSubmittedAt.Time.Format(time.RFC3339)
+		}
+		if row.VerificationReviewedAt.Valid {
+			item["verification_reviewed_at"] = row.VerificationReviewedAt.Time.Format(time.RFC3339)
+		}
+		profiles = append(profiles, item)
 	}
 
 	response.OK(w, profiles)
@@ -228,9 +255,26 @@ func (h *ModerationHandler) ModerateProfile(w http.ResponseWriter, r *http.Reque
 
 	adminID := GetAdminID(r.Context())
 
+	targetStatus := "verified"
+	rejectionReason := sql.NullString{}
+	if req.Status == "rejected" {
+		targetStatus = "rejected"
+		rejectionReason = sql.NullString{String: req.Note, Valid: req.Note != ""}
+	}
+
 	_, err = h.db.ExecContext(r.Context(),
-		`UPDATE profiles SET moderation_status = $2, moderated_at = NOW(), moderated_by = $3, moderation_note = $4 WHERE id = $1`,
-		profileID, req.Status, adminID, req.Note)
+		`UPDATE users
+		 SET user_verification_status = $2,
+		     verification_reviewed_at = NOW(),
+		     verification_reviewed_by = $3,
+		     verification_rejection_reason = $4,
+		     updated_at = NOW()
+		 WHERE id = COALESCE(
+			 (SELECT user_id FROM model_profiles WHERE id = $1),
+			 (SELECT user_id FROM employer_profiles WHERE id = $1),
+			 (SELECT user_id FROM admin_profiles WHERE id = $1)
+		 )`,
+		profileID, targetStatus, adminID, rejectionReason)
 	if err != nil {
 		response.InternalError(w)
 		return
@@ -248,9 +292,9 @@ func (h *ModerationHandler) ModerateProfile(w http.ResponseWriter, r *http.Reque
 func (h *ModerationHandler) ListPendingPhotos(w http.ResponseWriter, r *http.Request) {
 	query := `
 		SELECT ph.id, ph.profile_id, ph.url, ph.moderation_status, ph.created_at,
-		       p.first_name, p.last_name
+		       mp.name
 		FROM photos ph
-		JOIN profiles p ON ph.profile_id = p.id
+		JOIN model_profiles mp ON ph.profile_id = mp.id
 		WHERE ph.moderation_status = 'pending'
 		ORDER BY ph.created_at ASC
 		LIMIT 50
@@ -268,9 +312,9 @@ func (h *ModerationHandler) ListPendingPhotos(w http.ResponseWriter, r *http.Req
 		var id, profileID uuid.UUID
 		var url, status string
 		var createdAt time.Time
-		var firstName, lastName sql.NullString
+		var modelName sql.NullString
 
-		if err := rows.Scan(&id, &profileID, &url, &status, &createdAt, &firstName, &lastName); err != nil {
+		if err := rows.Scan(&id, &profileID, &url, &status, &createdAt, &modelName); err != nil {
 			continue
 		}
 
@@ -280,7 +324,7 @@ func (h *ModerationHandler) ListPendingPhotos(w http.ResponseWriter, r *http.Req
 			"url":        url,
 			"status":     status,
 			"created_at": createdAt.Format(time.RFC3339),
-			"owner_name": firstName.String + " " + lastName.String,
+			"owner_name": modelName.String,
 		})
 	}
 

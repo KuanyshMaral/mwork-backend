@@ -22,8 +22,9 @@ func (h *Handler) Routes(authMiddleware func(http.Handler) http.Handler) chi.Rou
 		r.Get("/me", h.GetMe)
 
 		// Update
-		r.Put("/models/{id}", h.UpdateModel)
-		r.Put("/employers/{id}", h.UpdateEmployer)
+		r.Put("/models/{userId}", h.UpdateModel)
+		r.Put("/employers/{userId}", h.UpdateEmployer)
+		r.Put("/admins/{userId}", h.UpdateAdmin)
 	})
 
 	return r

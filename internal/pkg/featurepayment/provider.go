@@ -18,7 +18,6 @@ const (
 
 type PaymentProvider interface {
 	Charge(ctx context.Context, userID uuid.UUID, amount int64, referenceID string) error
-	Refund(ctx context.Context, userID uuid.UUID, amount int64, referenceID string) error
 }
 
 type DemoPaymentProvider struct {
@@ -31,10 +30,6 @@ func NewDemoPaymentProvider(walletSvc *wallet.Service) *DemoPaymentProvider {
 
 func (p *DemoPaymentProvider) Charge(ctx context.Context, userID uuid.UUID, amount int64, referenceID string) error {
 	return p.walletSvc.Spend(ctx, userID, amount, referenceID)
-}
-
-func (p *DemoPaymentProvider) Refund(ctx context.Context, userID uuid.UUID, amount int64, referenceID string) error {
-	return p.walletSvc.Refund(ctx, userID, amount, referenceID)
 }
 
 type RealPaymentProvider struct {
@@ -54,25 +49,7 @@ func (p *RealPaymentProvider) Charge(ctx context.Context, userID uuid.UUID, amou
 		RelatedEntityType: "feature",
 		Description:       "charged via real payment provider",
 	}
-	if referenceID != "" {
-		meta.PaymentID = &referenceID
-	}
 	return p.creditSvc.Deduct(ctx, userID, int(amount), meta)
-}
-
-func (p *RealPaymentProvider) Refund(ctx context.Context, userID uuid.UUID, amount int64, referenceID string) error {
-	if amount > math.MaxInt {
-		return fmt.Errorf("amount too large")
-	}
-
-	meta := credit.TransactionMeta{
-		RelatedEntityType: "feature",
-		Description:       "refund via real payment provider",
-	}
-	if referenceID != "" {
-		meta.PaymentID = &referenceID
-	}
-	return p.creditSvc.Add(ctx, userID, int(amount), credit.TransactionTypeRefund, meta)
 }
 
 func NewPaymentProvider(mode string, walletSvc *wallet.Service, creditSvc credit.Service) (PaymentProvider, error) {
