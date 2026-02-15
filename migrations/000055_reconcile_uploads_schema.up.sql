@@ -16,28 +16,83 @@ ALTER TABLE uploads
     ADD COLUMN IF NOT EXISTS committed_at TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
 
--- Backfill values for legacy rows.
+-- Backfill base values that are always available in both schemas.
 UPDATE uploads
 SET category = COALESCE(category, 'photo'),
     original_name = COALESCE(original_name, 'legacy-upload'),
     mime_type = COALESCE(mime_type, 'application/octet-stream'),
     size = COALESCE(size, 1),
-    staging_key = COALESCE(staging_key, temp_path),
-    permanent_key = COALESCE(permanent_key, final_path),
     width = COALESCE(width, 0),
     height = COALESCE(height, 0),
-    committed_at = COALESCE(committed_at, confirmed_at),
     expires_at = COALESCE(expires_at, created_at + INTERVAL '1 hour')
 WHERE category IS NULL
    OR original_name IS NULL
    OR mime_type IS NULL
    OR size IS NULL
-   OR staging_key IS NULL
-   OR permanent_key IS NULL
    OR width IS NULL
    OR height IS NULL
-   OR committed_at IS NULL
    OR expires_at IS NULL;
+
+-- Backfill from legacy columns only when they exist.
+DO $$
+    BEGIN
+        IF EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = current_schema()
+              AND table_name = 'uploads'
+              AND column_name = 'temp_path'
+        ) THEN
+            EXECUTE '
+            UPDATE uploads
+            SET staging_key = COALESCE(staging_key, temp_path)
+            WHERE staging_key IS NULL
+        ';
+        END IF;
+    END
+$$;
+
+DO $$
+    BEGIN
+        IF EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = current_schema()
+              AND table_name = 'uploads'
+              AND column_name = 'final_path'
+        ) THEN
+            EXECUTE '
+            UPDATE uploads
+            SET permanent_key = COALESCE(permanent_key, final_path)
+            WHERE permanent_key IS NULL
+        ';
+        END IF;
+    END
+$$;
+
+DO $$
+    BEGIN
+        IF EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = current_schema()
+              AND table_name = 'uploads'
+              AND column_name = 'confirmed_at'
+        ) THEN
+            EXECUTE '
+            UPDATE uploads
+            SET committed_at = COALESCE(committed_at, confirmed_at)
+            WHERE committed_at IS NULL
+        ';
+        END IF;
+    END
+$$;
+
+-- For rows where legacy source columns were absent, keep deterministic defaults.
+UPDATE uploads
+SET staging_key = COALESCE(staging_key, CONCAT('legacy/staging/', id::text)),
+    permanent_key = COALESCE(permanent_key, CONCAT('legacy/permanent/', id::text))
+WHERE staging_key IS NULL OR permanent_key IS NULL;
 
 -- Normalize legacy statuses.
 UPDATE uploads SET status = 'staged' WHERE status = 'pending';
@@ -69,7 +124,7 @@ ALTER TABLE uploads
             (status = 'staged' AND staging_key IS NOT NULL) OR
             (status = 'committed' AND permanent_key IS NOT NULL) OR
             (status IN ('failed', 'deleted'))
-        );
+            );
 
 -- Add missing indexes used by repository queries.
 CREATE INDEX IF NOT EXISTS idx_uploads_user_category
