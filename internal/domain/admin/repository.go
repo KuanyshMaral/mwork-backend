@@ -132,7 +132,6 @@ func (r *repository) CreateAdmin(ctx context.Context, admin *AdminUser) error {
 		if !isUndefinedTableErr(err) {
 			return err
 		}
-		return err
 	}
 
 	return tx.Commit()
@@ -265,9 +264,11 @@ func (r *repository) ListAuditLogs(ctx context.Context, filter AuditFilter) ([]*
 		return nil, 0, err
 	}
 
-	// Get total count (simplified - doesn't pass args correctly for complex filters)
+	// Get total count with the same filters (without pagination args)
 	var total int
-	_ = r.db.GetContext(ctx, &total, `SELECT COUNT(*) FROM audit_logs`)
+	if err := r.db.GetContext(ctx, &total, countQuery, args[:len(args)-2]...); err != nil {
+		return nil, 0, err
+	}
 
 	return logs, total, nil
 }

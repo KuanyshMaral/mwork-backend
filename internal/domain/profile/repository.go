@@ -95,34 +95,6 @@ func (r *modelRepository) Create(ctx context.Context, profile *ModelProfile) err
 		profile.ProfileViews, profile.Rating, profile.TotalReviews, profile.IsPublic,
 		profile.CreatedAt, profile.UpdatedAt,
 	)
-	if err == nil || !isUndefinedTableError(err) {
-		return err
-	}
-
-	legacyQuery := `
-		INSERT INTO profiles (
-			id, user_id, type, first_name, bio, description, age, height_cm, weight_kg, gender,
-			clothing_size, shoe_size, experience_years, hourly_rate, city, country,
-			languages, categories, skills, barter_accepted, accept_remote_work,
-			travel_cities, visibility,
-			view_count, rating, total_reviews, is_public
-		) VALUES (
-			$1, $2, 'model', $3, $4, $5, $6, $7, $8, $9,
-			$10, $11, $12, $13, $14, $15,
-			$16, $17, $18, $19, $20,
-			$21, $22,
-			$23, $24, $25, $26
-		)
-	`
-	_, err = r.db.ExecContext(ctx, legacyQuery,
-		profile.ID, profile.UserID, profile.Name, profile.Bio, profile.Description,
-		profile.Age, profile.Height, profile.Weight, profile.Gender,
-		profile.ClothingSize, profile.ShoeSize, profile.Experience, profile.HourlyRate,
-		profile.City, profile.Country, profile.Languages, profile.Categories, profile.Skills,
-		profile.BarterAccepted, profile.AcceptRemoteWork, profile.TravelCities, profile.Visibility,
-		profile.ProfileViews, profile.Rating, profile.TotalReviews, profile.IsPublic,
-		profile.CreatedAt, profile.UpdatedAt,
-	)
 	return err
 }
 
@@ -154,6 +126,7 @@ func (r *modelRepository) GetByUserID(ctx context.Context, userID uuid.UUID) (*M
 	}
 	return &p, nil
 }
+
 func (r *modelRepository) Update(ctx context.Context, p *ModelProfile) error {
 	q := `UPDATE model_profiles SET
 	name=$2,bio=$3,description=$4,age=$5,height=$6,weight=$7,gender=$8,clothing_size=$9,shoe_size=$10,
@@ -204,10 +177,12 @@ func (r *modelRepository) List(ctx context.Context, filter *Filter, pagination *
 	}
 	where := "WHERE " + strings.Join(conditions, " AND ")
 	countQ := fmt.Sprintf("SELECT COUNT(*) FROM model_profiles %s", where)
+
 	var total int
 	if err := r.db.GetContext(ctx, &total, countQ, args...); err != nil {
 		return nil, 0, err
 	}
+
 	offset := (pagination.Page - 1) * pagination.Limit
 	q := fmt.Sprintf(`SELECT id,user_id,name,bio,description,age,height,weight,gender,clothing_size,shoe_size,experience,
 	hourly_rate,city,country,languages,categories,skills,barter_accepted,accept_remote_work,travel_cities,visibility,
@@ -233,6 +208,7 @@ func (r *modelRepository) ListPromoted(ctx context.Context, city *string, limit 
 	FROM model_profiles p
 	INNER JOIN profile_promotions pr ON pr.profile_id = p.id
 	WHERE p.is_public = true AND pr.status='active' AND pr.starts_at <= NOW() AND pr.ends_at >= NOW()`
+
 	var args []interface{}
 	argNum := 1
 	if city != nil && *city != "" {
@@ -240,6 +216,7 @@ func (r *modelRepository) ListPromoted(ctx context.Context, city *string, limit 
 		args = append(args, *city)
 		argNum++
 	}
+
 	q += ` ORDER BY p.id, COALESCE(pr.daily_budget,0) DESC, pr.created_at DESC`
 	if limit > 0 {
 		q += fmt.Sprintf(" LIMIT $%d", argNum)
@@ -263,6 +240,7 @@ func (r *modelRepository) Delete(ctx context.Context, id uuid.UUID) error {
 type employerRepository struct{ db *sqlx.DB }
 
 func NewEmployerRepository(db *sqlx.DB) EmployerRepository { return &employerRepository{db: db} }
+
 func (r *employerRepository) Create(ctx context.Context, p *EmployerProfile) error {
 	q := `INSERT INTO employer_profiles (id,user_id,company_name,company_type,description,website,contact_person,contact_phone,city,country,rating,total_reviews,castings_posted,is_verified,verified_at,created_at,updated_at)
 	VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`
@@ -293,25 +271,29 @@ func (r *employerRepository) GetByUserID(ctx context.Context, userID uuid.UUID) 
 	}
 	return &p, nil
 }
+
 func (r *employerRepository) Update(ctx context.Context, p *EmployerProfile) error {
 	q := `UPDATE employer_profiles SET company_name=$2,company_type=$3,description=$4,website=$5,contact_person=$6,contact_phone=$7,city=$8,country=$9,updated_at=NOW() WHERE id=$1`
 	_, err := r.db.ExecContext(ctx, q, p.ID, p.CompanyName, p.CompanyType, p.Description, p.Website, p.ContactPerson, p.ContactPhone, p.City, p.Country)
 	return err
 }
+
 func (r *employerRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	_, err := r.db.ExecContext(ctx, `DELETE FROM employer_profiles WHERE id=$1`, id)
 	return err
 }
 
-// admin
+// ---- ADMIN REPOSITORY ----
 
 type adminRepository struct{ db *sqlx.DB }
 
 func NewAdminRepository(db *sqlx.DB) AdminRepository { return &adminRepository{db: db} }
+
 func (r *adminRepository) Create(ctx context.Context, p *AdminProfile) error {
 	_, err := r.db.ExecContext(ctx, `INSERT INTO admin_profiles (id,user_id,name,role,avatar_url,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7)`, p.ID, p.UserID, p.Name, p.Role, p.AvatarURL, p.CreatedAt, p.UpdatedAt)
 	return err
 }
+
 func (r *adminRepository) GetByID(ctx context.Context, id uuid.UUID) (*AdminProfile, error) {
 	var p AdminProfile
 	err := r.db.GetContext(ctx, &p, `SELECT id,user_id,name,role,avatar_url,created_at,updated_at FROM admin_profiles WHERE id=$1`, id)
@@ -323,6 +305,7 @@ func (r *adminRepository) GetByID(ctx context.Context, id uuid.UUID) (*AdminProf
 	}
 	return &p, nil
 }
+
 func (r *adminRepository) GetByUserID(ctx context.Context, userID uuid.UUID) (*AdminProfile, error) {
 	var p AdminProfile
 	err := r.db.GetContext(ctx, &p, `SELECT id,user_id,name,role,avatar_url,created_at,updated_at FROM admin_profiles WHERE user_id=$1`, userID)
@@ -334,6 +317,7 @@ func (r *adminRepository) GetByUserID(ctx context.Context, userID uuid.UUID) (*A
 	}
 	return &p, nil
 }
+
 func (r *adminRepository) Update(ctx context.Context, p *AdminProfile) error {
 	_, err := r.db.ExecContext(ctx, `UPDATE admin_profiles SET name=$2,role=$3,avatar_url=$4,updated_at=NOW() WHERE id=$1`, p.ID, p.Name, p.Role, p.AvatarURL)
 	return err
