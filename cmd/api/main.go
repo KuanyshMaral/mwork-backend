@@ -91,9 +91,9 @@ func main() {
 	jwtService := jwt.NewService(cfg.JWTSecret, cfg.JWTAccessTTL, cfg.JWTRefreshTTL)
 
 	emailService := emailpkg.NewService(emailpkg.SendGridConfig{
-		APIKey:    cfg.ResendAPIKey,
-		FromEmail: "noreply@mwork.kz",
-		FromName:  "MWork",
+		APIKey:    cfg.SendGridAPIKey,
+		FromEmail: cfg.SendGridFromEmail,
+		FromName:  cfg.SendGridFromName,
 	})
 	defer emailService.Close()
 
