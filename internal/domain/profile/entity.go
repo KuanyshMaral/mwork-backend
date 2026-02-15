@@ -81,6 +81,18 @@ type EmployerProfile struct {
 	VerifiedAt     sql.NullTime `db:"verified_at"`
 }
 
+
+// AdminProfile represents an admin profile (matches admin_profiles table)
+type AdminProfile struct {
+	ID        uuid.UUID      `db:"id"`
+	UserID    uuid.UUID      `db:"user_id"`
+	Name      sql.NullString `db:"name"`
+	Role      sql.NullString `db:"role"`
+	AvatarURL sql.NullString `db:"avatar_url"`
+	CreatedAt time.Time      `db:"created_at"`
+	UpdatedAt time.Time      `db:"updated_at"`
+}
+
 // GetLanguages parses languages JSON for ModelProfile
 func (p *ModelProfile) GetLanguages() []string {
 	if p.Languages == nil {

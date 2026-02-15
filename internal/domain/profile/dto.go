@@ -68,6 +68,12 @@ type UpdateEmployerProfileRequest struct {
 	ContactPhone  string `json:"contact_phone" validate:"omitempty,max=20"`
 }
 
+type UpdateAdminProfileRequest struct {
+	Name      string `json:"name" validate:"omitempty,max=255"`
+	Role      string `json:"role" validate:"omitempty,max=50"`
+	AvatarURL string `json:"avatar_url" validate:"omitempty,url,max=2000"`
+}
+
 // ModelProfileResponse represents model profile in API response
 type ModelProfileResponse struct {
 	ID               uuid.UUID `json:"id"`
@@ -226,5 +232,29 @@ func EmployerProfileResponseFromEntity(p *EmployerProfile) *EmployerProfileRespo
 		resp.ContactPhone = &p.ContactPhone.String
 	}
 
+	return resp
+}
+
+type AdminProfileResponse struct {
+	ID        uuid.UUID `json:"id"`
+	UserID    uuid.UUID `json:"user_id"`
+	Name      *string   `json:"name,omitempty"`
+	Role      *string   `json:"role,omitempty"`
+	AvatarURL *string   `json:"avatar_url,omitempty"`
+	CreatedAt string    `json:"created_at"`
+	UpdatedAt string    `json:"updated_at"`
+}
+
+func AdminProfileResponseFromEntity(p *AdminProfile) *AdminProfileResponse {
+	resp := &AdminProfileResponse{ID: p.ID, UserID: p.UserID, CreatedAt: p.CreatedAt.Format(time.RFC3339), UpdatedAt: p.UpdatedAt.Format(time.RFC3339)}
+	if p.Name.Valid {
+		resp.Name = &p.Name.String
+	}
+	if p.Role.Valid {
+		resp.Role = &p.Role.String
+	}
+	if p.AvatarURL.Valid {
+		resp.AvatarURL = &p.AvatarURL.String
+	}
 	return resp
 }
