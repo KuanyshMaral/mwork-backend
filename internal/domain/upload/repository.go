@@ -15,6 +15,8 @@ type Repository interface {
 	Create(ctx context.Context, upload *Upload) error
 	GetByID(ctx context.Context, id uuid.UUID) (*Upload, error)
 	Update(ctx context.Context, upload *Upload) error
+	UpdateStaged(ctx context.Context, upload *Upload) error
+	MarkCommitted(ctx context.Context, id uuid.UUID, permanentKey, permanentURL string, committedAt time.Time) error
 	Delete(ctx context.Context, id uuid.UUID) error
 	ListByUser(ctx context.Context, userID uuid.UUID, category Category) ([]*Upload, error)
 	ListExpired(ctx context.Context, before time.Time) ([]*Upload, error)
@@ -91,6 +93,48 @@ func (r *repository) Update(ctx context.Context, upload *Upload) error {
 		upload.ErrorMessage,
 		upload.CommittedAt,
 	)
+	return err
+}
+
+func (r *repository) UpdateStaged(ctx context.Context, upload *Upload) error {
+	query := `
+		UPDATE uploads SET
+			category = $2,
+			status = $3,
+			original_name = $4,
+			mime_type = $5,
+			size = $6,
+			staging_key = $7,
+			expires_at = $8,
+			permanent_key = NULL,
+			permanent_url = NULL,
+			committed_at = NULL,
+			error_message = NULL
+		WHERE id = $1
+	`
+	_, err := r.db.ExecContext(ctx, query,
+		upload.ID,
+		upload.Category,
+		upload.Status,
+		upload.OriginalName,
+		upload.MimeType,
+		upload.Size,
+		upload.StagingKey,
+		upload.ExpiresAt,
+	)
+	return err
+}
+
+func (r *repository) MarkCommitted(ctx context.Context, id uuid.UUID, permanentKey, permanentURL string, committedAt time.Time) error {
+	query := `
+		UPDATE uploads SET
+			status = 'committed',
+			permanent_key = $2,
+			permanent_url = $3,
+			committed_at = $4
+		WHERE id = $1
+	`
+	_, err := r.db.ExecContext(ctx, query, id, permanentKey, permanentURL, committedAt)
 	return err
 }
 

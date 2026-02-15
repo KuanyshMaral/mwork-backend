@@ -48,3 +48,33 @@ func UploadResponseFromEntity(u *Upload, stagingBaseURL string) *UploadResponse 
 
 	return resp
 }
+
+type InitRequestDoc struct {
+	FileName    string            `json:"file_name" validate:"required" example:"avatar.jpg"`
+	ContentType string            `json:"content_type" validate:"required" example:"image/jpeg"`
+	FileSize    int64             `json:"file_size" validate:"required" example:"123456"`
+	Purpose     string            `json:"purpose" validate:"required" enums:"avatar,portfolio,casting_cover,chat_file,photo,document" example:"avatar"`
+	BatchID     string            `json:"batch_id,omitempty" example:"550e8400-e29b-41d4-a716-446655440000"`
+	Metadata    map[string]string `json:"metadata,omitempty"`
+}
+
+type InitResponseDoc struct {
+	UploadID  string            `json:"upload_id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	UploadURL string            `json:"upload_url,omitempty" example:"https://example.com/presigned-put-url"`
+	Headers   map[string]string `json:"headers,omitempty"`
+	ExpiresAt string            `json:"expires_at" example:"2026-01-01T12:00:00Z"`
+	Purpose   string            `json:"purpose" enums:"avatar,portfolio,casting_cover,chat_file,photo,document" example:"avatar"`
+}
+
+type ConfirmRequestDoc struct {
+	UploadID string `json:"upload_id" validate:"required,uuid" example:"550e8400-e29b-41d4-a716-446655440000"`
+}
+
+type ConfirmResponseDoc struct {
+	UploadID     string `json:"upload_id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	Status       string `json:"status" example:"committed"`
+	PermanentURL string `json:"permanent_url" example:"https://cdn.example.com/uploads/final/x.jpg"`
+	ContentType  string `json:"content_type" example:"image/jpeg"`
+	FileSize     int64  `json:"file_size" example:"123456"`
+	Purpose      string `json:"purpose" enums:"avatar,portfolio,casting_cover,chat_file,photo,document" example:"avatar"`
+}

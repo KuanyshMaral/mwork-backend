@@ -129,9 +129,11 @@ func main() {
 	const filesBaseURL = "/api/v1/media"
 
 	var (
-		uploadStorage     uploadDomain.UploadStorage
-		uploadFileStorage storage.Storage
-		servingLocalFiles bool
+		uploadStorage      uploadDomain.UploadStorage
+		uploadFileStorage  storage.Storage
+		uploadCloudStorage storage.Storage
+		servingLocalFiles  bool
+		proxyUploadMode    bool
 	)
 
 	if cfg.R2AccountID != "" && cfg.R2AccessKeyID != "" && cfg.R2AccessKeySecret != "" && cfg.R2BucketName != "" {
@@ -147,6 +149,7 @@ func main() {
 		}
 		uploadStorage = r2Storage
 		uploadFileStorage = r2Storage
+		uploadCloudStorage = r2Storage
 		log.Info().Msg("Upload storage: R2")
 	} else {
 		localStorage, localErr := storage.NewLocalStorage(cfg.UploadLocalPath, filesBaseURL)
@@ -155,13 +158,14 @@ func main() {
 		}
 		uploadStorage = storage.NewUploadStorageAdapter(localStorage)
 		uploadFileStorage = localStorage
+		proxyUploadMode = true
 		servingLocalFiles = true
 		log.Warn().Str("path", cfg.UploadLocalPath).Msg("R2 is not configured, using local upload storage")
 	}
 
 	uploadRepo := uploadDomain.NewRepository(db)
-	uploadService := uploadDomain.NewService(uploadRepo, uploadFileStorage, nil, filesBaseURL)
-	uploadHandler := uploadDomain.NewHandler(uploadService, filesBaseURL, uploadStorage, uploadRepo)
+	uploadService := uploadDomain.NewService(uploadRepo, uploadFileStorage, uploadCloudStorage, filesBaseURL)
+	uploadHandler := uploadDomain.NewHandler(uploadService, filesBaseURL, uploadStorage, uploadRepo, proxyUploadMode)
 
 	// ---------- WebSocket hub ----------
 	chatHub := chat.NewHub(redis)

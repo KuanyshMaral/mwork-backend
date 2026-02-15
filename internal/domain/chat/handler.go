@@ -229,12 +229,13 @@ func (h *Handler) GetMessages(w http.ResponseWriter, r *http.Request) {
 
 // SendMessage handles POST /chat/rooms/{id}/messages
 // @Summary Отправить сообщение
+// @Description attachment_upload_id requires committed upload with purpose=chat_file.
 // @Tags Chat
 // @Accept json
 // @Produce json
 // @Security BearerAuth
 // @Param id path string true "ID комнаты"
-// @Param request body SendMessageRequest true "Тело сообщения"
+// @Param request body SendMessageRequestDoc true "Тело сообщения"
 // @Success 201 {object} response.Response{data=MessageResponse}
 // @Failure 400,403,404,422,429,500 {object} response.Response
 // @Router /chat/rooms/{id}/messages [post]
