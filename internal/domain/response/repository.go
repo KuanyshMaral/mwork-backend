@@ -74,10 +74,10 @@ func (r *repository) Create(ctx context.Context, response *Response) error {
 
 func (r *repository) GetByID(ctx context.Context, id uuid.UUID) (*Response, error) {
 	query := `
-		SELECT cr.*, c.title as casting_title, c.city as casting_city, p.first_name as model_name
+		SELECT cr.*, c.title as casting_title, c.city as casting_city, COALESCE(NULLIF(mp.name, ''), 'Model') as model_name
 		FROM casting_responses cr
 		LEFT JOIN castings c ON cr.casting_id = c.id
-		LEFT JOIN profiles p ON cr.model_id = p.id AND p.type = 'model'
+		LEFT JOIN model_profiles mp ON cr.model_id = mp.id
 		WHERE cr.id = $1
 	`
 
@@ -141,9 +141,9 @@ func (r *repository) ListByCasting(ctx context.Context, castingID uuid.UUID, pag
 	// Get responses with model info
 	offset := (pagination.Page - 1) * pagination.Limit
 	query := `
-		SELECT cr.*, p.first_name as model_name
+		SELECT cr.*, COALESCE(NULLIF(mp.name, ''), 'Model') as model_name
 		FROM casting_responses cr
-		LEFT JOIN profiles p ON cr.model_id = p.id AND p.type = 'model'
+		LEFT JOIN model_profiles mp ON cr.model_id = mp.id
 		WHERE cr.casting_id = $1 
 		ORDER BY cr.created_at DESC 
 		LIMIT $2 OFFSET $3
@@ -195,8 +195,8 @@ func (r *repository) CountMonthlyByUserID(ctx context.Context, userID uuid.UUID)
 	query := `
 		SELECT COUNT(*)
 		FROM casting_responses cr
-		JOIN profiles p ON cr.model_id = p.id AND p.type = 'model'
-		WHERE p.user_id = $1
+		JOIN model_profiles mp ON cr.model_id = mp.id
+		WHERE mp.user_id = $1
 		  AND cr.created_at >= date_trunc('month', NOW())
 	`
 	var count int
