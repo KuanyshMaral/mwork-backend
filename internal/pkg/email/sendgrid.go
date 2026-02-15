@@ -66,8 +66,16 @@ type SendGridContent struct {
 	Value string `json:"value"`
 }
 
+func (c *SendGridClient) isConfigured() bool {
+	return c != nil && c.config.APIKey != "" && c.config.FromEmail != ""
+}
+
 // Send sends an email via SendGrid
 func (c *SendGridClient) Send(ctx context.Context, msg *EmailMessage) error {
+	if !c.isConfigured() {
+		return nil
+	}
+
 	request := SendGridRequest{
 		Personalizations: []SendGridPersonalization{
 			{

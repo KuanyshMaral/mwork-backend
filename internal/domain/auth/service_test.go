@@ -82,6 +82,24 @@ type fakePhotoStudioClient struct {
 	err    error
 }
 
+type failingModelProfileRepo struct{}
+
+func (f *failingModelProfileRepo) Create(ctx context.Context, profile *ModelProfile) error {
+	return errors.New("create failed")
+}
+func (f *failingModelProfileRepo) GetByUserID(ctx context.Context, userID uuid.UUID) (*ModelProfile, error) {
+	return nil, errors.New("lookup failed")
+}
+
+type failingEmployerProfileRepo struct{}
+
+func (f *failingEmployerProfileRepo) Create(ctx context.Context, profile *EmployerProfile) error {
+	return errors.New("create failed")
+}
+func (f *failingEmployerProfileRepo) GetByUserID(ctx context.Context, userID uuid.UUID) (*EmployerProfile, error) {
+	return nil, errors.New("lookup failed")
+}
+
 type fakeModelProfileRepo struct{}
 
 func (f *fakeModelProfileRepo) Create(ctx context.Context, profile *ModelProfile) error { return nil }
@@ -484,5 +502,34 @@ func TestConfirmVerificationCodeSuccessMarksUsedAndFlags(t *testing.T) {
 	}
 	if !u.EmailVerified || !u.IsVerified {
 		t.Fatal("expected both verification flags true")
+	}
+}
+
+func TestLoginContinuesWhenProfileEnsureFails(t *testing.T) {
+	hash, err := password.Hash("password123")
+	if err != nil {
+		t.Fatalf("hash: %v", err)
+	}
+
+	u := &user.User{
+		ID:            uuid.New(),
+		Email:         "ok@example.com",
+		PasswordHash:  hash,
+		Role:          user.RoleModel,
+		EmailVerified: true,
+		IsVerified:    true,
+		CreatedAt:     time.Now(),
+	}
+
+	repo := &fakeUserRepo{byEmail: u, byID: u}
+	jwtService := jwt.NewService("secret", time.Minute, time.Hour)
+	svc := NewService(repo, &failingModelProfileRepo{}, jwtService, newFakeRefreshRepo(), &failingEmployerProfileRepo{}, nil, false, 50*time.Millisecond, &fakeVerificationCodeRepo{}, "pepper", false, false, nil)
+
+	resp, err := svc.Login(context.Background(), &LoginRequest{Email: "ok@example.com", Password: "password123"})
+	if err != nil {
+		t.Fatalf("expected successful login despite profile ensure error, got %v", err)
+	}
+	if resp == nil || resp.Tokens.AccessToken == "" || resp.Tokens.RefreshToken == "" {
+		t.Fatalf("expected tokens in response, got %#v", resp)
 	}
 }
