@@ -132,6 +132,7 @@ func (r *repository) CreateAdmin(ctx context.Context, admin *AdminUser) error {
 		if !isUndefinedTableErr(err) {
 			return err
 		}
+		return err
 	}
 
 	return tx.Commit()
