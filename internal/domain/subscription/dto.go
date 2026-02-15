@@ -130,12 +130,15 @@ func SubscriptionResponseFromEntity(s *Subscription, plan *Plan) *SubscriptionRe
 
 // LimitsResponse returns current user limits
 type LimitsResponse struct {
-	PlanID         string `json:"plan_id"`
-	MaxPhotos      int    `json:"max_photos"`
-	PhotosUsed     int    `json:"photos_used"`
-	MaxResponses   int    `json:"max_responses_month"` // -1 = unlimited
-	ResponsesUsed  int    `json:"responses_used"`
-	CanChat        bool   `json:"can_chat"`
-	CanSeeViewers  bool   `json:"can_see_viewers"`
-	PrioritySearch bool   `json:"priority_search"`
+	PlanID             string `json:"plan_id"`
+	PlanName           string `json:"plan_name"`
+	MaxPhotos          int    `json:"max_photos"`
+	PhotosUsed         int    `json:"photos_used"`
+	MaxResponses       int    `json:"max_responses_month"` // -1 = unlimited
+	ResponsesUsed      int    `json:"responses_used"`
+	ResponsesRemaining int    `json:"responses_remaining"`
+	ResponsesResetAt   string `json:"responses_reset_at"`
+	CanChat            bool   `json:"can_chat"`
+	CanSeeViewers      bool   `json:"can_see_viewers"`
+	PrioritySearch     bool   `json:"priority_search"`
 }

@@ -63,7 +63,7 @@ func defaultFreePlan() *Plan {
 		Description:       "Базовый бесплатный план",
 		PriceMonthly:      0,
 		MaxPhotos:         3,
-		MaxResponsesMonth: 5,
+		MaxResponsesMonth: 20,
 		CanChat:           false,
 		CanSeeViewers:     false,
 		PrioritySearch:    false,
@@ -211,12 +211,16 @@ func (s *Service) GetPlanLimits(ctx context.Context, userID uuid.UUID) (*Plan, e
 
 // LimitsResponseData represents current usage vs plan limits
 type LimitsResponseData struct {
-	PhotosUsed     int `json:"photos_used"`
-	PhotosLimit    int `json:"photos_limit"`
-	ResponsesUsed  int `json:"responses_used"`
-	ResponsesLimit int `json:"responses_limit"`
-	CastingsUsed   int `json:"castings_used"`
-	CastingsLimit  int `json:"castings_limit"`
+	PlanID             string    `json:"plan_id"`
+	PlanName           string    `json:"plan_name"`
+	PhotosUsed         int       `json:"photos_used"`
+	PhotosLimit        int       `json:"photos_limit"`
+	ResponsesUsed      int       `json:"responses_used"`
+	ResponsesLimit     int       `json:"responses_limit"`
+	ResponsesRemaining int       `json:"responses_remaining"`
+	ResponsesResetAt   time.Time `json:"responses_reset_at"`
+	CastingsUsed       int       `json:"castings_used"`
+	CastingsLimit      int       `json:"castings_limit"`
 }
 
 // GetLimitsWithUsage returns current usage and plan limits for user
@@ -254,10 +258,22 @@ func (s *Service) GetLimitsWithUsage(ctx context.Context, userID uuid.UUID) (*Li
 	}
 
 	// Initialize response with plan limits
+	responsesRemaining := plan.MaxResponsesMonth
+	if responsesRemaining < 0 {
+		responsesRemaining = -1
+	}
+
+	now := time.Now()
+	responsesResetAt := time.Date(now.Year(), now.Month()+1, 1, 0, 0, 0, 0, now.Location())
+
 	response := &LimitsResponseData{
-		PhotosLimit:    plan.MaxPhotos,
-		ResponsesLimit: plan.MaxResponsesMonth,
-		CastingsLimit:  3, // Default for free plan
+		PlanID:             string(plan.ID),
+		PlanName:           plan.Name,
+		PhotosLimit:        plan.MaxPhotos,
+		ResponsesLimit:     plan.MaxResponsesMonth,
+		ResponsesRemaining: responsesRemaining,
+		ResponsesResetAt:   responsesResetAt,
+		CastingsLimit:      3, // Default for free plan
 	}
 
 	// If no profile, return zeroed usage
@@ -314,6 +330,13 @@ func (s *Service) GetLimitsWithUsage(ctx context.Context, userID uuid.UUID) (*Li
 	response.PhotosUsed = result.photos
 	response.ResponsesUsed = result.responses
 	response.CastingsUsed = result.castings
+	if response.ResponsesLimit >= 0 {
+		remaining := response.ResponsesLimit - response.ResponsesUsed
+		if remaining < 0 {
+			remaining = 0
+		}
+		response.ResponsesRemaining = remaining
+	}
 
 	log.Info().
 		Str("user_id", userID.String()).

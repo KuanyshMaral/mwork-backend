@@ -9,7 +9,16 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 )
+
+func isUndefinedTableError(err error) bool {
+	var pqErr *pq.Error
+	if errors.As(err, &pqErr) {
+		return string(pqErr.Code) == "42P01"
+	}
+	return false
+}
 
 // Filter represents search filters for models
 type Filter struct {
@@ -103,7 +112,6 @@ func (r *modelRepository) GetByID(ctx context.Context, id uuid.UUID) (*ModelProf
 	}
 	return &p, nil
 }
-
 func (r *modelRepository) GetByUserID(ctx context.Context, userID uuid.UUID) (*ModelProfile, error) {
 	q := `SELECT id,user_id,name,bio,description,age,height,weight,gender,clothing_size,shoe_size,experience,
 	hourly_rate,city,country,languages,categories,skills,barter_accepted,accept_remote_work,travel_cities,
@@ -128,12 +136,10 @@ func (r *modelRepository) Update(ctx context.Context, p *ModelProfile) error {
 	_, err := r.db.ExecContext(ctx, q, p.ID, p.Name, p.Bio, p.Description, p.Age, p.Height, p.Weight, p.Gender, p.ClothingSize, p.ShoeSize, p.Experience, p.HourlyRate, p.City, p.Country, p.Languages, p.Categories, p.Skills, p.BarterAccepted, p.AcceptRemoteWork, p.IsPublic, p.TravelCities, p.Visibility)
 	return err
 }
-
 func (r *modelRepository) List(ctx context.Context, filter *Filter, pagination *Pagination) ([]*ModelProfile, int, error) {
 	conditions := []string{"is_public = true"}
 	args := []interface{}{}
 	argIndex := 1
-
 	if filter.City != nil && *filter.City != "" {
 		conditions = append(conditions, fmt.Sprintf("city ILIKE $%d", argIndex))
 		args = append(args, "%"+*filter.City+"%")
@@ -169,7 +175,6 @@ func (r *modelRepository) List(ctx context.Context, filter *Filter, pagination *
 		args = append(args, "%"+*filter.Query+"%")
 		argIndex++
 	}
-
 	where := "WHERE " + strings.Join(conditions, " AND ")
 	countQ := fmt.Sprintf("SELECT COUNT(*) FROM model_profiles %s", where)
 
@@ -183,20 +188,16 @@ func (r *modelRepository) List(ctx context.Context, filter *Filter, pagination *
 	hourly_rate,city,country,languages,categories,skills,barter_accepted,accept_remote_work,travel_cities,visibility,
 	profile_views,rating,total_reviews,is_public,created_at,updated_at FROM model_profiles %s ORDER BY rating DESC, created_at DESC LIMIT $%d OFFSET $%d`, where, argIndex, argIndex+1)
 	args = append(args, pagination.Limit, offset)
-
 	var profiles []*ModelProfile
 	if err := r.db.SelectContext(ctx, &profiles, q, args...); err != nil {
 		return nil, 0, err
 	}
-
 	return profiles, total, nil
 }
-
 func (r *modelRepository) IncrementViewCount(ctx context.Context, id uuid.UUID) error {
 	_, err := r.db.ExecContext(ctx, `UPDATE model_profiles SET profile_views = profile_views + 1 WHERE id=$1`, id)
 	return err
 }
-
 func (r *modelRepository) ListPromoted(ctx context.Context, city *string, limit int) ([]*ModelProfile, error) {
 	q := `SELECT DISTINCT ON (p.id)
 		p.id,p.user_id,p.name,p.bio,p.description,p.age,p.height,p.weight,p.gender,p.clothing_size,p.shoe_size,p.experience,
@@ -223,20 +224,18 @@ func (r *modelRepository) ListPromoted(ctx context.Context, city *string, limit 
 	} else {
 		q += " LIMIT 20"
 	}
-
 	var profiles []*ModelProfile
 	if err := r.db.SelectContext(ctx, &profiles, q, args...); err != nil {
 		return nil, err
 	}
 	return profiles, nil
 }
-
 func (r *modelRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	_, err := r.db.ExecContext(ctx, `DELETE FROM model_profiles WHERE id=$1`, id)
 	return err
 }
 
-// ---- EMPLOYER REPOSITORY ----
+// employer
 
 type employerRepository struct{ db *sqlx.DB }
 
@@ -248,7 +247,6 @@ func (r *employerRepository) Create(ctx context.Context, p *EmployerProfile) err
 	_, err := r.db.ExecContext(ctx, q, p.ID, p.UserID, p.CompanyName, p.CompanyType, p.Description, p.Website, p.ContactPerson, p.ContactPhone, p.City, p.Country, p.Rating, p.TotalReviews, p.CastingsPosted, p.IsVerified, p.VerifiedAt, p.CreatedAt, p.UpdatedAt)
 	return err
 }
-
 func (r *employerRepository) GetByID(ctx context.Context, id uuid.UUID) (*EmployerProfile, error) {
 	q := `SELECT id,user_id,company_name,company_type,description,website,contact_person,contact_phone,city,country,rating,total_reviews,castings_posted,is_verified,verified_at,created_at,updated_at FROM employer_profiles WHERE id=$1`
 	var p EmployerProfile
@@ -261,7 +259,6 @@ func (r *employerRepository) GetByID(ctx context.Context, id uuid.UUID) (*Employ
 	}
 	return &p, nil
 }
-
 func (r *employerRepository) GetByUserID(ctx context.Context, userID uuid.UUID) (*EmployerProfile, error) {
 	q := `SELECT id,user_id,company_name,company_type,description,website,contact_person,contact_phone,city,country,rating,total_reviews,castings_posted,is_verified,verified_at,created_at,updated_at FROM employer_profiles WHERE user_id=$1`
 	var p EmployerProfile
