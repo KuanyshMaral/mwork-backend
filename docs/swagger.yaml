@@ -6569,7 +6569,7 @@ paths:
       summary: Список доступных планов подписок
       tags:
       - Subscription
-  /uploads:
+  /files:
     get:
       parameters:
       - description: Категория
@@ -6599,7 +6599,7 @@ paths:
       summary: Список моих загрузок
       tags:
       - Upload
-  /uploads/{id}:
+  /files/{id}:
     delete:
       parameters:
       - description: ID загрузки
@@ -6665,7 +6665,7 @@ paths:
       summary: Получить загрузку по ID
       tags:
       - Upload
-  /uploads/{id}/commit:
+  /files/{id}/commit:
     post:
       parameters:
       - description: ID загрузки
@@ -6706,7 +6706,7 @@ paths:
       summary: Закоммитить загруженный файл
       tags:
       - Upload
-  /uploads/confirm:
+  /files/confirm:
     post:
       consumes:
       - application/json
@@ -6762,7 +6762,7 @@ paths:
       summary: Подтвердить загрузку файла
       tags:
       - Upload
-  /uploads/init:
+  /files/init:
     post:
       consumes:
       - application/json
@@ -6849,7 +6849,7 @@ paths:
       summary: Получить presigned URL для загрузки фото
       tags:
       - Photo
-  /uploads/stage:
+  /files/stage:
     post:
       consumes:
       - multipart/form-data

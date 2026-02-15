@@ -28,15 +28,19 @@ type Config struct {
 	// CORS
 	AllowedOrigins []string
 
-	// Storage (R2)
+	// Storage (R2/local)
 	R2AccountID       string
 	R2AccessKeyID     string
 	R2AccessKeySecret string
 	R2BucketName      string
 	R2PublicURL       string
+	UploadLocalPath   string
 
 	// Email
 	ResendAPIKey           string
+	SendGridAPIKey         string
+	SendGridFromEmail      string
+	SendGridFromName       string
 	VerificationCodePepper string
 	AllowLegacyRefresh     bool
 
@@ -95,9 +99,13 @@ func Load() *Config {
 		R2AccessKeySecret: getEnv("R2_ACCESS_KEY_SECRET", ""),
 		R2BucketName:      getEnv("R2_BUCKET_NAME", "mwork-uploads"),
 		R2PublicURL:       getEnv("R2_PUBLIC_URL", ""),
+		UploadLocalPath:   getEnv("UPLOAD_LOCAL_PATH", "./uploads"),
 
 		// Email
 		ResendAPIKey:           getEnv("RESEND_API_KEY", ""),
+		SendGridAPIKey:         firstNonEmpty(getEnv("SENDGRID_API_KEY", ""), getEnv("RESEND_API_KEY", "")),
+		SendGridFromEmail:      getEnv("SENDGRID_FROM_EMAIL", "noreply@mwork.kz"),
+		SendGridFromName:       getEnv("SENDGRID_FROM_NAME", "MWork"),
 		VerificationCodePepper: getEnv("VERIFICATION_CODE_PEPPER", "dev-only-change-me"),
 		AllowLegacyRefresh:     parseBool(getEnv("ALLOW_LEGACY_REFRESH", "false"), false),
 
@@ -173,6 +181,15 @@ func parseStringSlice(s string) []string {
 		}
 	}
 	return result
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 // IsDevelopment returns true if running in development mode

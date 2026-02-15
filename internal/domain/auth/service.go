@@ -325,8 +325,7 @@ func (s *Service) Login(ctx context.Context, req *LoginRequest) (*AuthResponse, 
 	}
 
 	if err := s.ensureProfileExists(ctx, u); err != nil {
-		log.Error().Err(err).Str("user_id", u.ID.String()).Str("role", string(u.Role)).Msg("failed to ensure profile exists on login")
-		return nil, err
+		log.Warn().Err(err).Str("user_id", u.ID.String()).Str("role", string(u.Role)).Msg("failed to ensure profile exists on login; continuing")
 	}
 
 	log.Info().Str("email", req.Email).Msg("Login successful")

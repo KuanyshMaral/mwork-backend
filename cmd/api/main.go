@@ -93,9 +93,9 @@ func main() {
 	jwtService := jwt.NewService(cfg.JWTSecret, cfg.JWTAccessTTL, cfg.JWTRefreshTTL)
 
 	emailService := emailpkg.NewService(emailpkg.SendGridConfig{
-		APIKey:    cfg.ResendAPIKey,
-		FromEmail: "noreply@mwork.kz",
-		FromName:  "MWork",
+		APIKey:    cfg.SendGridAPIKey,
+		FromEmail: cfg.SendGridFromEmail,
+		FromName:  cfg.SendGridFromName,
 	})
 	defer emailService.Close()
 
@@ -113,6 +113,7 @@ func main() {
 	modelRepo := profile.NewModelRepository(db)
 	experienceRepo := experience.NewRepository(db)
 	employerRepo := profile.NewEmployerRepository(db)
+	adminProfRepo := profile.NewAdminRepository(db)
 	castingRepo := casting.NewRepository(db)
 	responseRepo := response.NewRepository(db)
 	photoRepo := photo.NewRepository(db)
@@ -128,26 +129,42 @@ func main() {
 	walletRepo := wallet.NewRepository(db)
 
 	// ---------- Upload domain (2-phase) ----------
-	// R2 storage client (presign/move/exists)
-	r2Storage, err := storage.NewR2Storage(storage.R2Config{
-		AccountID:       cfg.R2AccountID,
-		AccessKeyID:     cfg.R2AccessKeyID,
-		AccessKeySecret: cfg.R2AccessKeySecret,
-		BucketName:      cfg.R2BucketName,
-		PublicURL:       cfg.R2PublicURL,
-	})
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to create R2 storage")
+	const filesBaseURL = "/api/v1/media"
+
+	var (
+		uploadStorage     uploadDomain.UploadStorage
+		uploadFileStorage storage.Storage
+		servingLocalFiles bool
+	)
+
+	if cfg.R2AccountID != "" && cfg.R2AccessKeyID != "" && cfg.R2AccessKeySecret != "" && cfg.R2BucketName != "" {
+		r2Storage, r2Err := storage.NewR2Storage(storage.R2Config{
+			AccountID:       cfg.R2AccountID,
+			AccessKeyID:     cfg.R2AccessKeyID,
+			AccessKeySecret: cfg.R2AccessKeySecret,
+			BucketName:      cfg.R2BucketName,
+			PublicURL:       cfg.R2PublicURL,
+		})
+		if r2Err != nil {
+			log.Fatal().Err(r2Err).Msg("Failed to create R2 storage")
+		}
+		uploadStorage = r2Storage
+		uploadFileStorage = r2Storage
+		log.Info().Msg("Upload storage: R2")
+	} else {
+		localStorage, localErr := storage.NewLocalStorage(cfg.UploadLocalPath, filesBaseURL)
+		if localErr != nil {
+			log.Fatal().Err(localErr).Msg("Failed to create local upload storage")
+		}
+		uploadStorage = storage.NewUploadStorageAdapter(localStorage)
+		uploadFileStorage = localStorage
+		servingLocalFiles = true
+		log.Warn().Str("path", cfg.UploadLocalPath).Msg("R2 is not configured, using local upload storage")
 	}
 
 	uploadRepo := uploadDomain.NewRepository(db)
-
-	// NOTE: This matches your current call style:
-	// NewService(uploadRepo, storage, imageProcessor, baseURL)
-	uploadService := uploadDomain.NewService(uploadRepo, r2Storage, nil, "/api/v1/files")
-
-	// IMPORTANT: NewHandler MUST accept (service, baseURL, storage, repo)
-	uploadHandler := uploadDomain.NewHandler(uploadService, "/api/v1/files", r2Storage, uploadRepo)
+	uploadService := uploadDomain.NewService(uploadRepo, uploadFileStorage, nil, filesBaseURL)
+	uploadHandler := uploadDomain.NewHandler(uploadService, filesBaseURL, uploadStorage, uploadRepo)
 
 	// ---------- WebSocket hub ----------
 	chatHub := chat.NewHub(redis)
@@ -168,7 +185,7 @@ func main() {
 	}
 
 	// ---------- Services ----------
-	profileService := profile.NewService(modelRepo, employerRepo, userRepo)
+	profileService := profile.NewService(modelRepo, employerRepo, adminProfRepo, userRepo)
 	castingService := casting.NewService(castingRepo, userRepo)
 	responseService := response.NewService(responseRepo, castingRepo, modelRepo, employerRepo)
 	photoService := photo.NewService(photoRepo, modelRepo, uploadSvc)
@@ -269,7 +286,7 @@ func main() {
 
 	orgRepo := organization.NewRepository(db)
 	leadRepo := lead.NewRepository(db)
-	leadService := lead.NewService(leadRepo, orgRepo, userRepo)
+	leadService := lead.NewService(leadRepo, orgRepo, userRepo, &leadEmployerProfileAdapter{repo: employerRepo})
 
 	// ---------- Handlers ----------
 	authHandler := auth.NewHandler(authService)
@@ -366,6 +383,10 @@ func main() {
 			"version": "1.0.0",
 		})
 	})
+
+	if servingLocalFiles {
+		r.Handle(filesBaseURL+"/*", http.StripPrefix(filesBaseURL+"/", http.FileServer(http.Dir(cfg.UploadLocalPath))))
+	}
 
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Get("/ping", func(w http.ResponseWriter, r *http.Request) {
@@ -796,4 +817,10 @@ func (a *modelProfileIDProvider) ProfileIDByUserID(ctx context.Context, userID u
 		return uuid.Nil, err
 	}
 	return modelProfile.ID, nil
+}
+
+type leadEmployerProfileAdapter struct{ repo profile.EmployerRepository }
+
+func (a *leadEmployerProfileAdapter) Create(ctx context.Context, p *lead.EmployerProfile) error {
+	return a.repo.Create(ctx, &profile.EmployerProfile{ID: p.ID, UserID: p.UserID, CompanyName: p.CompanyName, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt})
 }

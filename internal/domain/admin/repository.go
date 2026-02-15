@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 )
 
 // Repository defines admin data access
@@ -88,6 +89,14 @@ type repository struct {
 	db *sqlx.DB
 }
 
+func isUndefinedTableErr(err error) bool {
+	var pqErr *pq.Error
+	if errors.As(err, &pqErr) {
+		return string(pqErr.Code) == "42P01"
+	}
+	return false
+}
+
 // NewRepository creates admin repository
 func NewRepository(db *sqlx.DB) Repository {
 	return &repository{db: db}
@@ -96,11 +105,17 @@ func NewRepository(db *sqlx.DB) Repository {
 // Admin users
 
 func (r *repository) CreateAdmin(ctx context.Context, admin *AdminUser) error {
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
 	query := `
 		INSERT INTO admin_users (id, email, password_hash, role, name, is_active, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`
-	_, err := r.db.ExecContext(ctx, query,
+	if _, err := tx.ExecContext(ctx, query,
 		admin.ID,
 		admin.Email,
 		admin.PasswordHash,
@@ -109,8 +124,17 @@ func (r *repository) CreateAdmin(ctx context.Context, admin *AdminUser) error {
 		admin.IsActive,
 		admin.CreatedAt,
 		admin.UpdatedAt,
-	)
-	return err
+	); err != nil {
+		return err
+	}
+
+	if _, err := tx.ExecContext(ctx, `INSERT INTO admin_profiles (id, user_id, name, role, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (user_id) DO NOTHING`, admin.ID, admin.ID, admin.Name, admin.Role, admin.CreatedAt, admin.UpdatedAt); err != nil {
+		if !isUndefinedTableErr(err) {
+			return err
+		}
+	}
+
+	return tx.Commit()
 }
 
 func (r *repository) GetAdminByID(ctx context.Context, id uuid.UUID) (*AdminUser, error) {
@@ -201,20 +225,20 @@ func (r *repository) ListAuditLogs(ctx context.Context, filter AuditFilter) ([]*
 
 	// Apply filters
 	if filter.AdminID != nil {
-		query += ` AND admin_id = $` + string(rune('0'+argNum))
-		countQuery += ` AND admin_id = $` + string(rune('0'+argNum))
+		query += ` AND admin_id = $` + strconv.Itoa(argNum)
+		countQuery += ` AND admin_id = $` + strconv.Itoa(argNum)
 		args = append(args, *filter.AdminID)
 		argNum++
 	}
 	if filter.Action != nil {
-		query += ` AND action = $` + string(rune('0'+argNum))
-		countQuery += ` AND action = $` + string(rune('0'+argNum))
+		query += ` AND action = $` + strconv.Itoa(argNum)
+		countQuery += ` AND action = $` + strconv.Itoa(argNum)
 		args = append(args, *filter.Action)
 		argNum++
 	}
 	if filter.EntityType != nil {
-		query += ` AND entity_type = $` + string(rune('0'+argNum))
-		countQuery += ` AND entity_type = $` + string(rune('0'+argNum))
+		query += ` AND entity_type = $` + strconv.Itoa(argNum)
+		countQuery += ` AND entity_type = $` + strconv.Itoa(argNum)
 		args = append(args, *filter.EntityType)
 		argNum++
 	}
@@ -231,7 +255,7 @@ func (r *repository) ListAuditLogs(ctx context.Context, filter AuditFilter) ([]*
 		offset = 0
 	}
 
-	query += ` LIMIT $` + string(rune('0'+argNum)) + ` OFFSET $` + string(rune('0'+argNum+1))
+	query += ` LIMIT $` + strconv.Itoa(argNum) + ` OFFSET $` + strconv.Itoa(argNum+1)
 	args = append(args, limit, offset)
 
 	var logs []*AuditLog
@@ -240,9 +264,11 @@ func (r *repository) ListAuditLogs(ctx context.Context, filter AuditFilter) ([]*
 		return nil, 0, err
 	}
 
-	// Get total count (simplified - doesn't pass args correctly for complex filters)
+	// Get total count with the same filters (without pagination args)
 	var total int
-	_ = r.db.GetContext(ctx, &total, `SELECT COUNT(*) FROM audit_logs`)
+	if err := r.db.GetContext(ctx, &total, countQuery, args[:len(args)-2]...); err != nil {
+		return nil, 0, err
+	}
 
 	return logs, total, nil
 }
@@ -306,7 +332,7 @@ func (r *repository) GetDashboardStats(ctx context.Context) (*DashboardStats, er
 	r.db.GetContext(ctx, &stats.Revenue.AgencyUsers, `SELECT COUNT(*) FROM subscriptions WHERE plan_id = 'agency' AND status = 'active'`)
 
 	// Moderation stats
-	r.db.GetContext(ctx, &stats.Moderation.PendingProfiles, `SELECT COUNT(*) FROM profiles WHERE moderation_status = 'pending'`)
+	r.db.GetContext(ctx, &stats.Moderation.PendingProfiles, `SELECT COUNT(*) FROM users WHERE user_verification_status = 'pending'`)
 	r.db.GetContext(ctx, &stats.Moderation.PendingPhotos, `SELECT COUNT(*) FROM photos WHERE moderation_status = 'pending'`)
 	r.db.GetContext(ctx, &stats.Moderation.PendingCastings, `SELECT COUNT(*) FROM castings WHERE moderation_status = 'pending'`)
 	r.db.GetContext(ctx, &stats.Moderation.BannedUsers, `SELECT COUNT(*) FROM users WHERE is_banned = true`)
@@ -428,7 +454,7 @@ func (r *repository) UpdateReportStatus(ctx context.Context, id uuid.UUID, statu
 }
 
 func (r *repository) GetReportedUserByID(ctx context.Context, userID uuid.UUID) (*ReportedUser, error) {
-	query := `SELECT id, email, status FROM users WHERE id = $1`
+	query := `SELECT id, email, user_verification_status AS status FROM users WHERE id = $1`
 	var user ReportedUser
 	err := r.db.GetContext(ctx, &user, query, userID)
 	if err != nil {
@@ -441,19 +467,32 @@ func (r *repository) GetReportedUserByID(ctx context.Context, userID uuid.UUID) 
 }
 
 func (r *repository) SoftDeleteEntity(ctx context.Context, entityType string, entityID uuid.UUID) error {
-	var query string
+	var (
+		query string
+		err   error
+		res   sql.Result
+	)
+
 	switch entityType {
 	case "user":
 		query = `UPDATE users SET deleted_at = NOW() WHERE id = $1`
+		_, err = r.db.ExecContext(ctx, query, entityID)
 	case "casting":
 		query = `UPDATE castings SET deleted_at = NOW() WHERE id = $1`
+		_, err = r.db.ExecContext(ctx, query, entityID)
 	case "profile":
-		query = `UPDATE profiles SET deleted_at = NOW() WHERE id = $1`
+		res, err = r.db.ExecContext(ctx, `UPDATE model_profiles SET is_public = FALSE, updated_at = NOW() WHERE id = $1`, entityID)
+		if err != nil {
+			return err
+		}
+		rows, rowsErr := res.RowsAffected()
+		if rowsErr == nil && rows == 0 {
+			_, err = r.db.ExecContext(ctx, `UPDATE employer_profiles SET updated_at = NOW() WHERE id = $1`, entityID)
+		}
 	default:
 		return errors.New("unsupported entity type")
 	}
 
-	_, err := r.db.ExecContext(ctx, query, entityID)
 	return err
 }
 
@@ -478,25 +517,38 @@ func (r *repository) UpdateReportStatusTx(ctx context.Context, tx *sqlx.Tx, id u
 }
 
 func (r *repository) UpdateUserStatusTx(ctx context.Context, tx *sqlx.Tx, userID uuid.UUID, status string) error {
-	query := `UPDATE users SET status = $2, updated_at = NOW() WHERE id = $1`
+	query := `UPDATE users SET user_verification_status = $2, verification_reviewed_at = NOW(), updated_at = NOW() WHERE id = $1`
 	_, err := tx.ExecContext(ctx, query, userID, status)
 	return err
 }
 
 func (r *repository) SoftDeleteEntityTx(ctx context.Context, tx *sqlx.Tx, entityType string, entityID uuid.UUID) error {
-	var query string
+	var (
+		query string
+		err   error
+		res   sql.Result
+	)
+
 	switch entityType {
 	case "user":
 		query = `UPDATE users SET deleted_at = NOW() WHERE id = $1`
+		_, err = tx.ExecContext(ctx, query, entityID)
 	case "casting":
 		query = `UPDATE castings SET deleted_at = NOW() WHERE id = $1`
+		_, err = tx.ExecContext(ctx, query, entityID)
 	case "profile":
-		query = `UPDATE profiles SET deleted_at = NOW() WHERE id = $1`
+		res, err = tx.ExecContext(ctx, `UPDATE model_profiles SET is_public = FALSE, updated_at = NOW() WHERE id = $1`, entityID)
+		if err != nil {
+			return err
+		}
+		rows, rowsErr := res.RowsAffected()
+		if rowsErr == nil && rows == 0 {
+			_, err = tx.ExecContext(ctx, `UPDATE employer_profiles SET updated_at = NOW() WHERE id = $1`, entityID)
+		}
 	default:
 		return errors.New("unsupported entity type")
 	}
 
-	_, err := tx.ExecContext(ctx, query, entityID)
 	return err
 }
 
@@ -554,12 +606,19 @@ func (r *repository) ListUsers(ctx context.Context, params map[string]interface{
 		WHERE deleted_at IS NULL
 	`
 
+	countQuery := `
+		SELECT COUNT(*)
+		FROM users
+		WHERE deleted_at IS NULL
+	`
+
 	var args []interface{}
 	argIndex := 1
 
 	// Add filters
 	if role, ok := params["role"].(string); ok && role != "" {
 		query += fmt.Sprintf(" AND role = $%d", argIndex)
+		countQuery += fmt.Sprintf(" AND role = $%d", argIndex)
 		args = append(args, role)
 		argIndex++
 	}
@@ -567,10 +626,12 @@ func (r *repository) ListUsers(ctx context.Context, params map[string]interface{
 	if status, ok := params["status"].(string); ok && status != "" {
 		if status == "active" {
 			query += fmt.Sprintf(" AND is_banned = $%d", argIndex)
+			countQuery += fmt.Sprintf(" AND is_banned = $%d", argIndex)
 			args = append(args, false)
 			argIndex++
 		} else if status == "banned" {
 			query += fmt.Sprintf(" AND is_banned = $%d", argIndex)
+			countQuery += fmt.Sprintf(" AND is_banned = $%d", argIndex)
 			args = append(args, true)
 			argIndex++
 		}
@@ -578,13 +639,12 @@ func (r *repository) ListUsers(ctx context.Context, params map[string]interface{
 
 	if search, ok := params["search"].(string); ok && search != "" {
 		query += fmt.Sprintf(" AND email ILIKE $%d", argIndex)
+		countQuery += fmt.Sprintf(" AND email ILIKE $%d", argIndex)
 		args = append(args, "%"+search+"%")
 		argIndex++
 	}
 
 	// Count query
-	countQuery := strings.Replace(query, "SELECT id, email, role, email_verified, is_banned, created_at, updated_at", "SELECT COUNT(*)", 1)
-
 	var total int
 	err := r.db.GetContext(ctx, &total, countQuery, args...)
 	if err != nil {
