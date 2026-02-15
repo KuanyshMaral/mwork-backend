@@ -9,7 +9,16 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 )
+
+func isUndefinedTableError(err error) bool {
+	var pqErr *pq.Error
+	if errors.As(err, &pqErr) {
+		return string(pqErr.Code) == "42P01"
+	}
+	return false
+}
 
 // Filter represents search filters for models
 type Filter struct {
@@ -78,6 +87,34 @@ func (r *modelRepository) Create(ctx context.Context, profile *ModelProfile) err
 		$27,$28
 	)`
 	_, err := r.db.ExecContext(ctx, q,
+		profile.ID, profile.UserID, profile.Name, profile.Bio, profile.Description,
+		profile.Age, profile.Height, profile.Weight, profile.Gender,
+		profile.ClothingSize, profile.ShoeSize, profile.Experience, profile.HourlyRate,
+		profile.City, profile.Country, profile.Languages, profile.Categories, profile.Skills,
+		profile.BarterAccepted, profile.AcceptRemoteWork, profile.TravelCities, profile.Visibility,
+		profile.ProfileViews, profile.Rating, profile.TotalReviews, profile.IsPublic,
+		profile.CreatedAt, profile.UpdatedAt,
+	)
+	if err == nil || !isUndefinedTableError(err) {
+		return err
+	}
+
+	legacyQuery := `
+		INSERT INTO profiles (
+			id, user_id, type, first_name, bio, description, age, height_cm, weight_kg, gender,
+			clothing_size, shoe_size, experience_years, hourly_rate, city, country,
+			languages, categories, skills, barter_accepted, accept_remote_work,
+			travel_cities, visibility,
+			view_count, rating, total_reviews, is_public
+		) VALUES (
+			$1, $2, 'model', $3, $4, $5, $6, $7, $8, $9,
+			$10, $11, $12, $13, $14, $15,
+			$16, $17, $18, $19, $20,
+			$21, $22,
+			$23, $24, $25, $26
+		)
+	`
+	_, err = r.db.ExecContext(ctx, legacyQuery,
 		profile.ID, profile.UserID, profile.Name, profile.Bio, profile.Description,
 		profile.Age, profile.Height, profile.Weight, profile.Gender,
 		profile.ClothingSize, profile.ShoeSize, profile.Experience, profile.HourlyRate,

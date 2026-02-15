@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 )
 
 // Repository defines admin data access
@@ -88,6 +89,14 @@ type repository struct {
 	db *sqlx.DB
 }
 
+func isUndefinedTableErr(err error) bool {
+	var pqErr *pq.Error
+	if errors.As(err, &pqErr) {
+		return string(pqErr.Code) == "42P01"
+	}
+	return false
+}
+
 // NewRepository creates admin repository
 func NewRepository(db *sqlx.DB) Repository {
 	return &repository{db: db}
@@ -120,6 +129,9 @@ func (r *repository) CreateAdmin(ctx context.Context, admin *AdminUser) error {
 	}
 
 	if _, err := tx.ExecContext(ctx, `INSERT INTO admin_profiles (id, user_id, name, role, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (user_id) DO NOTHING`, admin.ID, admin.ID, admin.Name, admin.Role, admin.CreatedAt, admin.UpdatedAt); err != nil {
+		if !isUndefinedTableErr(err) {
+			return err
+		}
 		return err
 	}
 
@@ -214,20 +226,20 @@ func (r *repository) ListAuditLogs(ctx context.Context, filter AuditFilter) ([]*
 
 	// Apply filters
 	if filter.AdminID != nil {
-		query += ` AND admin_id = $` + string(rune('0'+argNum))
-		countQuery += ` AND admin_id = $` + string(rune('0'+argNum))
+		query += ` AND admin_id = $` + strconv.Itoa(argNum)
+		countQuery += ` AND admin_id = $` + strconv.Itoa(argNum)
 		args = append(args, *filter.AdminID)
 		argNum++
 	}
 	if filter.Action != nil {
-		query += ` AND action = $` + string(rune('0'+argNum))
-		countQuery += ` AND action = $` + string(rune('0'+argNum))
+		query += ` AND action = $` + strconv.Itoa(argNum)
+		countQuery += ` AND action = $` + strconv.Itoa(argNum)
 		args = append(args, *filter.Action)
 		argNum++
 	}
 	if filter.EntityType != nil {
-		query += ` AND entity_type = $` + string(rune('0'+argNum))
-		countQuery += ` AND entity_type = $` + string(rune('0'+argNum))
+		query += ` AND entity_type = $` + strconv.Itoa(argNum)
+		countQuery += ` AND entity_type = $` + strconv.Itoa(argNum)
 		args = append(args, *filter.EntityType)
 		argNum++
 	}
@@ -244,7 +256,7 @@ func (r *repository) ListAuditLogs(ctx context.Context, filter AuditFilter) ([]*
 		offset = 0
 	}
 
-	query += ` LIMIT $` + string(rune('0'+argNum)) + ` OFFSET $` + string(rune('0'+argNum+1))
+	query += ` LIMIT $` + strconv.Itoa(argNum) + ` OFFSET $` + strconv.Itoa(argNum+1)
 	args = append(args, limit, offset)
 
 	var logs []*AuditLog
