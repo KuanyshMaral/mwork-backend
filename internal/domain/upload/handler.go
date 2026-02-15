@@ -3,6 +3,7 @@ package upload
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"path"
@@ -265,12 +266,12 @@ func (h *Handler) Stage(w http.ResponseWriter, r *http.Request) {
 
 	upload, err := h.service.Stage(r.Context(), userID, Category(category), header.Filename, file)
 	if err != nil {
-		switch err {
-		case storage.ErrFileTooLarge:
+		switch {
+		case errors.Is(err, storage.ErrFileTooLarge):
 			response.BadRequest(w, "File exceeds maximum size")
-		case storage.ErrInvalidMimeType:
+		case errors.Is(err, storage.ErrInvalidMimeType):
 			response.BadRequest(w, "File type not allowed")
-		case storage.ErrEmptyFile:
+		case errors.Is(err, storage.ErrEmptyFile):
 			response.BadRequest(w, "File is empty")
 		default:
 			response.InternalError(w)
