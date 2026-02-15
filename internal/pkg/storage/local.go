@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"time"
@@ -108,10 +109,21 @@ func (s *LocalStorage) GetInfo(ctx context.Context, key string) (*FileInfo, erro
 		return nil, fmt.Errorf("failed to stat file: %w", err)
 	}
 
+	contentType := ""
+	if f, err := os.Open(fullPath); err == nil {
+		defer f.Close()
+		head := make([]byte, 512)
+		n, _ := f.Read(head)
+		if n > 0 {
+			contentType = http.DetectContentType(head[:n])
+		}
+	}
+
 	return &FileInfo{
-		Key:  key,
-		Size: stat.Size(),
-		URL:  s.GetURL(key),
+		Key:         key,
+		Size:        stat.Size(),
+		ContentType: contentType,
+		URL:         s.GetURL(key),
 	}, nil
 }
 

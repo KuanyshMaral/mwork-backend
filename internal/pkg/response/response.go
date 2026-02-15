@@ -151,3 +151,11 @@ func InternalError(w http.ResponseWriter) {
 func TooManyRequests(w http.ResponseWriter) {
 	Error(w, http.StatusTooManyRequests, "RATE_LIMIT_EXCEEDED", "Too many requests, please try again later")
 }
+
+// ErrorResponse documents standard API error payload.
+// error.code values include: INVALID_PURPOSE, INVALID_CONTENT_TYPE, FILE_TOO_LARGE, UPLOAD_NOT_FOUND,
+// UPLOAD_FORBIDDEN, UPLOAD_EXPIRED, UPLOAD_INVALID_STATUS, STORAGE_ERROR.
+type ErrorResponse struct {
+	Success bool       `json:"success" example:"false"`
+	Error   *ErrorInfo `json:"error"`
+}

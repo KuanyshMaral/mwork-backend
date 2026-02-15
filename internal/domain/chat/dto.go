@@ -92,3 +92,8 @@ func RoomResponseFromEntity(r *Room, currentUserID uuid.UUID, unreadCount int) *
 
 	return resp
 }
+
+type SendMessageRequestDoc struct {
+	Text               string `json:"text,omitempty" example:"optional text"`
+	AttachmentUploadID string `json:"attachment_upload_id,omitempty" example:"550e8400-e29b-41d4-a716-446655440000"`
+}
