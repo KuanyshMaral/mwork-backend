@@ -194,18 +194,18 @@ func (h *Handler) Confirm(w http.ResponseWriter, r *http.Request) {
 
 	up, err := h.service.Confirm(r.Context(), uploadID, userID)
 	if err != nil {
-		switch err {
-		case ErrUploadNotFound:
+		switch {
+		case errors.Is(err, ErrUploadNotFound):
 			response.NotFound(w, "Upload not found")
-		case ErrNotUploadOwner:
+		case errors.Is(err, ErrNotUploadOwner):
 			response.Forbidden(w, "Not upload owner")
-		case ErrInvalidStatus:
+		case errors.Is(err, ErrInvalidStatus):
 			response.Error(w, http.StatusBadRequest, "INVALID_UPLOAD_STATUS", "invalid upload status")
-		case ErrUploadExpired:
+		case errors.Is(err, ErrUploadExpired):
 			response.Error(w, http.StatusGone, "UPLOAD_EXPIRED", "upload has expired")
-		case ErrMetadataMismatch:
+		case errors.Is(err, ErrMetadataMismatch):
 			response.Error(w, http.StatusBadRequest, "UPLOAD_METADATA_MISMATCH", "uploaded file metadata mismatch")
-		case ErrStagingFileNotFound:
+		case errors.Is(err, ErrStagingFileNotFound):
 			response.Error(w, http.StatusBadRequest, "FILE_NOT_FOUND", "file not found in staging")
 		default:
 			response.Error(w, http.StatusBadGateway, "STORAGE_ERROR", "storage error")
@@ -279,9 +279,9 @@ func (h *Handler) Stage(w http.ResponseWriter, r *http.Request) {
 			response.BadRequest(w, "File type not allowed")
 		case errors.Is(err, storage.ErrEmptyFile):
 			response.BadRequest(w, "File is empty")
-		case ErrUploadNotFound:
+		case errors.Is(err, ErrUploadNotFound):
 			response.NotFound(w, "Upload not found")
-		case ErrNotUploadOwner:
+		case errors.Is(err, ErrNotUploadOwner):
 			response.Forbidden(w, "Not upload owner")
 		default:
 			response.InternalError(w)
@@ -312,14 +312,14 @@ func (h *Handler) Commit(w http.ResponseWriter, r *http.Request) {
 
 	upload, err := h.service.Commit(r.Context(), id, userID)
 	if err != nil {
-		switch err {
-		case ErrUploadNotFound:
+		switch {
+		case errors.Is(err, ErrUploadNotFound):
 			response.NotFound(w, "Upload not found")
-		case ErrNotUploadOwner:
+		case errors.Is(err, ErrNotUploadOwner):
 			response.Forbidden(w, "Not upload owner")
-		case ErrAlreadyCommitted:
+		case errors.Is(err, ErrAlreadyCommitted):
 			response.BadRequest(w, "Upload already committed")
-		case ErrUploadExpired:
+		case errors.Is(err, ErrUploadExpired):
 			response.BadRequest(w, "Upload has expired, please upload again")
 		default:
 			response.InternalError(w)
@@ -373,10 +373,10 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 
 	if err := h.service.Delete(r.Context(), id, userID); err != nil {
-		switch err {
-		case ErrUploadNotFound:
+		switch {
+		case errors.Is(err, ErrUploadNotFound):
 			response.NotFound(w, "Upload not found")
-		case ErrNotUploadOwner:
+		case errors.Is(err, ErrNotUploadOwner):
 			response.Forbidden(w, "Not upload owner")
 		default:
 			response.InternalError(w)
