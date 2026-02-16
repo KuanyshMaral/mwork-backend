@@ -51,6 +51,7 @@ func (s *Service) Stage(ctx context.Context, userID uuid.UUID, category Category
 	uploadID := uuid.New()
 	ext := storage.GetExtensionForMime(mimeType)
 	stagingKey := fmt.Sprintf("staging/%s/%s%s", userID.String(), uploadID.String(), ext)
+	sizeBytes := int64(buffer.Len())
 
 	// Store in staging
 	if err := s.stagingStorage.Put(ctx, stagingKey, buffer, mimeType); err != nil {
@@ -66,7 +67,7 @@ func (s *Service) Stage(ctx context.Context, userID uuid.UUID, category Category
 		Status:       StatusStaged,
 		OriginalName: filepath.Base(filename),
 		MimeType:     mimeType,
-		Size:         sql.NullInt64{Int64: int64(buffer.Len()), Valid: true},
+		Size:         sql.NullInt64{Int64: sizeBytes, Valid: true},
 		StagingKey:   stagingKey,
 		CreatedAt:    now,
 		ExpiresAt:    now.Add(StagingTTL),
@@ -101,6 +102,7 @@ func (s *Service) StageExisting(ctx context.Context, uploadID, userID uuid.UUID,
 		ext := storage.GetExtensionForMime(mimeType)
 		stagingKey = fmt.Sprintf("uploads/staging/%s/%s%s", userID.String(), uploadID.String(), ext)
 	}
+	sizeBytes := int64(buffer.Len())
 
 	if err := s.stagingStorage.Put(ctx, stagingKey, buffer, mimeType); err != nil {
 		return nil, fmt.Errorf("failed to store file: %w", err)
@@ -111,7 +113,7 @@ func (s *Service) StageExisting(ctx context.Context, uploadID, userID uuid.UUID,
 	upload.Status = StatusStaged
 	upload.OriginalName = filepath.Base(filename)
 	upload.MimeType = mimeType
-	upload.Size = sql.NullInt64{Int64: int64(buffer.Len()), Valid: true}
+	upload.Size = sql.NullInt64{Int64: sizeBytes, Valid: true}
 	upload.StagingKey = stagingKey
 	upload.ExpiresAt = now.Add(StagingTTL)
 	upload.CommittedAt = nil

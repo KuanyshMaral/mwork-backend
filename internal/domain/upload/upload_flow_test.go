@@ -54,6 +54,20 @@ func (s *storageStub) GetInfo(_ context.Context, _ string) (*storage.FileInfo, e
 	return s.info, nil
 }
 
+type drainingStorageStub struct {
+	storageStub
+	lastPutBytes int
+}
+
+func (s *drainingStorageStub) Put(_ context.Context, _ string, r io.Reader, _ string) error {
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return err
+	}
+	s.lastPutBytes = len(data)
+	return nil
+}
+
 type uploadStorageStub struct{}
 
 func (s *uploadStorageStub) GeneratePresignedPutURL(_ context.Context, _ string, _ time.Duration, _ string) (string, error) {
@@ -187,5 +201,46 @@ func TestUploadResponseUsesNilForNullSize(t *testing.T) {
 	resp := UploadResponseFromEntity(u, "https://staging")
 	if resp.Size != nil {
 		t.Fatalf("expected nil size for NULL size, got %v", *resp.Size)
+	}
+}
+
+func TestStagePersistsSizeAfterStorageReaderConsumption(t *testing.T) {
+	repo := &repoStub{}
+	st := &drainingStorageStub{}
+	svc := NewService(repo, st, nil, "https://staging")
+
+	fileBytes := []byte{0xFF, 0xD8, 0xFF, 0xD9} // minimal jpeg-like bytes for DetectContentType
+	up, err := svc.Stage(context.Background(), uuid.New(), CategoryPhoto, "photo.jpg", bytes.NewReader(fileBytes))
+	if err != nil {
+		t.Fatalf("expected stage success, got error: %v", err)
+	}
+	if !up.Size.Valid || up.Size.Int64 != int64(len(fileBytes)) {
+		t.Fatalf("expected upload size %d, got %+v", len(fileBytes), up.Size)
+	}
+	if repo.created == nil || !repo.created.Size.Valid || repo.created.Size.Int64 != int64(len(fileBytes)) {
+		t.Fatalf("expected persisted upload size %d, got %+v", len(fileBytes), repo.created)
+	}
+	if st.lastPutBytes != len(fileBytes) {
+		t.Fatalf("expected storage to receive %d bytes, got %d", len(fileBytes), st.lastPutBytes)
+	}
+}
+
+func TestStageExistingPersistsSizeAfterStorageReaderConsumption(t *testing.T) {
+	uid := uuid.New()
+	uploadID := uuid.New()
+	repo := &repoStub{getByID: &Upload{ID: uploadID, UserID: uid, StagingKey: "uploads/staging/u/f.jpg", ExpiresAt: time.Now().Add(time.Hour)}}
+	st := &drainingStorageStub{}
+	svc := NewService(repo, st, nil, "https://staging")
+
+	fileBytes := []byte{0xFF, 0xD8, 0xFF, 0xD9}
+	up, err := svc.StageExisting(context.Background(), uploadID, uid, CategoryPhoto, "photo.jpg", bytes.NewReader(fileBytes))
+	if err != nil {
+		t.Fatalf("expected stage existing success, got error: %v", err)
+	}
+	if !up.Size.Valid || up.Size.Int64 != int64(len(fileBytes)) {
+		t.Fatalf("expected upload size %d, got %+v", len(fileBytes), up.Size)
+	}
+	if st.lastPutBytes != len(fileBytes) {
+		t.Fatalf("expected storage to receive %d bytes, got %d", len(fileBytes), st.lastPutBytes)
 	}
 }
