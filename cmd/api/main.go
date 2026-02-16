@@ -12,7 +12,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
-	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
 	"github.com/mwork/mwork-api/internal/config"
@@ -45,6 +44,7 @@ import (
 	emailpkg "github.com/mwork/mwork-api/internal/pkg/email"
 	"github.com/mwork/mwork-api/internal/pkg/featurepayment"
 	"github.com/mwork/mwork-api/internal/pkg/jwt"
+	"github.com/mwork/mwork-api/internal/pkg/logger"
 	"github.com/mwork/mwork-api/internal/pkg/photostudio"
 	pkgresponse "github.com/mwork/mwork-api/internal/pkg/response"
 	"github.com/mwork/mwork-api/internal/pkg/robokassa"
@@ -598,19 +598,14 @@ func (a *authModelProfileAdapter) GetByUserID(ctx context.Context, userID uuid.U
 }
 
 func setupLogger(cfg *config.Config) {
-	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
-
-	level, err := zerolog.ParseLevel(cfg.LogLevel)
-	if err != nil {
-		level = zerolog.DebugLevel
+	loggerCfg := logger.Config{
+		Level:       cfg.LogLevel,
+		Environment: cfg.Env,
+		LogFile:     "", // Set to a file path if you want to log to file
 	}
-	zerolog.SetGlobalLevel(level)
 
-	if cfg.IsDevelopment() {
-		log.Logger = log.Output(zerolog.ConsoleWriter{
-			Out:        os.Stdout,
-			TimeFormat: "15:04:05",
-		})
+	if err := logger.Init(loggerCfg); err != nil {
+		log.Error().Err(err).Msg("Failed to initialize logger")
 	}
 }
 

@@ -13,7 +13,7 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-const maxLoggedErrorBody = 2048
+const maxLoggedErrorBody = 4096 // Increased from 2048 to capture more error details
 
 // Logger is a middleware that logs HTTP requests.
 //
@@ -40,6 +40,9 @@ func Logger(next http.Handler) http.Handler {
 		event.Dur("duration", duration)
 		event.Str("ip", getClientIP(r))
 		event.Str("user_agent", r.UserAgent())
+
+		// Add request headers for better debugging
+		event.Str("content_type", r.Header.Get("Content-Type"))
 
 		if statusForLog >= http.StatusBadRequest {
 			addErrorDetails(event, statusForLog, wrapped)
@@ -71,7 +74,12 @@ func logEventByStatus(statusCode int) *zerolog.Event {
 func addErrorDetails(event *zerolog.Event, status int, wrapped *responseWriter) {
 	event.Str("status_text", http.StatusText(status))
 	event.Str("error_reason", errorReason(status))
-	event.Str("response_body", wrapped.bodyPreview())
+	
+	// Log full response body for errors
+	bodyStr := wrapped.bodyPreview()
+	if bodyStr != "" {
+		event.RawJSON("response_body", []byte(bodyStr))
+	}
 }
 
 func statusForLog(wrapped *responseWriter) int {
