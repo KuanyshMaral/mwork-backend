@@ -12,6 +12,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 
 	"github.com/mwork/mwork-api/internal/middleware"
 	"github.com/mwork/mwork-api/internal/pkg/response"
@@ -144,6 +145,10 @@ func (h *Handler) Init(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.repo.Create(r.Context(), up); err != nil {
+		if isUploadUserReferenceError(err) {
+			response.Unauthorized(w, "Unauthorized")
+			return
+		}
 		response.Error(w, http.StatusInternalServerError, "DB_ERROR", "failed to save upload")
 		return
 	}
@@ -256,6 +261,10 @@ func (h *Handler) Stage(w http.ResponseWriter, r *http.Request) {
 	defer file.Close()
 
 	userID := middleware.GetUserID(r.Context())
+	if userID == uuid.Nil {
+		response.Unauthorized(w, "Unauthorized")
+		return
+	}
 
 	uploadIDRaw := strings.TrimSpace(r.FormValue("upload_id"))
 
@@ -279,6 +288,8 @@ func (h *Handler) Stage(w http.ResponseWriter, r *http.Request) {
 			response.BadRequest(w, "File type not allowed")
 		case errors.Is(err, storage.ErrEmptyFile):
 			response.BadRequest(w, "File is empty")
+		case isUploadUserReferenceError(err):
+			response.Unauthorized(w, "Unauthorized")
 		case errors.Is(err, ErrUploadNotFound):
 			response.NotFound(w, "Upload not found")
 		case errors.Is(err, ErrNotUploadOwner):
@@ -309,6 +320,10 @@ func (h *Handler) Commit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID := middleware.GetUserID(r.Context())
+	if userID == uuid.Nil {
+		response.Unauthorized(w, "Unauthorized")
+		return
+	}
 
 	upload, err := h.service.Commit(r.Context(), id, userID)
 	if err != nil {
@@ -371,6 +386,10 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID := middleware.GetUserID(r.Context())
+	if userID == uuid.Nil {
+		response.Unauthorized(w, "Unauthorized")
+		return
+	}
 
 	if err := h.service.Delete(r.Context(), id, userID); err != nil {
 		switch {
@@ -398,6 +417,10 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 // @Router /files [get]
 func (h *Handler) ListMy(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
+	if userID == uuid.Nil {
+		response.Unauthorized(w, "Unauthorized")
+		return
+	}
 	category := Category(r.URL.Query().Get("category"))
 
 	uploads, err := h.service.ListByUser(r.Context(), userID, category)
@@ -424,4 +447,18 @@ func sanitizeFileName(name string) string {
 		return "file"
 	}
 	return name
+}
+
+func isUploadUserReferenceError(err error) bool {
+	var pqErr *pq.Error
+	if !errors.As(err, &pqErr) {
+		return false
+	}
+	if pqErr.Code != "23503" {
+		return false
+	}
+	if pqErr.Constraint == "uploads_user_id_fkey" {
+		return true
+	}
+	return pqErr.Table == "uploads" && pqErr.Column == "user_id"
 }
