@@ -147,10 +147,10 @@ func TestConfirmFailsWhenSizeZero(t *testing.T) {
 	}
 }
 
-func TestUploadResponseUsesZeroForNullSize(t *testing.T) {
+func TestUploadResponseUsesNilForNullSize(t *testing.T) {
 	u := &Upload{ID: uuid.New(), Category: CategoryPhoto, Status: StatusStaged, OriginalName: "a", MimeType: "image/jpeg", Size: sql.NullInt64{}, CreatedAt: time.Now(), ExpiresAt: time.Now()}
 	resp := UploadResponseFromEntity(u, "https://staging")
-	if resp.Size != 0 {
-		t.Fatalf("expected size=0 for NULL size, got %d", resp.Size)
+	if resp.Size != nil {
+		t.Fatalf("expected nil size for NULL size, got %v", *resp.Size)
 	}
 }

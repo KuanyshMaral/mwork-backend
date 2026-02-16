@@ -35,7 +35,7 @@ func UploadResponseFromEntity(u *Upload, stagingBaseURL string) *UploadResponse 
 		Status:       string(u.Status),
 		OriginalName: u.OriginalName,
 		MimeType:     u.MimeType,
-		Size:         u.SizeValue(),
+		Size:         nullInt64Ptr(u.Size),
 		URL:          u.GetURL(stagingBaseURL),
 		Width:        u.Width,
 		Height:       u.Height,
