@@ -31,6 +31,10 @@ type InitRequest struct {
 	FileName    string `json:"file_name" validate:"required"`
 	ContentType string `json:"content_type" validate:"required"`
 	FileSize    int64  `json:"file_size" validate:"max=10485760"`
+
+	// Legacy aliases used by older clients.
+	LegacyFileName string `json:"filename"`
+	LegacyFileSize int64  `json:"size"`
 }
 type InitResponse struct {
 	UploadID   string `json:"upload_id"`
@@ -41,6 +45,7 @@ type InitResponse struct {
 
 type ConfirmRequest struct {
 	UploadID string `json:"upload_id" validate:"required,uuid"`
+	FileID   string `json:"file_id"`
 }
 
 type ConfirmResponse struct {
@@ -94,6 +99,12 @@ func (h *Handler) Init(w http.ResponseWriter, r *http.Request) {
 		response.BadRequest(w, "Invalid JSON body")
 		return
 	}
+	if req.FileName == "" {
+		req.FileName = req.LegacyFileName
+	}
+	if req.FileSize == 0 {
+		req.FileSize = req.LegacyFileSize
+	}
 
 	if errs := validator.Validate(&req); errs != nil {
 		response.ValidationError(w, errs)
@@ -106,10 +117,6 @@ func (h *Handler) Init(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID := middleware.GetUserID(r.Context())
-	if userID == uuid.Nil {
-		response.Unauthorized(w, "Unauthorized")
-		return
-	}
 	if userID == uuid.Nil {
 		response.Unauthorized(w, "Unauthorized")
 		return
@@ -139,8 +146,8 @@ func (h *Handler) Init(w http.ResponseWriter, r *http.Request) {
 	up := &Upload{
 		ID:           uploadID,
 		UserID:       userID,
-		Category:     Category("photo"), // если у вас есть константа CategoryPhoto — поставь её
-		Status:       StatusStaged,      // если в entity это константа, иначе "staged"
+		Category:     CategoryPhoto,
+		Status:       StatusStaged,
 		OriginalName: fileName,
 		MimeType:     req.ContentType,
 		Size:         sql.NullInt64{Int64: req.FileSize, Valid: req.FileSize > 0},
@@ -187,6 +194,9 @@ func (h *Handler) Confirm(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		response.BadRequest(w, "Invalid JSON body")
 		return
+	}
+	if req.UploadID == "" {
+		req.UploadID = req.FileID
 	}
 
 	if errs := validator.Validate(&req); errs != nil {
@@ -377,22 +387,26 @@ func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID := middleware.GetUserID(r.Context())
-	if userID == uuid.Nil {
-		response.Unauthorized(w, "Unauthorized")
-		return
-	}
-
-	upload, err := h.service.GetByIDForUser(r.Context(), id, userID)
+	upload, err := h.service.GetByID(r.Context(), id)
 	if err != nil {
 		switch {
 		case errors.Is(err, ErrUploadNotFound):
 			response.NotFound(w, "Upload not found")
-		case errors.Is(err, ErrNotUploadOwner):
-			response.Forbidden(w, "Not upload owner")
 		default:
 			response.InternalError(w)
 		}
 		return
+	}
+
+	if !upload.IsCommitted() {
+		if userID == uuid.Nil {
+			response.NotFound(w, "Upload not found")
+			return
+		}
+		if upload.UserID != userID {
+			response.Forbidden(w, "Not upload owner")
+			return
+		}
 	}
 
 	response.OK(w, UploadResponseFromEntity(upload, h.stagingBaseURL))
@@ -486,10 +500,10 @@ func isUploadUserReferenceError(err error) bool {
 	if pqErr.Code != "23503" {
 		return false
 	}
-	if pqErr.Constraint == "uploads_user_id_fkey" {
+	if pqErr.Constraint == "uploads_user_id_fkey" || pqErr.Constraint == "upload_user_id_fkey" {
 		return true
 	}
-	return pqErr.Table == "uploads" && pqErr.Column == "user_id"
+	return (pqErr.Table == "uploads" || pqErr.Table == "upload") && pqErr.Column == "user_id"
 }
 
 func isUploadSizeConstraintError(err error) bool {
@@ -498,11 +512,11 @@ func isUploadSizeConstraintError(err error) bool {
 		return false
 	}
 
-	if pqErr.Code == "23514" && pqErr.Constraint == "uploads_size_check" {
+	if pqErr.Code == "23514" && (pqErr.Constraint == "uploads_size_check" || pqErr.Constraint == "upload_size_check") {
 		return true
 	}
 
-	if pqErr.Code == "23502" && pqErr.Table == "uploads" && pqErr.Column == "size" {
+	if pqErr.Code == "23502" && (pqErr.Table == "uploads" || pqErr.Table == "upload") && pqErr.Column == "size" {
 		return true
 	}
 
