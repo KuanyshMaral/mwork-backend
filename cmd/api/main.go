@@ -438,18 +438,22 @@ func main() {
 
 		// NEW: 2-phase file uploads
 		r.Route("/files", func(r chi.Router) {
-			r.Use(authWithVerifiedEmailMiddleware)
-
-			// New 2-phase endpoints
-			r.Post("/init", uploadHandler.Init)
-			r.Post("/confirm", uploadHandler.Confirm)
-
-			// Existing staging system endpoints
-			r.Post("/stage", uploadHandler.Stage)
-			r.Post("/{id}/commit", uploadHandler.Commit)
+			// Public read for committed uploads; handler enforces access rules for non-committed files.
 			r.Get("/{id}", uploadHandler.GetByID)
-			r.Delete("/{id}", uploadHandler.Delete)
-			r.Get("/", uploadHandler.ListMy)
+
+			r.Group(func(r chi.Router) {
+				r.Use(authWithVerifiedEmailMiddleware)
+
+				// New 2-phase endpoints
+				r.Post("/init", uploadHandler.Init)
+				r.Post("/confirm", uploadHandler.Confirm)
+
+				// Existing staging system endpoints
+				r.Post("/stage", uploadHandler.Stage)
+				r.Post("/{id}/commit", uploadHandler.Commit)
+				r.Delete("/{id}", uploadHandler.Delete)
+				r.Get("/", uploadHandler.ListMy)
+			})
 		})
 
 		r.Get("/profiles/{id}/photos", photoHandler.ListByProfile)
