@@ -364,6 +364,7 @@ func (h *Handler) Commit(w http.ResponseWriter, r *http.Request) {
 // @Summary Получить загрузку по ID
 // @Tags Upload
 // @Produce json
+// @Security BearerAuth
 // @Param id path string true "ID загрузки"
 // @Success 200 {object} response.Response{data=UploadResponse}
 // @Failure 400,404 {object} response.Response
@@ -375,9 +376,22 @@ func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	upload, err := h.service.GetByID(r.Context(), id)
+	userID := middleware.GetUserID(r.Context())
+	if userID == uuid.Nil {
+		response.Unauthorized(w, "Unauthorized")
+		return
+	}
+
+	upload, err := h.service.GetByIDForUser(r.Context(), id, userID)
 	if err != nil {
-		response.NotFound(w, "Upload not found")
+		switch {
+		case errors.Is(err, ErrUploadNotFound):
+			response.NotFound(w, "Upload not found")
+		case errors.Is(err, ErrNotUploadOwner):
+			response.Forbidden(w, "Not upload owner")
+		default:
+			response.InternalError(w)
+		}
 		return
 	}
 

@@ -3,6 +3,7 @@ package upload
 import (
 	"bytes"
 	"context"
+	"errors"
 	"database/sql"
 	"io"
 	"net/http"
@@ -270,4 +271,31 @@ func TestStageExistingPersistsSizeAfterStorageReaderConsumption(t *testing.T) {
 	if st.lastPutBytes != len(fileBytes) {
 		t.Fatalf("expected storage to receive %d bytes, got %d", len(fileBytes), st.lastPutBytes)
 	}
+}
+
+func TestGetByIDForUser(t *testing.T) {
+	uid := uuid.New()
+	uploadID := uuid.New()
+	repo := &repoStub{getByID: &Upload{ID: uploadID, UserID: uid}}
+	svc := NewService(repo, &storageStub{}, nil, "https://staging")
+
+	t.Run("owner can access upload", func(t *testing.T) {
+		up, err := svc.GetByIDForUser(context.Background(), uploadID, uid)
+		if err != nil {
+			t.Fatalf("expected success, got error: %v", err)
+		}
+		if up.ID != uploadID {
+			t.Fatalf("expected upload id %s, got %s", uploadID, up.ID)
+		}
+	})
+
+	t.Run("non-owner gets forbidden error", func(t *testing.T) {
+		_, err := svc.GetByIDForUser(context.Background(), uploadID, uuid.New())
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if !errors.Is(err, ErrNotUploadOwner) {
+			t.Fatalf("expected ErrNotUploadOwner, got %v", err)
+		}
+	})
 }
