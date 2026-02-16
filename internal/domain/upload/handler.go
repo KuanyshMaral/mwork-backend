@@ -279,9 +279,9 @@ func (h *Handler) Stage(w http.ResponseWriter, r *http.Request) {
 			response.BadRequest(w, "File type not allowed")
 		case errors.Is(err, storage.ErrEmptyFile):
 			response.BadRequest(w, "File is empty")
-		case ErrUploadNotFound:
+		case errors.Is(err, ErrUploadNotFound):
 			response.NotFound(w, "Upload not found")
-		case ErrNotUploadOwner:
+		case errors.Is(err, ErrNotUploadOwner):
 			response.Forbidden(w, "Not upload owner")
 		default:
 			response.InternalError(w)
