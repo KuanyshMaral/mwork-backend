@@ -109,6 +109,10 @@ func (h *Handler) Init(w http.ResponseWriter, r *http.Request) {
 		response.Unauthorized(w, "Unauthorized")
 		return
 	}
+	if userID == uuid.Nil {
+		response.Unauthorized(w, "Unauthorized")
+		return
+	}
 
 	uploadID := uuid.New()
 	fileName := sanitizeFileName(req.FileName)
