@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
-	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -148,11 +147,10 @@ func TestConfirmFailsWhenSizeZero(t *testing.T) {
 	}
 }
 
-func TestUploadResponseOmitsNullSize(t *testing.T) {
+func TestUploadResponseUsesZeroForNullSize(t *testing.T) {
 	u := &Upload{ID: uuid.New(), Category: CategoryPhoto, Status: StatusStaged, OriginalName: "a", MimeType: "image/jpeg", Size: sql.NullInt64{}, CreatedAt: time.Now(), ExpiresAt: time.Now()}
 	resp := UploadResponseFromEntity(u, "https://staging")
-	b, _ := json.Marshal(resp)
-	if bytes.Contains(b, []byte(`"size"`)) {
-		t.Fatalf("expected size to be omitted for NULL size, got %s", string(b))
+	if resp.Size != 0 {
+		t.Fatalf("expected size=0 for NULL size, got %d", resp.Size)
 	}
 }
