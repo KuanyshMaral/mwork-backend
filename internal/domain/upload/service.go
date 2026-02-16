@@ -377,6 +377,18 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (*Upload, error) {
 	return upload, nil
 }
 
+// GetByIDForUser returns upload by ID with ownership check.
+func (s *Service) GetByIDForUser(ctx context.Context, id, userID uuid.UUID) (*Upload, error) {
+	upload, err := s.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if upload.UserID != userID {
+		return nil, ErrNotUploadOwner
+	}
+	return upload, nil
+}
+
 // Delete removes an upload
 func (s *Service) Delete(ctx context.Context, uploadID uuid.UUID, userID uuid.UUID) error {
 	upload, err := s.repo.GetByID(ctx, uploadID)

@@ -150,7 +150,7 @@ func (r *repository) ListByUser(ctx context.Context, userID uuid.UUID, category 
 		SELECT * FROM uploads 
 		WHERE user_id = $1 
 		AND ($2 = '' OR category = $2)
-		AND status = 'committed'
+		AND status IN ('staged', 'committed')
 		ORDER BY created_at DESC
 	`
 	var uploads []*Upload
