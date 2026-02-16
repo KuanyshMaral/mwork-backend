@@ -198,7 +198,9 @@ func (s *Service) Confirm(ctx context.Context, uploadID, userID uuid.UUID) (*Upl
 	if upload.Size.Valid && stagingInfo.Size != upload.Size.Int64 {
 		return nil, ErrMetadataMismatch
 	}
-	if normalizeContentType(stagingInfo.ContentType) != normalizeContentType(upload.MimeType) {
+	stagedCT := normalizeContentType(stagingInfo.ContentType)
+	uploadCT := normalizeContentType(upload.MimeType)
+	if stagedCT != "" && uploadCT != "" && stagedCT != uploadCT {
 		return nil, ErrMetadataMismatch
 	}
 

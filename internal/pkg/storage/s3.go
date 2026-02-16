@@ -135,11 +135,15 @@ func (s *S3Storage) GetInfo(ctx context.Context, key string) (*FileInfo, error) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get info from S3: %w", err)
 	}
-
+	contentType := ""
+	if result.ContentType != nil {
+		contentType = *result.ContentType
+	}
 	return &FileInfo{
-		Key:  key,
-		Size: *result.ContentLength,
-		URL:  s.GetURL(key),
+		Key:         key,
+		Size:        *result.ContentLength,
+		ContentType: contentType,
+		URL:         s.GetURL(key),
 	}, nil
 }
 
