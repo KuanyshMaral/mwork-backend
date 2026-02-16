@@ -2,6 +2,7 @@ package upload
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"io"
@@ -65,7 +66,7 @@ func (s *Service) Stage(ctx context.Context, userID uuid.UUID, category Category
 		Status:       StatusStaged,
 		OriginalName: filepath.Base(filename),
 		MimeType:     mimeType,
-		Size:         int64(buffer.Len()),
+		Size:         sql.NullInt64{Int64: int64(buffer.Len()), Valid: true},
 		StagingKey:   stagingKey,
 		CreatedAt:    now,
 		ExpiresAt:    now.Add(StagingTTL),
@@ -110,7 +111,7 @@ func (s *Service) StageExisting(ctx context.Context, uploadID, userID uuid.UUID,
 	upload.Status = StatusStaged
 	upload.OriginalName = filepath.Base(filename)
 	upload.MimeType = mimeType
-	upload.Size = int64(buffer.Len())
+	upload.Size = sql.NullInt64{Int64: int64(buffer.Len()), Valid: true}
 	upload.StagingKey = stagingKey
 	upload.ExpiresAt = now.Add(StagingTTL)
 	upload.CommittedAt = nil
@@ -158,12 +159,15 @@ func (s *Service) Confirm(ctx context.Context, uploadID, userID uuid.UUID) (*Upl
 			s.logStorageError("check-permanent", permanentKey, exErr)
 			return nil, exErr
 		} else if exists {
+			if !upload.Size.Valid || upload.Size.Int64 <= 0 {
+				return nil, ErrInvalidUploadSize
+			}
 			now := time.Now().UTC()
 			upload.Status = StatusCommitted
 			upload.PermanentKey = permanentKey
 			upload.PermanentURL = permanentStorage.GetURL(permanentKey)
 			upload.CommittedAt = &now
-			if upErr := s.repo.MarkCommitted(ctx, upload.ID, upload.PermanentKey, upload.PermanentURL, now); upErr != nil {
+			if upErr := s.repo.MarkCommitted(ctx, upload.ID, upload.Size.Int64, upload.PermanentKey, upload.PermanentURL, now); upErr != nil {
 				return nil, upErr
 			}
 			return upload, nil
@@ -171,7 +175,15 @@ func (s *Service) Confirm(ctx context.Context, uploadID, userID uuid.UUID) (*Upl
 		return nil, ErrUploadNotFound
 	}
 
-	if stagingInfo.Size != upload.Size {
+	if !upload.Size.Valid || upload.Size.Int64 <= 0 {
+		return nil, ErrInvalidUploadSize
+	}
+
+	if stagingInfo.Size <= 0 {
+		return nil, ErrInvalidUploadSize
+	}
+
+	if stagingInfo.Size != upload.Size.Int64 {
 		return nil, ErrMetadataMismatch
 	}
 	if normalizeContentType(stagingInfo.ContentType) != normalizeContentType(upload.MimeType) {
@@ -195,7 +207,7 @@ func (s *Service) Confirm(ctx context.Context, uploadID, userID uuid.UUID) (*Upl
 	upload.PermanentKey = finalKey
 	upload.PermanentURL = permanentStorage.GetURL(finalKey)
 	upload.CommittedAt = &now
-	if err := s.repo.MarkCommitted(ctx, upload.ID, upload.PermanentKey, upload.PermanentURL, now); err != nil {
+	if err := s.repo.MarkCommitted(ctx, upload.ID, stagingInfo.Size, upload.PermanentKey, upload.PermanentURL, now); err != nil {
 		return nil, fmt.Errorf("failed to update upload record: %w", err)
 	}
 
@@ -222,6 +234,10 @@ func (s *Service) Commit(ctx context.Context, uploadID uuid.UUID, userID uuid.UU
 	// Check expiration
 	if upload.IsExpired() {
 		return nil, ErrUploadExpired
+	}
+
+	if !upload.Size.Valid || upload.Size.Int64 <= 0 {
+		return nil, ErrInvalidUploadSize
 	}
 
 	// Get file from staging
