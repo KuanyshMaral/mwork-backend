@@ -118,6 +118,41 @@ func TestConfirmCommittedWithPositiveSize(t *testing.T) {
 	}
 }
 
+func TestConfirmCommittedWhenStagedSizeUnknownUsesStorageSize(t *testing.T) {
+	uid := uuid.New()
+	uploadID := uuid.New()
+	repo := &repoStub{getByID: &Upload{
+		ID:           uploadID,
+		UserID:       uid,
+		Category:     CategoryAvatar,
+		Status:       StatusStaged,
+		OriginalName: "avatar.jpg",
+		MimeType:     "image/jpeg",
+		Size:         sql.NullInt64{},
+		StagingKey:   "uploads/staging/a.jpg",
+		ExpiresAt:    time.Now().Add(10 * time.Minute),
+	}}
+	st := &storageStub{info: &storage.FileInfo{Size: 128, ContentType: "image/jpeg"}}
+	svc := NewService(repo, st, nil, "https://staging")
+
+	up, err := svc.Confirm(context.Background(), uploadID, uid)
+	if err != nil {
+		t.Fatalf("expected confirm success, got error: %v", err)
+	}
+	if up.Status != StatusCommitted {
+		t.Fatalf("expected status committed, got %s", up.Status)
+	}
+	if !up.Size.Valid || up.Size.Int64 != 128 {
+		t.Fatalf("expected committed size to be set from storage, got %+v", up.Size)
+	}
+	if repo.markCommittedN != 1 {
+		t.Fatalf("expected MarkCommitted to be called once, got %d", repo.markCommittedN)
+	}
+	if repo.markSize != 128 {
+		t.Fatalf("expected committed size 128, got %d", repo.markSize)
+	}
+}
+
 func TestConfirmFailsWhenSizeZero(t *testing.T) {
 	uid := uuid.New()
 	uploadID := uuid.New()

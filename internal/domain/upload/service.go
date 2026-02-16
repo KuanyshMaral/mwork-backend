@@ -159,31 +159,41 @@ func (s *Service) Confirm(ctx context.Context, uploadID, userID uuid.UUID) (*Upl
 			s.logStorageError("check-permanent", permanentKey, exErr)
 			return nil, exErr
 		} else if exists {
-			if !upload.Size.Valid || upload.Size.Int64 <= 0 {
-				return nil, ErrInvalidUploadSize
+			committedSize := upload.Size.Int64
+			if !upload.Size.Valid || committedSize <= 0 {
+				info, infoErr := permanentStorage.GetInfo(ctx, permanentKey)
+				if infoErr != nil {
+					s.logStorageError("head-permanent", permanentKey, infoErr)
+					return nil, infoErr
+				}
+				if info.Size <= 0 {
+					return nil, ErrInvalidUploadSize
+				}
+				committedSize = info.Size
 			}
 			now := time.Now().UTC()
 			upload.Status = StatusCommitted
 			upload.PermanentKey = permanentKey
 			upload.PermanentURL = permanentStorage.GetURL(permanentKey)
 			upload.CommittedAt = &now
-			if upErr := s.repo.MarkCommitted(ctx, upload.ID, upload.Size.Int64, upload.PermanentKey, upload.PermanentURL, now); upErr != nil {
+			if upErr := s.repo.MarkCommitted(ctx, upload.ID, committedSize, upload.PermanentKey, upload.PermanentURL, now); upErr != nil {
 				return nil, upErr
 			}
+			upload.Size = sql.NullInt64{Int64: committedSize, Valid: true}
 			return upload, nil
 		}
 		return nil, ErrUploadNotFound
-	}
-
-	if !upload.Size.Valid || upload.Size.Int64 <= 0 {
-		return nil, ErrInvalidUploadSize
 	}
 
 	if stagingInfo.Size <= 0 {
 		return nil, ErrInvalidUploadSize
 	}
 
-	if stagingInfo.Size != upload.Size.Int64 {
+	if upload.Size.Valid && upload.Size.Int64 <= 0 {
+		return nil, ErrInvalidUploadSize
+	}
+
+	if upload.Size.Valid && stagingInfo.Size != upload.Size.Int64 {
 		return nil, ErrMetadataMismatch
 	}
 	if normalizeContentType(stagingInfo.ContentType) != normalizeContentType(upload.MimeType) {
@@ -207,6 +217,7 @@ func (s *Service) Confirm(ctx context.Context, uploadID, userID uuid.UUID) (*Upl
 	upload.PermanentKey = finalKey
 	upload.PermanentURL = permanentStorage.GetURL(finalKey)
 	upload.CommittedAt = &now
+	upload.Size = sql.NullInt64{Int64: stagingInfo.Size, Valid: true}
 	if err := s.repo.MarkCommitted(ctx, upload.ID, stagingInfo.Size, upload.PermanentKey, upload.PermanentURL, now); err != nil {
 		return nil, fmt.Errorf("failed to update upload record: %w", err)
 	}
