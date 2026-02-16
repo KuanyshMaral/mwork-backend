@@ -1,6 +1,7 @@
 package upload
 
 import (
+	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
@@ -33,9 +34,9 @@ type Upload struct {
 	Status   Status    `db:"status"`
 
 	// File metadata
-	OriginalName string `db:"original_name"`
-	MimeType     string `db:"mime_type"`
-	Size         int64  `db:"size"`
+	OriginalName string        `db:"original_name"`
+	MimeType     string        `db:"mime_type"`
+	Size         sql.NullInt64 `db:"size"`
 
 	// Storage keys
 	StagingKey   string `db:"staging_key"`   // Key in staging storage
@@ -79,4 +80,11 @@ func (u *Upload) GetURL(stagingBaseURL string) string {
 		return stagingBaseURL + "/" + u.StagingKey
 	}
 	return ""
+}
+
+func (u *Upload) SizeValue() int64 {
+	if !u.Size.Valid {
+		return 0
+	}
+	return u.Size.Int64
 }
