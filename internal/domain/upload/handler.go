@@ -12,6 +12,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 
 	"github.com/mwork/mwork-api/internal/middleware"
 	"github.com/mwork/mwork-api/internal/pkg/response"
@@ -104,6 +105,10 @@ func (h *Handler) Init(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID := middleware.GetUserID(r.Context())
+	if userID == uuid.Nil {
+		response.Unauthorized(w, "Unauthorized")
+		return
+	}
 	if userID == uuid.Nil {
 		response.Unauthorized(w, "Unauthorized")
 		return
@@ -256,6 +261,10 @@ func (h *Handler) Stage(w http.ResponseWriter, r *http.Request) {
 	defer file.Close()
 
 	userID := middleware.GetUserID(r.Context())
+	if userID == uuid.Nil {
+		response.Unauthorized(w, "Unauthorized")
+		return
+	}
 
 	uploadIDRaw := strings.TrimSpace(r.FormValue("upload_id"))
 
@@ -279,6 +288,8 @@ func (h *Handler) Stage(w http.ResponseWriter, r *http.Request) {
 			response.BadRequest(w, "File type not allowed")
 		case errors.Is(err, storage.ErrEmptyFile):
 			response.BadRequest(w, "File is empty")
+		case isUploadUserReferenceError(err):
+			response.Unauthorized(w, "Unauthorized")
 		case errors.Is(err, ErrUploadNotFound):
 			response.NotFound(w, "Upload not found")
 		case errors.Is(err, ErrNotUploadOwner):
@@ -424,4 +435,12 @@ func sanitizeFileName(name string) string {
 		return "file"
 	}
 	return name
+}
+
+func isUploadUserReferenceError(err error) bool {
+	var pqErr *pq.Error
+	if !errors.As(err, &pqErr) {
+		return false
+	}
+	return pqErr.Code == "23503" && pqErr.Constraint == "uploads_user_id_fkey"
 }
