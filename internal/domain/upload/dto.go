@@ -1,6 +1,7 @@
 package upload
 
 import (
+	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
@@ -18,7 +19,7 @@ type UploadResponse struct {
 	Status       string    `json:"status"`
 	OriginalName string    `json:"original_name"`
 	MimeType     string    `json:"mime_type"`
-	Size         int64     `json:"size"`
+	Size         *int64    `json:"size,omitempty"`
 	URL          string    `json:"url"`
 	Width        int       `json:"width,omitempty"`
 	Height       int       `json:"height,omitempty"`
@@ -34,7 +35,7 @@ func UploadResponseFromEntity(u *Upload, stagingBaseURL string) *UploadResponse 
 		Status:       string(u.Status),
 		OriginalName: u.OriginalName,
 		MimeType:     u.MimeType,
-		Size:         u.Size,
+		Size:         nullInt64Ptr(u.Size),
 		URL:          u.GetURL(stagingBaseURL),
 		Width:        u.Width,
 		Height:       u.Height,
@@ -77,4 +78,12 @@ type ConfirmResponseDoc struct {
 	ContentType  string `json:"content_type" example:"image/jpeg"`
 	FileSize     int64  `json:"file_size" example:"123456"`
 	Purpose      string `json:"purpose" enums:"avatar,portfolio,casting_cover,chat_file,photo,document" example:"avatar"`
+}
+
+func nullInt64Ptr(v sql.NullInt64) *int64 {
+	if !v.Valid {
+		return nil
+	}
+	vv := v.Int64
+	return &vv
 }
