@@ -11,4 +11,5 @@ var (
 	ErrInvalidStatus       = errors.New("invalid upload status")
 	ErrMetadataMismatch    = errors.New("uploaded file metadata mismatch")
 	ErrStagingFileNotFound = errors.New("staging file not found")
+	ErrInvalidUploadSize   = errors.New("invalid upload size")
 )

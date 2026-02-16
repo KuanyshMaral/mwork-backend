@@ -2,6 +2,7 @@ package upload
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -29,7 +30,7 @@ const (
 type InitRequest struct {
 	FileName    string `json:"file_name" validate:"required"`
 	ContentType string `json:"content_type" validate:"required"`
-	FileSize    int64  `json:"file_size" validate:"required,max=10485760"`
+	FileSize    int64  `json:"file_size" validate:"max=10485760"`
 }
 type InitResponse struct {
 	UploadID   string `json:"upload_id"`
@@ -142,7 +143,7 @@ func (h *Handler) Init(w http.ResponseWriter, r *http.Request) {
 		Status:       StatusStaged,      // если в entity это константа, иначе "staged"
 		OriginalName: fileName,
 		MimeType:     req.ContentType,
-		Size:         req.FileSize,
+		Size:         sql.NullInt64{Int64: req.FileSize, Valid: req.FileSize > 0},
 		StagingKey:   stagingKey,
 		CreatedAt:    now,
 		ExpiresAt:    expiresAt,
@@ -216,6 +217,8 @@ func (h *Handler) Confirm(w http.ResponseWriter, r *http.Request) {
 			response.Error(w, http.StatusBadRequest, "UPLOAD_METADATA_MISMATCH", "uploaded file metadata mismatch")
 		case errors.Is(err, ErrStagingFileNotFound):
 			response.Error(w, http.StatusBadRequest, "FILE_NOT_FOUND", "file not found in staging")
+		case errors.Is(err, ErrInvalidUploadSize):
+			response.Error(w, http.StatusUnprocessableEntity, "INVALID_FILE_SIZE", "invalid file size")
 		default:
 			response.Error(w, http.StatusBadGateway, "STORAGE_ERROR", "storage error")
 		}
@@ -338,6 +341,8 @@ func (h *Handler) Commit(w http.ResponseWriter, r *http.Request) {
 			response.Forbidden(w, "Not upload owner")
 		case errors.Is(err, ErrAlreadyCommitted):
 			response.BadRequest(w, "Upload already committed")
+		case errors.Is(err, ErrInvalidUploadSize):
+			response.Error(w, http.StatusUnprocessableEntity, "INVALID_FILE_SIZE", "invalid file size")
 		case errors.Is(err, ErrUploadExpired):
 			response.BadRequest(w, "Upload has expired, please upload again")
 		default:
