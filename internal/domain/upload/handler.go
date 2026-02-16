@@ -149,6 +149,10 @@ func (h *Handler) Init(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.repo.Create(r.Context(), up); err != nil {
+		if isUploadUserReferenceError(err) {
+			response.Unauthorized(w, "Unauthorized")
+			return
+		}
 		response.Error(w, http.StatusInternalServerError, "DB_ERROR", "failed to save upload")
 		return
 	}
@@ -320,6 +324,10 @@ func (h *Handler) Commit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID := middleware.GetUserID(r.Context())
+	if userID == uuid.Nil {
+		response.Unauthorized(w, "Unauthorized")
+		return
+	}
 
 	upload, err := h.service.Commit(r.Context(), id, userID)
 	if err != nil {
@@ -382,6 +390,10 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID := middleware.GetUserID(r.Context())
+	if userID == uuid.Nil {
+		response.Unauthorized(w, "Unauthorized")
+		return
+	}
 
 	if err := h.service.Delete(r.Context(), id, userID); err != nil {
 		switch {
@@ -409,6 +421,10 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 // @Router /files [get]
 func (h *Handler) ListMy(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
+	if userID == uuid.Nil {
+		response.Unauthorized(w, "Unauthorized")
+		return
+	}
 	category := Category(r.URL.Query().Get("category"))
 
 	uploads, err := h.service.ListByUser(r.Context(), userID, category)
@@ -442,5 +458,11 @@ func isUploadUserReferenceError(err error) bool {
 	if !errors.As(err, &pqErr) {
 		return false
 	}
-	return pqErr.Code == "23503" && pqErr.Constraint == "uploads_user_id_fkey"
+	if pqErr.Code != "23503" {
+		return false
+	}
+	if pqErr.Constraint == "uploads_user_id_fkey" {
+		return true
+	}
+	return pqErr.Table == "uploads" && pqErr.Column == "user_id"
 }
