@@ -2076,70 +2076,6 @@ const docTemplate = `{
             }
         },
         "/castings": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Casting"
-                ],
-                "summary": "Список кастингов",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Страница",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Лимит",
-                        "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Город",
-                        "name": "city",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Статус",
-                        "name": "status",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/internal_domain_casting.CastingResponse"
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    }
-                }
-            },
             "post": {
                 "security": [
                     {
@@ -2202,71 +2138,6 @@ const docTemplate = `{
                         "description": "Unprocessable Entity",
                         "schema": {
                             "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    }
-                }
-            }
-        },
-        "/castings/my": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Casting"
-                ],
-                "summary": "Мои кастинги",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Страница",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Лимит",
-                        "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Статус",
-                        "name": "status",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/internal_domain_casting.CastingResponse"
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
                         }
                     },
                     "500": {
@@ -2464,61 +2335,6 @@ const docTemplate = `{
                     },
                     "422": {
                         "description": "Unprocessable Entity",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Casting"
-                ],
-                "summary": "Удалить кастинг",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "ID кастинга",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
                         }
@@ -3168,6 +2984,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
+                "description": "attachment_upload_id requires committed upload with purpose=chat_file.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3192,7 +3009,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_domain_chat.SendMessageRequest"
+                            "$ref": "#/definitions/internal_domain_chat.SendMessageRequestDoc"
                         }
                     }
                 ],
@@ -3597,7 +3414,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/favorite.AddRequest"
+                            "$ref": "#/definitions/internal_domain_favorite.AddRequest"
                         }
                     }
                 ],
@@ -3747,6 +3564,481 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/files": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Upload"
+                ],
+                "summary": "Список моих загрузок",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Категория",
+                        "name": "category",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/internal_domain_upload.UploadResponse"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/files/confirm": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Confirm is idempotent: committed uploads return 200 with current fields.\nPossible error codes: UPLOAD_NOT_FOUND, UPLOAD_FORBIDDEN, UPLOAD_EXPIRED, UPLOAD_INVALID_STATUS, INVALID_CONTENT_TYPE, FILE_TOO_LARGE, STORAGE_ERROR",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Upload"
+                ],
+                "summary": "Подтвердить загрузку файла",
+                "parameters": [
+                    {
+                        "description": "ID загрузки",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_domain_upload.ConfirmRequestDoc"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_domain_upload.ConfirmResponseDoc"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/files/init": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Purpose enum: avatar, portfolio, casting_cover, chat_file (and legacy photo/document where applicable).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Upload"
+                ],
+                "summary": "Инициализировать загрузку файла",
+                "parameters": [
+                    {
+                        "description": "Метаданные файла",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_domain_upload.InitRequestDoc"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_domain_upload.InitResponseDoc"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/files/stage": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Upload"
+                ],
+                "summary": "Загрузить файл во временное хранилище",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Категория (avatar|photo|document)",
+                        "name": "category",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "file",
+                        "description": "Файл",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_domain_upload.UploadResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/files/{id}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Upload"
+                ],
+                "summary": "Получить загрузку по ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID загрузки",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_domain_upload.UploadResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Upload"
+                ],
+                "summary": "Удалить загрузку",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID загрузки",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/files/{id}/commit": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Upload"
+                ],
+                "summary": "Закоммитить загруженный файл",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID загрузки",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_domain_upload.UploadResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
                         }
@@ -5670,7 +5962,101 @@ const docTemplate = `{
                 }
             }
         },
-        "/profiles/employers/{id}": {
+        "/profiles/admins/{userId}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Обновляет профиль администратора. Доступно только владельцу профиля.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Profile"
+                ],
+                "summary": "Обновление профиля администратора",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID пользователя",
+                        "name": "userId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Обновление профиля администратора",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_domain_profile.UpdateAdminProfileRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_domain_profile.AdminProfileResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/profiles/employers/{userId}": {
             "put": {
                 "security": [
                     {
@@ -5691,8 +6077,8 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "ID профиля",
-                        "name": "id",
+                        "description": "ID пользователя",
+                        "name": "userId",
                         "in": "path",
                         "required": true
                     },
@@ -5989,7 +6375,9 @@ const docTemplate = `{
                         }
                     }
                 }
-            },
+            }
+        },
+        "/profiles/models/{userId}": {
             "put": {
                 "security": [
                     {
@@ -6010,8 +6398,8 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "ID профиля",
-                        "name": "id",
+                        "description": "ID пользователя",
+                        "name": "userId",
                         "in": "path",
                         "required": true
                     },
@@ -7721,237 +8109,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/files": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Upload"
-                ],
-                "summary": "Список моих загрузок",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Категория",
-                        "name": "category",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/internal_domain_upload.UploadResponse"
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    }
-                }
-            }
-        },
-        "/files/confirm": {
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Upload"
-                ],
-                "summary": "Подтвердить загрузку файла",
-                "parameters": [
-                    {
-                        "description": "ID загрузки",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/internal_domain_upload.ConfirmRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/internal_domain_upload.ConfirmResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    },
-                    "422": {
-                        "description": "Unprocessable Entity",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    },
-                    "502": {
-                        "description": "Bad Gateway",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    }
-                }
-            }
-        },
-        "/files/init": {
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Upload"
-                ],
-                "summary": "Инициализировать загрузку файла",
-                "parameters": [
-                    {
-                        "description": "Метаданные файла",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/internal_domain_upload.InitRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/internal_domain_upload.InitResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    },
-                    "422": {
-                        "description": "Unprocessable Entity",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    },
-                    "502": {
-                        "description": "Bad Gateway",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    }
-                }
-            }
-        },
         "/uploads/presign": {
             "post": {
                 "security": [
@@ -7995,248 +8152,6 @@ const docTemplate = `{
                     },
                     "403": {
                         "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    }
-                }
-            }
-        },
-        "/files/stage": {
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "consumes": [
-                    "multipart/form-data"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Upload"
-                ],
-                "summary": "Загрузить файл во временное хранилище",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Категория (avatar|photo|document)",
-                        "name": "category",
-                        "in": "formData"
-                    },
-                    {
-                        "type": "file",
-                        "description": "Файл",
-                        "name": "file",
-                        "in": "formData",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/internal_domain_upload.UploadResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    }
-                }
-            }
-        },
-        "/files/{id}": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Upload"
-                ],
-                "summary": "Получить загрузку по ID",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "ID загрузки",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/internal_domain_upload.UploadResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Upload"
-                ],
-                "summary": "Удалить загрузку",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "ID загрузки",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    }
-                }
-            }
-        },
-        "/files/{id}/commit": {
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Upload"
-                ],
-                "summary": "Закоммитить загруженный файл",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "ID загрузки",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/internal_domain_upload.UploadResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
                         }
@@ -8432,25 +8347,6 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "favorite.AddRequest": {
-            "type": "object",
-            "required": [
-                "entity_id",
-                "entity_type"
-            ],
-            "properties": {
-                "entity_id": {
-                    "type": "string"
-                },
-                "entity_type": {
-                    "type": "string",
-                    "enum": [
-                        "casting",
-                        "profile"
-                    ]
-                }
-            }
-        },
         "github_com_mwork_mwork-api_internal_pkg_response.ErrorInfo": {
             "type": "object",
             "properties": {
@@ -8465,6 +8361,18 @@ const docTemplate = `{
                 },
                 "message": {
                     "type": "string"
+                }
+            }
+        },
+        "github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorInfo"
+                },
+                "success": {
+                    "type": "boolean",
+                    "example": false
                 }
             }
         },
@@ -9062,22 +8970,31 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "age_max": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": 0
                 },
                 "age_min": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": 0
                 },
                 "experience_required": {
                     "type": "boolean"
                 },
                 "gender": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "male",
+                        "female",
+                        "other"
+                    ]
                 },
                 "height_max": {
-                    "type": "number"
+                    "type": "number",
+                    "minimum": 0
                 },
                 "height_min": {
-                    "type": "number"
+                    "type": "number",
+                    "minimum": 0
                 },
                 "languages": {
                     "type": "array",
@@ -9250,19 +9167,16 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_domain_chat.SendMessageRequest": {
+        "internal_domain_chat.SendMessageRequestDoc": {
             "type": "object",
-            "required": [
-                "content"
-            ],
             "properties": {
-                "content": {
+                "attachment_upload_id": {
                     "type": "string",
-                    "maxLength": 5000,
-                    "minLength": 1
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
                 },
-                "message_type": {
-                    "type": "string"
+                "text": {
+                    "type": "string",
+                    "example": "optional text"
                 }
             }
         },
@@ -9322,6 +9236,25 @@ const docTemplate = `{
                 },
                 "year": {
                     "type": "integer"
+                }
+            }
+        },
+        "internal_domain_favorite.AddRequest": {
+            "type": "object",
+            "required": [
+                "entity_id",
+                "entity_type"
+            ],
+            "properties": {
+                "entity_id": {
+                    "type": "string"
+                },
+                "entity_type": {
+                    "type": "string",
+                    "enum": [
+                        "casting",
+                        "profile"
+                    ]
                 }
             }
         },
@@ -10136,6 +10069,32 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_domain_profile.AdminProfileResponse": {
+            "type": "object",
+            "properties": {
+                "avatar_url": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "role": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                }
+            }
+        },
         "internal_domain_profile.CompletenessResponse": {
             "type": "object",
             "properties": {
@@ -10345,6 +10304,23 @@ const docTemplate = `{
                 },
                 "username": {
                     "type": "string"
+                }
+            }
+        },
+        "internal_domain_profile.UpdateAdminProfileRequest": {
+            "type": "object",
+            "properties": {
+                "avatar_url": {
+                    "type": "string",
+                    "maxLength": 2000
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "role": {
+                    "type": "string",
+                    "maxLength": 50
                 }
             }
         },
@@ -10817,8 +10793,17 @@ const docTemplate = `{
                 "plan_id": {
                     "type": "string"
                 },
+                "plan_name": {
+                    "type": "string"
+                },
                 "priority_search": {
                     "type": "boolean"
+                },
+                "responses_remaining": {
+                    "type": "integer"
+                },
+                "responses_reset_at": {
+                    "type": "string"
                 },
                 "responses_used": {
                     "type": "integer"
@@ -10927,59 +10912,132 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_domain_upload.ConfirmRequest": {
+        "internal_domain_upload.ConfirmRequestDoc": {
             "type": "object",
             "required": [
                 "upload_id"
             ],
             "properties": {
                 "upload_id": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
                 }
             }
         },
-        "internal_domain_upload.ConfirmResponse": {
+        "internal_domain_upload.ConfirmResponseDoc": {
             "type": "object",
             "properties": {
-                "file_url": {
-                    "type": "string"
+                "content_type": {
+                    "type": "string",
+                    "example": "image/jpeg"
                 },
-                "final_path": {
-                    "type": "string"
+                "file_size": {
+                    "type": "integer",
+                    "example": 123456
+                },
+                "permanent_url": {
+                    "type": "string",
+                    "example": "https://cdn.example.com/uploads/final/x.jpg"
+                },
+                "purpose": {
+                    "type": "string",
+                    "enum": [
+                        "avatar",
+                        "portfolio",
+                        "casting_cover",
+                        "chat_file",
+                        "photo",
+                        "document"
+                    ],
+                    "example": "avatar"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "committed"
+                },
+                "upload_id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
                 }
             }
         },
-        "internal_domain_upload.InitRequest": {
+        "internal_domain_upload.InitRequestDoc": {
             "type": "object",
             "required": [
                 "content_type",
                 "file_name",
-                "file_size"
+                "file_size",
+                "purpose"
             ],
             "properties": {
+                "batch_id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
                 "content_type": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "image/jpeg"
                 },
                 "file_name": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "avatar.jpg"
                 },
                 "file_size": {
                     "type": "integer",
-                    "maximum": 10485760
+                    "example": 123456
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "purpose": {
+                    "type": "string",
+                    "enum": [
+                        "avatar",
+                        "portfolio",
+                        "casting_cover",
+                        "chat_file",
+                        "photo",
+                        "document"
+                    ],
+                    "example": "avatar"
                 }
             }
         },
-        "internal_domain_upload.InitResponse": {
+        "internal_domain_upload.InitResponseDoc": {
             "type": "object",
             "properties": {
                 "expires_at": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "2026-01-01T12:00:00Z"
+                },
+                "headers": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "purpose": {
+                    "type": "string",
+                    "enum": [
+                        "avatar",
+                        "portfolio",
+                        "casting_cover",
+                        "chat_file",
+                        "photo",
+                        "document"
+                    ],
+                    "example": "avatar"
                 },
                 "upload_id": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
                 },
                 "upload_url": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "https://example.com/presigned-put-url"
                 }
             }
         },
