@@ -23,6 +23,20 @@ func TestIsUploadUserReferenceError(t *testing.T) {
 		}
 	})
 
+	t.Run("matches uploads user fk by table/column", func(t *testing.T) {
+		err := &pq.Error{Code: "23503", Table: "uploads", Column: "user_id"}
+		if !isUploadUserReferenceError(err) {
+			t.Fatal("expected true for uploads.user_id foreign key violation")
+		}
+	})
+
+	t.Run("different sqlstate", func(t *testing.T) {
+		err := &pq.Error{Code: "23505", Constraint: "uploads_user_id_fkey"}
+		if isUploadUserReferenceError(err) {
+			t.Fatal("expected false for non-fk sqlstate")
+		}
+	})
+
 	t.Run("wrapped matching error", func(t *testing.T) {
 		err := fmt.Errorf("wrapped: %w", &pq.Error{Code: "23503", Constraint: "uploads_user_id_fkey"})
 		if !isUploadUserReferenceError(err) {
