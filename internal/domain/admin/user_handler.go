@@ -17,11 +17,12 @@ import (
 type UserHandler struct {
 	db       *sqlx.DB
 	adminSvc *Service
+	credits  *CreditHandler
 }
 
 // NewUserHandler creates user handler for admin
-func NewUserHandler(db *sqlx.DB, adminSvc *Service) *UserHandler {
-	return &UserHandler{db: db, adminSvc: adminSvc}
+func NewUserHandler(db *sqlx.DB, adminSvc *Service, creditHandler *CreditHandler) *UserHandler {
+	return &UserHandler{db: db, adminSvc: adminSvc, credits: creditHandler}
 }
 
 // Routes returns admin user routes
@@ -35,8 +36,31 @@ func (h *UserHandler) Routes(jwtSvc *JWTService, adminSvc *Service) chi.Router {
 	r.Post("/{id}/unban", h.Unban)
 	r.Post("/{id}/verify", h.Verify)
 	r.Patch("/{id}/status", h.UpdateStatus)
+	r.Route("/{id}/credits", func(r chi.Router) {
+		r.Use(RequirePermission(PermGrantCredits))
+		r.Post("/grant", h.GrantCredits)
+		r.Get("/", h.GetUserCredits)
+	})
 
 	return r
+}
+
+// GrantCredits handles POST /admin/users/{id}/credits/grant
+func (h *UserHandler) GrantCredits(w http.ResponseWriter, r *http.Request) {
+	if h.credits == nil {
+		response.InternalError(w)
+		return
+	}
+	h.credits.GrantCredits(w, r)
+}
+
+// GetUserCredits handles GET /admin/users/{id}/credits
+func (h *UserHandler) GetUserCredits(w http.ResponseWriter, r *http.Request) {
+	if h.credits == nil {
+		response.InternalError(w)
+		return
+	}
+	h.credits.GetUserCredits(w, r)
 }
 
 // UserListResponse represents user in admin list
