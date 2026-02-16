@@ -27,6 +27,14 @@ type repository struct {
 	db *sqlx.DB
 }
 
+const uploadSelectColumns = `
+	id, user_id, category, status,
+	original_name, mime_type, size,
+	staging_key, permanent_key, permanent_url,
+	width, height, error_message,
+	created_at, committed_at, expires_at
+`
+
 // NewRepository creates upload repository
 func NewRepository(db *sqlx.DB) Repository {
 	return &repository{db: db}
@@ -59,7 +67,7 @@ func (r *repository) Create(ctx context.Context, upload *Upload) error {
 }
 
 func (r *repository) GetByID(ctx context.Context, id uuid.UUID) (*Upload, error) {
-	query := `SELECT * FROM uploads WHERE id = $1 AND status != 'deleted'`
+	query := `SELECT ` + uploadSelectColumns + ` FROM uploads WHERE id = $1 AND status != 'deleted'`
 	var upload Upload
 	err := r.db.GetContext(ctx, &upload, query, id)
 	if err != nil {
@@ -147,7 +155,7 @@ func (r *repository) Delete(ctx context.Context, id uuid.UUID) error {
 
 func (r *repository) ListByUser(ctx context.Context, userID uuid.UUID, category Category) ([]*Upload, error) {
 	query := `
-		SELECT * FROM uploads 
+		SELECT ` + uploadSelectColumns + ` FROM uploads 
 		WHERE user_id = $1 
 		AND ($2 = '' OR category = $2)
 		AND status IN ('staged', 'committed')
@@ -160,7 +168,7 @@ func (r *repository) ListByUser(ctx context.Context, userID uuid.UUID, category 
 
 func (r *repository) ListExpired(ctx context.Context, before time.Time) ([]*Upload, error) {
 	query := `
-		SELECT * FROM uploads 
+		SELECT ` + uploadSelectColumns + ` FROM uploads 
 		WHERE status = 'staged' 
 		AND expires_at < $1
 	`
