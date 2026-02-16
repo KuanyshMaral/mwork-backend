@@ -2,8 +2,10 @@ package response
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
+	"runtime/debug"
 )
 
 // DecodeJSON decodes JSON from request body into the provided struct
@@ -22,9 +24,10 @@ type Response struct {
 
 // ErrorInfo represents error details
 type ErrorInfo struct {
-	Code    string            `json:"code"`
-	Message string            `json:"message"`
-	Details map[string]string `json:"details,omitempty"`
+	Code       string            `json:"code"`
+	Message    string            `json:"message"`
+	Details    map[string]string `json:"details,omitempty"`
+	ErrorTrace string            `json:"error_trace,omitempty"` // Full error details/stack trace
 }
 
 // Meta represents pagination metadata
@@ -145,6 +148,52 @@ func ValidationError(w http.ResponseWriter, details map[string]string) {
 // InternalError sends a 500 Internal Server Error response
 func InternalError(w http.ResponseWriter) {
 	Error(w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred")
+}
+
+// InternalErrorWithError sends a 500 Internal Server Error response with full error details
+// Shows the actual error message/stack trace in response
+func InternalErrorWithError(w http.ResponseWriter, err error) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusInternalServerError)
+
+	errorTrace := ""
+	if err != nil {
+		errorTrace = fmt.Sprintf("Error: %v\n\nStack Trace:\n%s", err.Error(), string(debug.Stack()))
+	}
+
+	resp := Response{
+		Success: false,
+		Error: &ErrorInfo{
+			Code:       "INTERNAL_ERROR",
+			Message:    "Internal server error",
+			ErrorTrace: errorTrace,
+		},
+	}
+
+	json.NewEncoder(w).Encode(resp)
+}
+
+// ErrorWithError sends an error response with full error details
+// Includes the actual error message and stack trace
+func ErrorWithError(w http.ResponseWriter, status int, code string, message string, err error) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+
+	errorTrace := ""
+	if err != nil {
+		errorTrace = fmt.Sprintf("Error: %v\n\nStack Trace:\n%s", err.Error(), string(debug.Stack()))
+	}
+
+	resp := Response{
+		Success: false,
+		Error: &ErrorInfo{
+			Code:       code,
+			Message:    message,
+			ErrorTrace: errorTrace,
+		},
+	}
+
+	json.NewEncoder(w).Encode(resp)
 }
 
 // TooManyRequests sends a 429 Too Many Requests response

@@ -6,9 +6,9 @@ import (
 	"net/http"
 
 	"github.com/mwork/mwork-api/internal/middleware"
+	"github.com/mwork/mwork-api/internal/pkg/errorhandler"
 	"github.com/mwork/mwork-api/internal/pkg/response"
 	"github.com/mwork/mwork-api/internal/pkg/validator"
-	"github.com/rs/zerolog/log"
 )
 
 // Handler handles auth HTTP requests
@@ -35,17 +35,20 @@ func NewHandler(service *Service) *Handler {
 // @Failure 500 {object} response.Response
 // @Router /auth/register [post]
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
-	requestID := middleware.GetRequestID(r.Context())
-
 	var req RegisterRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.BadRequest(w, "Invalid JSON body")
+		errorhandler.HandleError(r.Context(), w,
+			http.StatusBadRequest,
+			"INVALID_JSON",
+			"Request body must be valid JSON",
+			err)
 		return
 	}
 
 	// Validate request
-	if errors := validator.Validate(&req); errors != nil {
-		response.ErrorWithDetails(w, http.StatusBadRequest, "VALIDATION_ERROR", "Validation failed", errors)
+	if validationErrors := validator.Validate(&req); validationErrors != nil {
+		errorhandler.LogValidationError(r.Context(), validationErrors)
+		response.ErrorWithDetails(w, http.StatusBadRequest, "VALIDATION_ERROR", "Validation failed", validationErrors)
 		return
 	}
 
@@ -54,14 +57,17 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch {
 		case errors.Is(err, ErrEmailAlreadyExists):
-			response.Error(w, http.StatusConflict, "EMAIL_ALREADY_EXISTS", "Email already registered")
+			errorhandler.HandleError(r.Context(), w,
+				http.StatusConflict,
+				"EMAIL_ALREADY_EXISTS",
+				"Email already registered",
+				err)
 		default:
-			log.Error().
-				Err(err).
-				Str("request_id", requestID).
-				Str("email", req.Email).
-				Msg("failed to register user")
-			response.InternalError(w)
+			errorhandler.HandleError(r.Context(), w,
+				http.StatusInternalServerError,
+				"REGISTRATION_FAILED",
+				"Failed to register user",
+				err)
 		}
 		return
 	}
@@ -86,13 +92,18 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	var req LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.BadRequest(w, "Invalid JSON body")
+		errorhandler.HandleError(r.Context(), w,
+			http.StatusBadRequest,
+			"INVALID_JSON",
+			"Request body must be valid JSON",
+			err)
 		return
 	}
 
 	// Validate request
-	if errors := validator.Validate(&req); errors != nil {
-		response.ValidationError(w, errors)
+	if validationErrors := validator.Validate(&req); validationErrors != nil {
+		errorhandler.LogValidationError(r.Context(), validationErrors)
+		response.ValidationError(w, validationErrors)
 		return
 	}
 
@@ -101,9 +112,17 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch err {
 		case ErrInvalidCredentials:
-			response.Unauthorized(w, "Invalid email or password")
+			errorhandler.HandleError(r.Context(), w,
+				http.StatusUnauthorized,
+				"INVALID_CREDENTIALS",
+				"Invalid email or password",
+				err)
 		case ErrUserBanned:
-			response.Forbidden(w, "Account is banned")
+			errorhandler.HandleError(r.Context(), w,
+				http.StatusForbidden,
+				"USER_BANNED",
+				"Account is banned",
+				err)
 		case ErrEmailNotVerified:
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusForbidden)
@@ -113,11 +132,11 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 				"message":    "Email is not verified",
 			})
 		default:
-			log.Error().
-				Err(err).
-				Str("email", req.Email).
-				Msg("login failed with internal error")
-			response.InternalError(w)
+			errorhandler.HandleError(r.Context(), w,
+				http.StatusInternalServerError,
+				"LOGIN_FAILED",
+				"Failed to login",
+				err)
 		}
 		return
 	}
@@ -140,20 +159,29 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 	var req RefreshRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.BadRequest(w, "Invalid JSON body")
+		errorhandler.HandleError(r.Context(), w,
+			http.StatusBadRequest,
+			"INVALID_JSON",
+			"Request body must be valid JSON",
+			err)
 		return
 	}
 
 	// Validate request
-	if errors := validator.Validate(&req); errors != nil {
-		response.ValidationError(w, errors)
+	if validationErrors := validator.Validate(&req); validationErrors != nil {
+		errorhandler.LogValidationError(r.Context(), validationErrors)
+		response.ValidationError(w, validationErrors)
 		return
 	}
 
 	// Refresh tokens
 	result, err := h.service.Refresh(r.Context(), req.RefreshToken)
 	if err != nil {
-		response.Unauthorized(w, "Invalid or expired refresh token")
+		errorhandler.HandleError(r.Context(), w,
+			http.StatusUnauthorized,
+			"INVALID_REFRESH_TOKEN",
+			"Invalid or expired refresh token",
+			err)
 		return
 	}
 
@@ -175,7 +203,11 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	var req RefreshRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.BadRequest(w, "Invalid JSON body")
+		errorhandler.HandleError(r.Context(), w,
+			http.StatusBadRequest,
+			"INVALID_JSON",
+			"Request body must be valid JSON",
+			err)
 		return
 	}
 
@@ -200,7 +232,11 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 	// Get current user
 	user, err := h.service.GetCurrentUser(r.Context(), userID)
 	if err != nil {
-		response.NotFound(w, "User not found")
+		errorhandler.HandleError(r.Context(), w,
+			http.StatusNotFound,
+			"USER_NOT_FOUND",
+			"User not found",
+			err)
 		return
 	}
 
