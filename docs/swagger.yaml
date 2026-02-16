@@ -1,18 +1,5 @@
 basePath: /api/v1
 definitions:
-  favorite.AddRequest:
-    properties:
-      entity_id:
-        type: string
-      entity_type:
-        enum:
-        - casting
-        - profile
-        type: string
-    required:
-    - entity_id
-    - entity_type
-    type: object
   github_com_mwork_mwork-api_internal_pkg_response.ErrorInfo:
     properties:
       code:
@@ -23,6 +10,14 @@ definitions:
         type: object
       message:
         type: string
+    type: object
+  github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse:
+    properties:
+      error:
+        $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorInfo'
+      success:
+        example: false
+        type: boolean
     type: object
   github_com_mwork_mwork-api_internal_pkg_response.Meta:
     properties:
@@ -321,14 +316,8 @@ definitions:
       creator_name:
         type: string
       date_from:
-        description: RFC3339 datetime, example: 2026-05-10T10:00:00Z
-        example: "2026-05-10T10:00:00Z"
-        format: date-time
         type: string
       date_to:
-        description: RFC3339 datetime, example: 2026-05-10T18:00:00Z
-        example: "2026-05-10T18:00:00Z"
-        format: date-time
         type: string
       description:
         type: string
@@ -374,14 +363,8 @@ definitions:
       cover_image_url:
         type: string
       date_from:
-        description: RFC3339 datetime, example: 2026-05-10T10:00:00Z
-        example: "2026-05-10T10:00:00Z"
-        format: date-time
         type: string
       date_to:
-        description: RFC3339 datetime, example: 2026-05-10T18:00:00Z
-        example: "2026-05-10T18:00:00Z"
-        format: date-time
         type: string
       description:
         maxLength: 5000
@@ -427,10 +410,6 @@ definitions:
       experience_required:
         type: boolean
       gender:
-        enum:
-        - male
-        - female
-        - other
         type: string
       height_max:
         type: number
@@ -444,8 +423,10 @@ definitions:
   internal_domain_casting.RequirementsRequest:
     properties:
       age_max:
+        minimum: 0
         type: integer
       age_min:
+        minimum: 0
         type: integer
       experience_required:
         type: boolean
@@ -456,8 +437,10 @@ definitions:
         - other
         type: string
       height_max:
+        minimum: 0
         type: number
       height_min:
+        minimum: 0
         type: number
       languages:
         items:
@@ -476,14 +459,8 @@ definitions:
       cover_image_url:
         type: string
       date_from:
-        description: RFC3339 datetime, example: 2026-05-10T10:00:00Z
-        example: "2026-05-10T10:00:00Z"
-        format: date-time
         type: string
       date_to:
-        description: RFC3339 datetime, example: 2026-05-10T18:00:00Z
-        example: "2026-05-10T18:00:00Z"
-        format: date-time
         type: string
       description:
         maxLength: 5000
@@ -582,16 +559,14 @@ definitions:
       unread_count:
         type: integer
     type: object
-  internal_domain_chat.SendMessageRequest:
+  internal_domain_chat.SendMessageRequestDoc:
     properties:
-      content:
-        maxLength: 5000
-        minLength: 1
+      attachment_upload_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
         type: string
-      message_type:
+      text:
+        example: optional text
         type: string
-    required:
-    - content
     type: object
   internal_domain_experience.CreateRequest:
     properties:
@@ -633,6 +608,19 @@ definitions:
         type: string
       year:
         type: integer
+    type: object
+  internal_domain_favorite.AddRequest:
+    properties:
+      entity_id:
+        type: string
+      entity_type:
+        enum:
+        - casting
+        - profile
+        type: string
+    required:
+    - entity_id
+    - entity_type
     type: object
   internal_domain_lead.AssignRequest:
     properties:
@@ -1194,6 +1182,23 @@ definitions:
     - start_time
     - studio_id
     type: object
+  internal_domain_profile.AdminProfileResponse:
+    properties:
+      avatar_url:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      role:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: string
+    type: object
   internal_domain_profile.CompletenessResponse:
     properties:
       missing_fields:
@@ -1335,6 +1340,18 @@ definitions:
       url:
         type: string
       username:
+        type: string
+    type: object
+  internal_domain_profile.UpdateAdminProfileRequest:
+    properties:
+      avatar_url:
+        maxLength: 2000
+        type: string
+      name:
+        maxLength: 255
+        type: string
+      role:
+        maxLength: 50
         type: string
     type: object
   internal_domain_profile.UpdateEmployerProfileRequest:
@@ -1661,8 +1678,14 @@ definitions:
         type: integer
       plan_id:
         type: string
+      plan_name:
+        type: string
       priority_search:
         type: boolean
+      responses_remaining:
+        type: integer
+      responses_reset_at:
+        type: string
       responses_used:
         type: integer
     type: object
@@ -1735,41 +1758,100 @@ definitions:
       status:
         type: string
     type: object
-  internal_domain_upload.ConfirmRequest:
+  internal_domain_upload.ConfirmRequestDoc:
     properties:
       upload_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
         type: string
     required:
     - upload_id
     type: object
-  internal_domain_upload.ConfirmResponse:
-    properties:
-      file_url:
-        type: string
-      final_path:
-        type: string
-    type: object
-  internal_domain_upload.InitRequest:
+  internal_domain_upload.ConfirmResponseDoc:
     properties:
       content_type:
-        type: string
-      file_name:
+        example: image/jpeg
         type: string
       file_size:
-        maximum: 10485760
+        example: 123456
         type: integer
+      permanent_url:
+        example: https://cdn.example.com/uploads/final/x.jpg
+        type: string
+      purpose:
+        enum:
+        - avatar
+        - portfolio
+        - casting_cover
+        - chat_file
+        - photo
+        - document
+        example: avatar
+        type: string
+      status:
+        example: committed
+        type: string
+      upload_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+    type: object
+  internal_domain_upload.InitRequestDoc:
+    properties:
+      batch_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      content_type:
+        example: image/jpeg
+        type: string
+      file_name:
+        example: avatar.jpg
+        type: string
+      file_size:
+        example: 123456
+        type: integer
+      metadata:
+        additionalProperties:
+          type: string
+        type: object
+      purpose:
+        enum:
+        - avatar
+        - portfolio
+        - casting_cover
+        - chat_file
+        - photo
+        - document
+        example: avatar
+        type: string
     required:
     - content_type
     - file_name
     - file_size
+    - purpose
     type: object
-  internal_domain_upload.InitResponse:
+  internal_domain_upload.InitResponseDoc:
     properties:
       expires_at:
+        example: "2026-01-01T12:00:00Z"
+        type: string
+      headers:
+        additionalProperties:
+          type: string
+        type: object
+      purpose:
+        enum:
+        - avatar
+        - portfolio
+        - casting_cover
+        - chat_file
+        - photo
+        - document
+        example: avatar
         type: string
       upload_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
         type: string
       upload_url:
+        example: https://example.com/presigned-put-url
         type: string
     type: object
   internal_domain_upload.UploadResponse:
@@ -3123,45 +3205,6 @@ paths:
       tags:
       - Auth
   /castings:
-    get:
-      parameters:
-      - description: Страница
-        in: query
-        name: page
-        type: integer
-      - description: Лимит
-        in: query
-        name: limit
-        type: integer
-      - description: Город
-        in: query
-        name: city
-        type: string
-      - description: Статус
-        in: query
-        name: status
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/internal_domain_casting.CastingResponse'
-                  type: array
-              type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-      summary: Список кастингов
-      tags:
-      - Casting
     post:
       consumes:
       - application/json
@@ -3206,41 +3249,6 @@ paths:
       tags:
       - Casting
   /castings/{id}:
-    delete:
-      parameters:
-      - description: ID кастинга
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "204":
-          description: No Content
-          schema:
-            type: string
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-      security:
-      - BearerAuth: []
-      summary: Удалить кастинг
-      tags:
-      - Casting
     get:
       parameters:
       - description: ID кастинга
@@ -3589,44 +3597,6 @@ paths:
       summary: Обновить статус кастинга
       tags:
       - Casting
-  /castings/my:
-    get:
-      parameters:
-      - description: Страница
-        in: query
-        name: page
-        type: integer
-      - description: Лимит
-        in: query
-        name: limit
-        type: integer
-      - description: Статус
-        in: query
-        name: status
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/internal_domain_casting.CastingResponse'
-                  type: array
-              type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-      security:
-      - BearerAuth: []
-      summary: Мои кастинги
-      tags:
-      - Casting
   /castings/saved:
     get:
       parameters:
@@ -3788,6 +3758,7 @@ paths:
     post:
       consumes:
       - application/json
+      description: attachment_upload_id requires committed upload with purpose=chat_file.
       parameters:
       - description: ID комнаты
         in: path
@@ -3799,7 +3770,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/internal_domain_chat.SendMessageRequest'
+          $ref: '#/definitions/internal_domain_chat.SendMessageRequestDoc'
       produces:
       - application/json
       responses:
@@ -4041,7 +4012,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/favorite.AddRequest'
+          $ref: '#/definitions/internal_domain_favorite.AddRequest'
       produces:
       - application/json
       responses:
@@ -4147,6 +4118,295 @@ paths:
       summary: Проверить наличие в избранном
       tags:
       - Favorite
+  /files:
+    get:
+      parameters:
+      - description: Категория
+        in: query
+        name: category
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/internal_domain_upload.UploadResponse'
+                  type: array
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Список моих загрузок
+      tags:
+      - Upload
+  /files/{id}:
+    delete:
+      parameters:
+      - description: ID загрузки
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Удалить загрузку
+      tags:
+      - Upload
+    get:
+      parameters:
+      - description: ID загрузки
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_domain_upload.UploadResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      summary: Получить загрузку по ID
+      tags:
+      - Upload
+  /files/{id}/commit:
+    post:
+      parameters:
+      - description: ID загрузки
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_domain_upload.UploadResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Закоммитить загруженный файл
+      tags:
+      - Upload
+  /files/confirm:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Confirm is idempotent: committed uploads return 200 with current fields.
+        Possible error codes: UPLOAD_NOT_FOUND, UPLOAD_FORBIDDEN, UPLOAD_EXPIRED, UPLOAD_INVALID_STATUS, INVALID_CONTENT_TYPE, FILE_TOO_LARGE, STORAGE_ERROR
+      parameters:
+      - description: ID загрузки
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_domain_upload.ConfirmRequestDoc'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_domain_upload.ConfirmResponseDoc'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Подтвердить загрузку файла
+      tags:
+      - Upload
+  /files/init:
+    post:
+      consumes:
+      - application/json
+      description: 'Purpose enum: avatar, portfolio, casting_cover, chat_file (and
+        legacy photo/document where applicable).'
+      parameters:
+      - description: Метаданные файла
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_domain_upload.InitRequestDoc'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_domain_upload.InitResponseDoc'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Инициализировать загрузку файла
+      tags:
+      - Upload
+  /files/stage:
+    post:
+      consumes:
+      - multipart/form-data
+      parameters:
+      - description: Категория (avatar|photo|document)
+        in: formData
+        name: category
+        type: string
+      - description: Файл
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_domain_upload.UploadResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Загрузить файл во временное хранилище
+      tags:
+      - Upload
   /leads/employer:
     post:
       consumes:
@@ -5713,15 +5973,73 @@ paths:
       summary: Удалить социальную ссылку профиля
       tags:
       - Profile
-  /profiles/employers/{id}:
+  /profiles/admins/{userId}:
+    put:
+      consumes:
+      - application/json
+      description: Обновляет профиль администратора. Доступно только владельцу профиля.
+      parameters:
+      - description: ID пользователя
+        in: path
+        name: userId
+        required: true
+        type: string
+      - description: Обновление профиля администратора
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_domain_profile.UpdateAdminProfileRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_domain_profile.AdminProfileResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Обновление профиля администратора
+      tags:
+      - Profile
+  /profiles/employers/{userId}:
     put:
       consumes:
       - application/json
       description: Обновляет профиль работодателя. Доступно только владельцу профиля.
       parameters:
-      - description: ID профиля
+      - description: ID пользователя
         in: path
-        name: id
+        name: userId
         required: true
         type: string
       - description: Обновление профиля работодателя
@@ -5887,14 +6205,15 @@ paths:
       summary: Получение профиля модели
       tags:
       - Profile
+  /profiles/models/{userId}:
     put:
       consumes:
       - application/json
       description: Обновляет профиль модели. Доступно только владельцу профиля.
       parameters:
-      - description: ID профиля
+      - description: ID пользователя
         in: path
-        name: id
+        name: userId
         required: true
         type: string
       - description: Обновление профиля модели
@@ -6569,251 +6888,6 @@ paths:
       summary: Список доступных планов подписок
       tags:
       - Subscription
-  /files:
-    get:
-      parameters:
-      - description: Категория
-        in: query
-        name: category
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/internal_domain_upload.UploadResponse'
-                  type: array
-              type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-      security:
-      - BearerAuth: []
-      summary: Список моих загрузок
-      tags:
-      - Upload
-  /files/{id}:
-    delete:
-      parameters:
-      - description: ID загрузки
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "204":
-          description: No Content
-          schema:
-            type: string
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-      security:
-      - BearerAuth: []
-      summary: Удалить загрузку
-      tags:
-      - Upload
-    get:
-      parameters:
-      - description: ID загрузки
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-            - properties:
-                data:
-                  $ref: '#/definitions/internal_domain_upload.UploadResponse'
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-      summary: Получить загрузку по ID
-      tags:
-      - Upload
-  /files/{id}/commit:
-    post:
-      parameters:
-      - description: ID загрузки
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-            - properties:
-                data:
-                  $ref: '#/definitions/internal_domain_upload.UploadResponse'
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-      security:
-      - BearerAuth: []
-      summary: Закоммитить загруженный файл
-      tags:
-      - Upload
-  /files/confirm:
-    post:
-      consumes:
-      - application/json
-      parameters:
-      - description: ID загрузки
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/internal_domain_upload.ConfirmRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-            - properties:
-                data:
-                  $ref: '#/definitions/internal_domain_upload.ConfirmResponse'
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "422":
-          description: Unprocessable Entity
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "502":
-          description: Bad Gateway
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-      security:
-      - BearerAuth: []
-      summary: Подтвердить загрузку файла
-      tags:
-      - Upload
-  /files/init:
-    post:
-      consumes:
-      - application/json
-      parameters:
-      - description: Метаданные файла
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/internal_domain_upload.InitRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-            - properties:
-                data:
-                  $ref: '#/definitions/internal_domain_upload.InitResponse'
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "413":
-          description: Request Entity Too Large
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "422":
-          description: Unprocessable Entity
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "502":
-          description: Bad Gateway
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-      security:
-      - BearerAuth: []
-      summary: Инициализировать загрузку файла
-      tags:
-      - Upload
   /uploads/presign:
     post:
       consumes:
@@ -6849,45 +6923,6 @@ paths:
       summary: Получить presigned URL для загрузки фото
       tags:
       - Photo
-  /files/stage:
-    post:
-      consumes:
-      - multipart/form-data
-      parameters:
-      - description: Категория (avatar|photo|document)
-        in: formData
-        name: category
-        type: string
-      - description: Файл
-        in: formData
-        name: file
-        required: true
-        type: file
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            allOf:
-            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-            - properties:
-                data:
-                  $ref: '#/definitions/internal_domain_upload.UploadResponse'
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-      security:
-      - BearerAuth: []
-      summary: Загрузить файл во временное хранилище
-      tags:
-      - Upload
   /webhooks/payment/{provider}:
     post:
       consumes:
