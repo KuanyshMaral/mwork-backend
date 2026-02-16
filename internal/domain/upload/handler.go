@@ -154,6 +154,10 @@ func (h *Handler) Init(w http.ResponseWriter, r *http.Request) {
 			response.Unauthorized(w, "Unauthorized")
 			return
 		}
+		if isUploadSizeConstraintError(err) {
+			response.Error(w, http.StatusUnprocessableEntity, "INVALID_FILE_SIZE", "invalid file size")
+			return
+		}
 		response.Error(w, http.StatusInternalServerError, "DB_ERROR", "failed to save upload")
 		return
 	}
@@ -297,6 +301,8 @@ func (h *Handler) Stage(w http.ResponseWriter, r *http.Request) {
 			response.BadRequest(w, "File is empty")
 		case isUploadUserReferenceError(err):
 			response.Unauthorized(w, "Unauthorized")
+		case isUploadSizeConstraintError(err):
+			response.Error(w, http.StatusUnprocessableEntity, "INVALID_FILE_SIZE", "invalid file size")
 		case errors.Is(err, ErrUploadNotFound):
 			response.NotFound(w, "Upload not found")
 		case errors.Is(err, ErrNotUploadOwner):
@@ -470,4 +476,21 @@ func isUploadUserReferenceError(err error) bool {
 		return true
 	}
 	return pqErr.Table == "uploads" && pqErr.Column == "user_id"
+}
+
+func isUploadSizeConstraintError(err error) bool {
+	var pqErr *pq.Error
+	if !errors.As(err, &pqErr) {
+		return false
+	}
+
+	if pqErr.Code == "23514" && pqErr.Constraint == "uploads_size_check" {
+		return true
+	}
+
+	if pqErr.Code == "23502" && pqErr.Table == "uploads" && pqErr.Column == "size" {
+		return true
+	}
+
+	return false
 }

@@ -57,3 +57,39 @@ func TestIsUploadUserReferenceError(t *testing.T) {
 		}
 	})
 }
+
+func TestIsUploadSizeConstraintError(t *testing.T) {
+	t.Run("matches uploads size check violation", func(t *testing.T) {
+		err := &pq.Error{Code: "23514", Constraint: "uploads_size_check"}
+		if !isUploadSizeConstraintError(err) {
+			t.Fatal("expected true for uploads_size_check violation")
+		}
+	})
+
+	t.Run("matches uploads size not null violation", func(t *testing.T) {
+		err := &pq.Error{Code: "23502", Table: "uploads", Column: "size"}
+		if !isUploadSizeConstraintError(err) {
+			t.Fatal("expected true for uploads.size not-null violation")
+		}
+	})
+
+	t.Run("different check constraint", func(t *testing.T) {
+		err := &pq.Error{Code: "23514", Constraint: "other_check"}
+		if isUploadSizeConstraintError(err) {
+			t.Fatal("expected false for other check constraint")
+		}
+	})
+
+	t.Run("wrapped matching error", func(t *testing.T) {
+		err := fmt.Errorf("wrapped: %w", &pq.Error{Code: "23514", Constraint: "uploads_size_check"})
+		if !isUploadSizeConstraintError(err) {
+			t.Fatal("expected true for wrapped pq.Error")
+		}
+	})
+
+	t.Run("nil error", func(t *testing.T) {
+		if isUploadSizeConstraintError(nil) {
+			t.Fatal("expected false for nil error")
+		}
+	})
+}
