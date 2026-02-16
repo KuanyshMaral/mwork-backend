@@ -142,7 +142,7 @@ func (s *Service) Apply(ctx context.Context, userID uuid.UUID, castingID uuid.UU
 
 	now := time.Now()
 	response := &Response{
-		ID:        responseID,
+		ID:        uuid.New(),
 		CastingID: castingID,
 		ModelID:   prof.ID,
 		Status:    StatusPending,
