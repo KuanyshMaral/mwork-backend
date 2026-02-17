@@ -15,6 +15,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/mwork/mwork-api/internal/middleware"
+	"github.com/mwork/mwork-api/internal/pkg/errorhandler"
 	"github.com/mwork/mwork-api/internal/pkg/response"
 	"github.com/mwork/mwork-api/internal/pkg/validator"
 )
@@ -151,7 +152,11 @@ func (h *Handler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 		case ErrEmployerNotVerified:
 			response.Forbidden(w, "Employer account is pending verification")
 		default:
-			response.InternalError(w)
+			errorhandler.HandleError(r.Context(), w,
+				http.StatusInternalServerError,
+				"INTERNAL_ERROR",
+				"Failed to create room",
+				err)
 		}
 		return
 	}
@@ -173,7 +178,11 @@ func (h *Handler) ListRooms(w http.ResponseWriter, r *http.Request) {
 
 	rooms, err := h.service.ListRooms(r.Context(), userID)
 	if err != nil {
-		response.InternalError(w)
+		errorhandler.HandleError(r.Context(), w,
+			http.StatusInternalServerError,
+			"INTERNAL_ERROR",
+			"Failed to list rooms",
+			err)
 		return
 	}
 
@@ -225,7 +234,11 @@ func (h *Handler) GetMessages(w http.ResponseWriter, r *http.Request) {
 		case ErrNotRoomMember:
 			response.Forbidden(w, "You are not a member of this chat")
 		default:
-			response.InternalError(w)
+			errorhandler.HandleError(r.Context(), w,
+				http.StatusInternalServerError,
+				"INTERNAL_ERROR",
+				"Failed to get messages",
+				err)
 		}
 		return
 	}
@@ -293,7 +306,11 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 		case ErrEmployerNotVerified:
 			response.Forbidden(w, "Employer account is pending verification")
 		default:
-			response.InternalError(w)
+			errorhandler.HandleError(r.Context(), w,
+				http.StatusInternalServerError,
+				"INTERNAL_ERROR",
+				"Failed to send message",
+				err)
 		}
 		return
 	}
@@ -325,7 +342,11 @@ func (h *Handler) MarkAsRead(w http.ResponseWriter, r *http.Request) {
 		case ErrNotRoomMember:
 			response.Forbidden(w, "You are not a member of this chat")
 		default:
-			response.InternalError(w)
+			errorhandler.HandleError(r.Context(), w,
+				http.StatusInternalServerError,
+				"INTERNAL_ERROR",
+				"Failed to mark as read",
+				err)
 		}
 		return
 	}
@@ -519,7 +540,11 @@ func (h *Handler) GetMembers(w http.ResponseWriter, r *http.Request) {
 		case ErrNotRoomMember:
 			response.Forbidden(w, "You are not a member of this chat")
 		default:
-			response.InternalError(w)
+			errorhandler.HandleError(r.Context(), w,
+				http.StatusInternalServerError,
+				"INTERNAL_ERROR",
+				"Failed to get members",
+				err)
 		}
 		return
 	}
@@ -580,7 +605,11 @@ func (h *Handler) AddMember(w http.ResponseWriter, r *http.Request) {
 		case ErrAlreadyMember:
 			response.Error(w, http.StatusConflict, "already_member", "User is already a member")
 		default:
-			response.InternalError(w)
+			errorhandler.HandleError(r.Context(), w,
+				http.StatusInternalServerError,
+				"INTERNAL_ERROR",
+				"Failed to add member",
+				err)
 		}
 		return
 	}
@@ -622,7 +651,11 @@ func (h *Handler) RemoveMember(w http.ResponseWriter, r *http.Request) {
 		case ErrNotRoomAdmin:
 			response.Forbidden(w, "Only room admin can remove members")
 		default:
-			response.InternalError(w)
+			errorhandler.HandleError(r.Context(), w,
+				http.StatusInternalServerError,
+				"INTERNAL_ERROR",
+				"Failed to remove member",
+				err)
 		}
 		return
 	}
@@ -656,7 +689,11 @@ func (h *Handler) LeaveRoom(w http.ResponseWriter, r *http.Request) {
 		case ErrNotRoomMember:
 			response.Forbidden(w, "You are not a member of this chat")
 		default:
-			response.InternalError(w)
+			errorhandler.HandleError(r.Context(), w,
+				http.StatusInternalServerError,
+				"INTERNAL_ERROR",
+				"Failed to leave room",
+				err)
 		}
 		return
 	}
