@@ -492,3 +492,174 @@ func (h *Handler) getRoomResponse(ctx context.Context, room *Room, currentUserID
 
 	return RoomResponseFromEntity(room, participantInfos, isAdmin, unreadCount)
 }
+
+// GetMembers handles GET /chat/rooms/{id}/members
+// @Summary Получить список участников комнаты
+// @Description Возвращает список участников с их профилями (имя, аватар).
+// @Tags Chat
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID комнаты"
+// @Success 200 {object} response.Response{data=[]ParticipantInfo}
+// @Failure 400,403,404,500 {object} response.Response
+// @Router /chat/rooms/{id}/members [get]
+func (h *Handler) GetMembers(w http.ResponseWriter, r *http.Request) {
+	roomID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		response.BadRequest(w, "Invalid room ID")
+		return
+	}
+
+	userID := middleware.GetUserID(r.Context())
+	members, err := h.service.GetMembers(r.Context(), userID, roomID)
+	if err != nil {
+		switch err {
+		case ErrRoomNotFound:
+			response.NotFound(w, "Room not found")
+		case ErrNotRoomMember:
+			response.Forbidden(w, "You are not a member of this chat")
+		default:
+			response.InternalError(w)
+		}
+		return
+	}
+
+	// Enrich with profile data
+	items := make([]ParticipantInfo, len(members))
+	for i, m := range members {
+		info, err := h.profileFetcher.GetParticipantInfo(r.Context(), m.UserID)
+		if err == nil {
+			items[i] = *info
+		} else {
+			items[i] = ParticipantInfo{ID: m.UserID, FirstName: "Unknown"}
+		}
+	}
+
+	response.OK(w, items)
+}
+
+// AddMember handles POST /chat/rooms/{id}/members
+// @Summary Добавить участника в комнату
+// @Description Добавить пользователя в групповую или кастинг-комнату. Только администратор может добавлять участников.
+// @Tags Chat
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID комнаты"
+// @Param request body AddMemberRequest true "ID пользователя для добавления"
+// @Success 200 {object} response.Response
+// @Failure 400,403,404,422,500 {object} response.Response
+// @Router /chat/rooms/{id}/members [post]
+func (h *Handler) AddMember(w http.ResponseWriter, r *http.Request) {
+	roomID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		response.BadRequest(w, "Invalid room ID")
+		return
+	}
+
+	var req AddMemberRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.BadRequest(w, "Invalid JSON body")
+		return
+	}
+
+	if errors := validator.Validate(&req); errors != nil {
+		response.ValidationError(w, errors)
+		return
+	}
+
+	userID := middleware.GetUserID(r.Context())
+	if err := h.service.AddMember(r.Context(), userID, roomID, req.UserID); err != nil {
+		switch err {
+		case ErrRoomNotFound:
+			response.NotFound(w, "Room not found")
+		case ErrNotRoomMember:
+			response.Forbidden(w, "You are not a member of this chat")
+		case ErrNotRoomAdmin:
+			response.Forbidden(w, "Only room admin can add members")
+		case ErrAlreadyMember:
+			response.Error(w, http.StatusConflict, "already_member", "User is already a member")
+		default:
+			response.InternalError(w)
+		}
+		return
+	}
+
+	response.OK(w, map[string]string{"status": "ok"})
+}
+
+// RemoveMember handles DELETE /chat/rooms/{id}/members/{userId}
+// @Summary Удалить участника из комнаты
+// @Description Удалить пользователя из групповой или кастинг-комнаты. Только администратор может удалять участников.
+// @Tags Chat
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID комнаты"
+// @Param userId path string true "ID пользователя для удаления"
+// @Success 200 {object} response.Response
+// @Failure 400,403,404,500 {object} response.Response
+// @Router /chat/rooms/{id}/members/{userId} [delete]
+func (h *Handler) RemoveMember(w http.ResponseWriter, r *http.Request) {
+	roomID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		response.BadRequest(w, "Invalid room ID")
+		return
+	}
+
+	targetUserID, err := uuid.Parse(chi.URLParam(r, "userId"))
+	if err != nil {
+		response.BadRequest(w, "Invalid user ID")
+		return
+	}
+
+	userID := middleware.GetUserID(r.Context())
+	if err := h.service.RemoveMember(r.Context(), userID, roomID, targetUserID); err != nil {
+		switch err {
+		case ErrRoomNotFound:
+			response.NotFound(w, "Room not found")
+		case ErrNotRoomMember:
+			response.Forbidden(w, "You are not a member of this chat")
+		case ErrNotRoomAdmin:
+			response.Forbidden(w, "Only room admin can remove members")
+		default:
+			response.InternalError(w)
+		}
+		return
+	}
+
+	response.OK(w, map[string]string{"status": "ok"})
+}
+
+// LeaveRoom handles POST /chat/rooms/{id}/leave
+// @Summary Покинуть комнату
+// @Description Покинуть групповую или кастинг-комнату.
+// @Tags Chat
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID комнаты"
+// @Success 200 {object} response.Response
+// @Failure 400,403,404,500 {object} response.Response
+// @Router /chat/rooms/{id}/leave [post]
+func (h *Handler) LeaveRoom(w http.ResponseWriter, r *http.Request) {
+	roomID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		response.BadRequest(w, "Invalid room ID")
+		return
+	}
+
+	userID := middleware.GetUserID(r.Context())
+	// Self-leave is handled by RemoveMember when userID == targetUserID
+	if err := h.service.RemoveMember(r.Context(), userID, roomID, userID); err != nil {
+		switch err {
+		case ErrRoomNotFound:
+			response.NotFound(w, "Room not found")
+		case ErrNotRoomMember:
+			response.Forbidden(w, "You are not a member of this chat")
+		default:
+			response.InternalError(w)
+		}
+		return
+	}
+
+	response.OK(w, map[string]string{"status": "ok"})
+}

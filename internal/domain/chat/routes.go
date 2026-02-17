@@ -22,6 +22,12 @@ func (h *Handler) Routes(authMiddleware func(http.Handler) http.Handler) chi.Rou
 	r.Post("/rooms/{id}/messages", h.SendMessage)
 	r.Post("/rooms/{id}/read", h.MarkAsRead)
 
+	// Room members
+	r.Get("/rooms/{id}/members", h.GetMembers)
+	r.Post("/rooms/{id}/members", h.AddMember)
+	r.Delete("/rooms/{id}/members/{userId}", h.RemoveMember)
+	r.Post("/rooms/{id}/leave", h.LeaveRoom)
+
 	// Unread count
 	r.Get("/unread", h.GetUnreadCount)
 

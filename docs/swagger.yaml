@@ -500,6 +500,13 @@ definitions:
     required:
     - status
     type: object
+  internal_domain_chat.AddMemberRequest:
+    properties:
+      user_id:
+        type: string
+    required:
+    - user_id
+    type: object
   internal_domain_chat.AttachmentInfo:
     properties:
       file_name:
@@ -1571,6 +1578,21 @@ definitions:
       title:
         type: string
       updated_at:
+        type: string
+    type: object
+  internal_domain_relationships.BlockedUserResponse:
+    properties:
+      avatar_url:
+        type: string
+      blocked_at:
+        type: string
+      first_name:
+        type: string
+      id:
+        type: string
+      last_name:
+        type: string
+      user_id:
         type: string
     type: object
   internal_domain_response.ApplyRequest:
@@ -3889,6 +3911,179 @@ paths:
       security:
       - BearerAuth: []
       summary: Создать или получить чат-комнату
+      tags:
+      - Chat
+  /chat/rooms/{id}/leave:
+    post:
+      description: Покинуть групповую или кастинг-комнату.
+      parameters:
+      - description: ID комнаты
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Покинуть комнату
+      tags:
+      - Chat
+  /chat/rooms/{id}/members:
+    get:
+      description: Возвращает список участников с их профилями (имя, аватар).
+      parameters:
+      - description: ID комнаты
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/internal_domain_chat.ParticipantInfo'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Получить список участников комнаты
+      tags:
+      - Chat
+    post:
+      consumes:
+      - application/json
+      description: Добавить пользователя в групповую или кастинг-комнату. Только администратор
+        может добавлять участников.
+      parameters:
+      - description: ID комнаты
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: ID пользователя для добавления
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_domain_chat.AddMemberRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Добавить участника в комнату
+      tags:
+      - Chat
+  /chat/rooms/{id}/members/{userId}:
+    delete:
+      description: Удалить пользователя из групповой или кастинг-комнаты. Только администратор
+        может удалять участников.
+      parameters:
+      - description: ID комнаты
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: ID пользователя для удаления
+        in: path
+        name: userId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Удалить участника из комнаты
       tags:
       - Chat
   /chat/rooms/{id}/messages:
@@ -7113,6 +7308,90 @@ paths:
       summary: Получить presigned URL для загрузки фото
       tags:
       - Photo
+  /users/{id}/block:
+    delete:
+      description: Разблокировать ранее заблокированного пользователя.
+      parameters:
+      - description: ID пользователя для разблокировки
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Разблокировать пользователя
+      tags:
+      - Relationships
+    post:
+      description: Заблокировать пользователя. Заблокированный пользователь не сможет
+        отправлять сообщения.
+      parameters:
+      - description: ID пользователя для блокировки
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Заблокировать пользователя
+      tags:
+      - Relationships
+  /users/me/blocked:
+    get:
+      description: Получить список всех пользователей, заблокированных текущим пользователем.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/internal_domain_relationships.BlockedUserResponse'
+                  type: array
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Список заблокированных пользователей
+      tags:
+      - Relationships
   /webhooks/payment/{provider}:
     post:
       consumes:
