@@ -51,7 +51,6 @@ import (
 	pkgresponse "github.com/mwork/mwork-api/internal/pkg/response"
 	"github.com/mwork/mwork-api/internal/pkg/robokassa"
 	"github.com/mwork/mwork-api/internal/pkg/storage"
-	"github.com/mwork/mwork-api/internal/pkg/upload"
 
 	_ "github.com/mwork/mwork-api/docs"
 	httpSwagger "github.com/swaggo/http-swagger"
@@ -100,15 +99,6 @@ func main() {
 		FromName:  cfg.SendGridFromName,
 	})
 	defer emailService.Close()
-
-	// Legacy upload service used by photo module (as in your current main)
-	uploadSvc := upload.NewService(&upload.Config{
-		AccountID:       cfg.R2AccountID,
-		AccessKeyID:     cfg.R2AccessKeyID,
-		AccessKeySecret: cfg.R2AccessKeySecret,
-		BucketName:      cfg.R2BucketName,
-		PublicURL:       cfg.R2PublicURL,
-	})
 
 	// ---------- Repositories ----------
 	userRepo := user.NewRepository(db)
@@ -198,7 +188,7 @@ func main() {
 	profileService := profile.NewService(modelRepo, employerRepo, adminProfRepo, userRepo)
 	castingService := casting.NewService(castingRepo, userRepo)
 	responseService := response.NewService(responseRepo, castingRepo, modelRepo, employerRepo)
-	photoService := photo.NewService(photoRepo, modelRepo, uploadSvc)
+	photoService := photo.NewService(photoRepo, modelRepo, uploadService)
 	moderationService := moderation.NewService(moderationRepo, userRepo)
 	relationshipsRepo := relationships.NewRepository(db)
 	relationshipsService := relationships.NewService(relationshipsRepo)

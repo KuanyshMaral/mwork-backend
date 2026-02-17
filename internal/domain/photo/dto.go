@@ -23,12 +23,11 @@ type PresignResponse struct {
 
 // ConfirmUploadRequest for POST /photos
 type ConfirmUploadRequest struct {
-	Key          string `json:"key" validate:"required"`
-	OriginalName string `json:"original_name" validate:"required,max=255"`
-	Caption      string `json:"caption" validate:"omitempty,max=2000"`
-	ProjectName  string `json:"project_name" validate:"omitempty,max=200"`
-	Brand        string `json:"brand" validate:"omitempty,max=200"`
-	Year         int    `json:"year" validate:"omitempty,gte=1900,lte=2100"`
+	UploadID    string `json:"upload_id" validate:"required,uuid"`
+	Caption     string `json:"caption" validate:"omitempty,max=2000"`
+	ProjectName string `json:"project_name" validate:"omitempty,max=200"`
+	Brand       string `json:"brand" validate:"omitempty,max=200"`
+	Year        int    `json:"year" validate:"omitempty,gte=1900,lte=2100"`
 }
 
 // SetAvatarRequest for PATCH /photos/{id}/avatar

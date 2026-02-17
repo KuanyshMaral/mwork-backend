@@ -10640,8 +10640,7 @@ const docTemplate = `{
         "internal_domain_photo.ConfirmUploadRequest": {
             "type": "object",
             "required": [
-                "key",
-                "original_name"
+                "upload_id"
             ],
             "properties": {
                 "brand": {
@@ -10652,16 +10651,12 @@ const docTemplate = `{
                     "type": "string",
                     "maxLength": 2000
                 },
-                "key": {
-                    "type": "string"
-                },
-                "original_name": {
-                    "type": "string",
-                    "maxLength": 255
-                },
                 "project_name": {
                     "type": "string",
                     "maxLength": 200
+                },
+                "upload_id": {
+                    "type": "string"
                 },
                 "year": {
                     "type": "integer",

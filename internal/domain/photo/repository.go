@@ -15,6 +15,7 @@ type Repository interface {
 	Create(ctx context.Context, photo *Photo) error
 	GetByID(ctx context.Context, id uuid.UUID) (*Photo, error)
 	GetByKey(ctx context.Context, key string) (*Photo, error)
+	GetByUploadID(ctx context.Context, uploadID uuid.UUID) (*Photo, error)
 	ListByProfile(ctx context.Context, profileID uuid.UUID) ([]*Photo, error)
 	CountByProfile(ctx context.Context, profileID uuid.UUID) (int, error)
 	Delete(ctx context.Context, id uuid.UUID) error
@@ -36,16 +37,17 @@ func NewRepository(db *sqlx.DB) Repository {
 func (r *repository) Create(ctx context.Context, photo *Photo) error {
 	query := `
 		INSERT INTO photos (
-			id, profile_id, key, url, original_name, mime_type, size_bytes,
+			id, profile_id, upload_id, key, url, original_name, mime_type, size_bytes,
 			is_avatar, sort_order,
 			caption, project_name, brand, year,
 			created_at
 		)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
 	`
 	_, err := r.db.ExecContext(ctx, query,
 		photo.ID,
 		photo.ProfileID,
+		photo.UploadID,
 		photo.Key,
 		photo.URL,
 		photo.OriginalName,
@@ -80,6 +82,19 @@ func (r *repository) GetByKey(ctx context.Context, key string) (*Photo, error) {
 	query := `SELECT * FROM photos WHERE key = $1`
 	var photo Photo
 	err := r.db.GetContext(ctx, &photo, query, key)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &photo, nil
+}
+
+func (r *repository) GetByUploadID(ctx context.Context, uploadID uuid.UUID) (*Photo, error) {
+	query := `SELECT * FROM photos WHERE upload_id = $1`
+	var photo Photo
+	err := r.db.GetContext(ctx, &photo, query, uploadID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
