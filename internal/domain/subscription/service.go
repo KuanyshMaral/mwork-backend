@@ -64,7 +64,7 @@ func defaultFreePlan() *Plan {
 		PriceMonthly:      0,
 		MaxPhotos:         3,
 		MaxResponsesMonth: 20,
-		CanChat:           false,
+		CanChat:           true,
 		CanSeeViewers:     false,
 		PrioritySearch:    false,
 		MaxTeamMembers:    0,
