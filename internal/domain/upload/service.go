@@ -3,6 +3,7 @@ package upload
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -103,6 +104,7 @@ func (s *Service) Stage(ctx context.Context, userID uuid.UUID, category Category
 		StagingKey:   stagingKey,
 		CreatedAt:    now,
 		ExpiresAt:    now.Add(s.config.StagingTTL),
+		Metadata:     json.RawMessage("{}"),
 	}
 
 	if err := s.repo.Create(ctx, upload); err != nil {

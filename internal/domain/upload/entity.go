@@ -2,6 +2,7 @@ package upload
 
 import (
 	"database/sql"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -66,9 +67,9 @@ type Upload struct {
 	ErrorMessage string `db:"error_message"`
 
 	// New fields for extended functionality
-	Purpose  string        `db:"purpose"`  // Replaces Category eventually
-	BatchID  uuid.NullUUID `db:"batch_id"` // For batch uploads
-	Metadata []byte        `db:"metadata"` // Custom metadata (JSONB stored as bytes)
+	Purpose  string          `db:"purpose"`  // Replaces Category eventually
+	BatchID  uuid.NullUUID   `db:"batch_id"` // For batch uploads
+	Metadata json.RawMessage `db:"metadata"` // Custom metadata (JSONB stored as bytes)
 
 	// Timestamps
 	CreatedAt   time.Time  `db:"created_at"`
