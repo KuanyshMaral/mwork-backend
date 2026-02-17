@@ -508,7 +508,7 @@ func main() {
 
 			r.Get("/unread", chatHandler.GetUnreadCount)
 		})
-		r.Mount("/relationships", relationshipHandler.Routes(authWithVerifiedEmailMiddleware))
+		r.Mount("/", relationshipHandler.Routes(authWithVerifiedEmailMiddleware))
 		r.Mount("/moderation", moderationHandler.Routes(authWithVerifiedEmailMiddleware))
 		r.Mount("/notifications", notificationHandler.Routes(authWithVerifiedEmailMiddleware))
 		r.Mount("/notifications/preferences", preferencesHandler.Routes(authWithVerifiedEmailMiddleware))
