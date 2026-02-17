@@ -321,6 +321,11 @@ func main() {
 	}
 	chatHandler := chat.NewHandler(chatService, chatHub, redis, cfg.AllowedOrigins, chatProfileFetcher)
 	moderationHandler := moderation.NewHandler(moderationService)
+	relationshipProfileFetcher := &relationshipProfileFetcher{
+		userRepo:       userRepo,
+		profileService: profileService,
+	}
+	relationshipHandler := relationships.NewHandler(relationshipsService, relationshipProfileFetcher)
 	notificationHandler := notification.NewHandler(notificationService)
 
 	prefsRepo := notification.NewPreferencesRepository(db)
@@ -501,8 +506,15 @@ func main() {
 			r.With(chatLimitMiddleware).Post("/rooms/{id}/messages", chatHandler.SendMessage)
 			r.Post("/rooms/{id}/read", chatHandler.MarkAsRead)
 
+			// Member management
+			r.Get("/rooms/{id}/members", chatHandler.GetMembers)
+			r.Post("/rooms/{id}/members", chatHandler.AddMember)
+			r.Delete("/rooms/{id}/members/{userId}", chatHandler.RemoveMember)
+			r.Post("/rooms/{id}/leave", chatHandler.LeaveRoom)
+
 			r.Get("/unread", chatHandler.GetUnreadCount)
 		})
+		r.Mount("/relationships", relationshipHandler.Routes(authWithVerifiedEmailMiddleware))
 		r.Mount("/moderation", moderationHandler.Routes(authWithVerifiedEmailMiddleware))
 		r.Mount("/notifications", notificationHandler.Routes(authWithVerifiedEmailMiddleware))
 		r.Mount("/notifications/preferences", preferencesHandler.Routes(authWithVerifiedEmailMiddleware))
@@ -982,4 +994,51 @@ func (f *chatProfileFetcher) GetParticipantInfo(ctx context.Context, userID uuid
 	}
 
 	return info, nil
+}
+
+type relationshipProfileFetcher struct {
+	userRepo       user.Repository
+	profileService *profile.Service
+}
+
+func (f *relationshipProfileFetcher) GetUserProfile(ctx context.Context, userID uuid.UUID) (*relationships.UserProfile, error) {
+	u, err := f.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if u == nil {
+		return &relationships.UserProfile{
+			ID:        userID,
+			FirstName: "Unknown",
+		}, nil
+	}
+
+	prof := &relationships.UserProfile{
+		ID: userID,
+	}
+
+	if u.IsModel() {
+		modelProf, _ := f.profileService.GetModelProfileByUserID(ctx, userID)
+		if modelProf != nil && modelProf.Name.Valid {
+			parts := strings.SplitN(modelProf.Name.String, " ", 2)
+			prof.FirstName = parts[0]
+			if len(parts) > 1 {
+				prof.LastName = parts[1]
+			}
+		}
+	} else if u.IsEmployer() {
+		employerProf, _ := f.profileService.GetEmployerProfileByUserID(ctx, userID)
+		if employerProf != nil {
+			prof.FirstName = employerProf.CompanyName
+			if employerProf.ContactPerson.Valid {
+				prof.LastName = employerProf.ContactPerson.String
+			}
+		}
+	}
+
+	if prof.FirstName == "" {
+		prof.FirstName = u.Email
+	}
+
+	return prof, nil
 }
