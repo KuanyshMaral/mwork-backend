@@ -27,12 +27,18 @@ const (
 	maxMessageSize = 512 * 1024 // 512KB
 )
 
+// ProfileFetcher interface to retrieve user details
+type ProfileFetcher interface {
+	GetParticipantInfo(ctx context.Context, userID uuid.UUID) (*ParticipantInfo, error)
+}
+
 // Handler handles chat HTTP requests
 type Handler struct {
-	service     *Service
-	hub         *Hub
-	rateLimiter *RateLimiter
-	upgrader    websocket.Upgrader
+	service        *Service
+	hub            *Hub
+	rateLimiter    *RateLimiter
+	upgrader       websocket.Upgrader
+	profileFetcher ProfileFetcher
 }
 
 // RateLimiter for chat messages
@@ -57,7 +63,7 @@ func (rl *RateLimiter) Allow(userID uuid.UUID) bool {
 		return true // No Redis, allow all
 	}
 
-	key := fmt.Sprintf("ratelimit:chat:%s", userID)
+	key := fmt.Sprintf("ratelimit:chat:%s", userID) // Fixed syntax
 	ctx := context.Background()
 
 	count, err := rl.redis.Incr(ctx, key).Result()
@@ -73,11 +79,12 @@ func (rl *RateLimiter) Allow(userID uuid.UUID) bool {
 }
 
 // NewHandler creates chat handler
-func NewHandler(service *Service, hub *Hub, redisClient *redis.Client, allowedOrigins []string) *Handler {
+func NewHandler(service *Service, hub *Hub, redisClient *redis.Client, allowedOrigins []string, profileFetcher ProfileFetcher) *Handler {
 	return &Handler{
-		service:     service,
-		hub:         hub,
-		rateLimiter: NewRateLimiter(redisClient),
+		service:        service,
+		hub:            hub,
+		rateLimiter:    NewRateLimiter(redisClient),
+		profileFetcher: profileFetcher,
 		upgrader: websocket.Upgrader{
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
@@ -104,6 +111,10 @@ func NewHandler(service *Service, hub *Hub, redisClient *redis.Client, allowedOr
 
 // CreateRoom handles POST /chat/rooms
 // @Summary Создать или получить чат-комнату
+// @Description Создает комнату. Типы комнат (room_type):
+// @Description - direct: личный чат (требует recipient_id)
+// @Description - casting: чат кастинга (требует casting_id)
+// @Description - group: групповой чат (требует name, member_ids)
 // @Tags Chat
 // @Accept json
 // @Produce json
@@ -146,7 +157,7 @@ func (h *Handler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 	}
 
 	unread, _ := h.service.repo.CountUnreadByRoom(r.Context(), room.ID, userID)
-	response.Created(w, RoomResponseFromEntity(room, userID, unread))
+	response.Created(w, h.getRoomResponse(r.Context(), room, userID, unread))
 }
 
 // ListRooms handles GET /chat/rooms
@@ -167,8 +178,8 @@ func (h *Handler) ListRooms(w http.ResponseWriter, r *http.Request) {
 	}
 
 	items := make([]*RoomResponse, len(rooms))
-	for i, r := range rooms {
-		items[i] = RoomResponseFromEntity(r.Room, userID, r.UnreadCount)
+	for i, roomItem := range rooms {
+		items[i] = h.getRoomResponse(r.Context(), roomItem.Room, userID, roomItem.UnreadCount)
 	}
 
 	response.OK(w, items)
@@ -229,13 +240,13 @@ func (h *Handler) GetMessages(w http.ResponseWriter, r *http.Request) {
 
 // SendMessage handles POST /chat/rooms/{id}/messages
 // @Summary Отправить сообщение
-// @Description attachment_upload_id requires committed upload with purpose=chat_file.
+// @Description Отправка сообщения в комнату. Для файлов используйте attachment_upload_id (должен быть committed с purpose=chat_file).
 // @Tags Chat
 // @Accept json
 // @Produce json
 // @Security BearerAuth
 // @Param id path string true "ID комнаты"
-// @Param request body SendMessageRequestDoc true "Тело сообщения"
+// @Param request body SendMessageRequest true "Тело сообщения"
 // @Success 201 {object} response.Response{data=MessageResponse}
 // @Failure 400,403,404,422,429,500 {object} response.Response
 // @Router /chat/rooms/{id}/messages [post]
@@ -453,4 +464,31 @@ func (h *Handler) wsWriter(client *Connection) {
 			}
 		}
 	}
+}
+
+func (h *Handler) getRoomResponse(ctx context.Context, room *Room, currentUserID uuid.UUID, unreadCount int) *RoomResponse {
+	// Get members
+	members, err := h.service.GetMembers(ctx, currentUserID, room.ID)
+	if err != nil {
+		// Fallback
+		members = []*RoomMember{}
+	}
+
+	// Convert to ParticipantInfo
+	participantInfos := make([]ParticipantInfo, len(members))
+	var isAdmin bool
+	for i, m := range members {
+		info, err := h.profileFetcher.GetParticipantInfo(ctx, m.UserID)
+		if err == nil {
+			participantInfos[i] = *info
+		} else {
+			participantInfos[i] = ParticipantInfo{ID: m.UserID, FirstName: "Unknown"}
+		}
+
+		if m.UserID == currentUserID && m.IsAdmin() {
+			isAdmin = true
+		}
+	}
+
+	return RoomResponseFromEntity(room, participantInfos, isAdmin, unreadCount)
 }

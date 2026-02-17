@@ -14,10 +14,20 @@ type Repository interface {
 	// Room operations
 	CreateRoom(ctx context.Context, room *Room) error
 	GetRoomByID(ctx context.Context, id uuid.UUID) (*Room, error)
-	GetRoomByParticipants(ctx context.Context, user1, user2 uuid.UUID) (*Room, error)
+	GetDirectRoomByUsers(ctx context.Context, user1, user2 uuid.UUID) (*Room, error)
 	ListRoomsByUser(ctx context.Context, userID uuid.UUID) ([]*Room, error)
 	UpdateRoomLastMessage(ctx context.Context, roomID uuid.UUID, preview string) error
 	DeleteRoom(ctx context.Context, id uuid.UUID) error
+
+	// Member operations
+	AddMember(ctx context.Context, member *RoomMember) error
+	RemoveMember(ctx context.Context, roomID, userID uuid.UUID) error
+	GetMembers(ctx context.Context, roomID uuid.UUID) ([]*RoomMember, error)
+	GetMember(ctx context.Context, roomID, userID uuid.UUID) (*RoomMember, error)
+	IsMember(ctx context.Context, roomID, userID uuid.UUID) (bool, error)
+	UpdateMemberRole(ctx context.Context, roomID, userID uuid.UUID, role MemberRole) error
+
+	// Casting access
 	HasCastingResponseAccess(ctx context.Context, castingID, user1, user2 uuid.UUID) (bool, error)
 
 	// Message operations
@@ -43,13 +53,14 @@ func NewRepository(db *sqlx.DB) Repository {
 
 func (r *repository) CreateRoom(ctx context.Context, room *Room) error {
 	query := `
-		INSERT INTO chat_rooms (id, participant1_id, participant2_id, casting_id, created_at)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO chat_rooms (id, room_type, name, creator_id, casting_id, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6)
 	`
 	_, err := r.db.ExecContext(ctx, query,
 		room.ID,
-		room.Participant1ID,
-		room.Participant2ID,
+		room.RoomType,
+		room.Name,
+		room.CreatorID,
 		room.CastingID,
 		room.CreatedAt,
 	)
@@ -69,16 +80,15 @@ func (r *repository) GetRoomByID(ctx context.Context, id uuid.UUID) (*Room, erro
 	return &room, nil
 }
 
-func (r *repository) GetRoomByParticipants(ctx context.Context, user1, user2 uuid.UUID) (*Room, error) {
-	// Ensure consistent ordering
-	p1, p2 := user1, user2
-	if p1.String() > p2.String() {
-		p1, p2 = p2, p1
-	}
-
-	query := `SELECT * FROM chat_rooms WHERE participant1_id = $1 AND participant2_id = $2`
+func (r *repository) GetDirectRoomByUsers(ctx context.Context, user1, user2 uuid.UUID) (*Room, error) {
+	query := `
+		SELECT r.* FROM chat_rooms r
+		WHERE r.room_type = 'direct'
+		AND EXISTS (SELECT 1 FROM chat_room_members WHERE room_id = r.id AND user_id = $1)
+		AND EXISTS (SELECT 1 FROM chat_room_members WHERE room_id = r.id AND user_id = $2)
+	`
 	var room Room
-	err := r.db.GetContext(ctx, &room, query, p1, p2)
+	err := r.db.GetContext(ctx, &room, query, user1, user2)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -90,9 +100,10 @@ func (r *repository) GetRoomByParticipants(ctx context.Context, user1, user2 uui
 
 func (r *repository) ListRoomsByUser(ctx context.Context, userID uuid.UUID) ([]*Room, error) {
 	query := `
-		SELECT * FROM chat_rooms 
-		WHERE participant1_id = $1 OR participant2_id = $1
-		ORDER BY last_message_at DESC NULLS LAST, created_at DESC
+		SELECT DISTINCT r.* FROM chat_rooms r
+		JOIN chat_room_members m ON m.room_id = r.id
+		WHERE m.user_id = $1
+		ORDER BY r.last_message_at DESC NULLS LAST, r.created_at DESC
 	`
 	var rooms []*Room
 	err := r.db.SelectContext(ctx, &rooms, query, userID)
@@ -118,8 +129,8 @@ func (r *repository) UpdateRoomLastMessage(ctx context.Context, roomID uuid.UUID
 
 func (r *repository) CreateMessage(ctx context.Context, msg *Message) error {
 	query := `
-		INSERT INTO messages (id, room_id, sender_id, content, message_type, is_read, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO messages (id, room_id, sender_id, content, message_type, attachment_upload_id, is_read, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`
 	_, err := r.db.ExecContext(ctx, query,
 		msg.ID,
@@ -127,6 +138,7 @@ func (r *repository) CreateMessage(ctx context.Context, msg *Message) error {
 		msg.SenderID,
 		msg.Content,
 		msg.MessageType,
+		msg.AttachmentUploadID,
 		msg.IsRead,
 		msg.CreatedAt,
 	)
@@ -184,8 +196,8 @@ func (r *repository) CountUnreadByRoom(ctx context.Context, roomID, userID uuid.
 func (r *repository) CountUnreadByUser(ctx context.Context, userID uuid.UUID) (int, error) {
 	query := `
 		SELECT COUNT(*) FROM messages m
-		JOIN chat_rooms r ON m.room_id = r.id
-		WHERE (r.participant1_id = $1 OR r.participant2_id = $1)
+		JOIN chat_room_members crm ON m.room_id = crm.room_id
+		WHERE crm.user_id = $1
 		AND m.sender_id != $1 AND NOT m.is_read AND m.deleted_at IS NULL
 	`
 	var count int

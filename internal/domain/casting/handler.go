@@ -43,6 +43,7 @@ func NewHandler(service *Service, profileService ProfileService) *Handler {
 
 // Create handles POST /castings
 // @Summary Создать кастинг
+// @Description Создать новый кастинг. Доступно только для работодателей (Employer).
 // @Tags Casting
 // @Accept json
 // @Produce json
@@ -109,6 +110,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 
 // GetByID handles GET /castings/{id}
 // @Summary Получить кастинг по ID
+// @Description Получить полную информацию о кастинге. Черновики (draft) видны только владельцу.
 // @Tags Casting
 // @Produce json
 // @Param id path string true "ID кастинга"
@@ -170,6 +172,7 @@ func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
 
 // Update handles PUT /castings/{id}
 // @Summary Обновить кастинг
+// @Description Обновить данные кастинга. Доступно только владельцу.
 // @Tags Casting
 // @Accept json
 // @Produce json
@@ -232,6 +235,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 
 // UpdateStatus handles PATCH /castings/{id}/status
 // @Summary Обновить статус кастинга
+// @Description Доступные статусы: draft, active, closed.
 // @Tags Casting
 // @Accept json
 // @Produce json
@@ -281,6 +285,15 @@ func (h *Handler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 // Delete handles DELETE /castings/{id}
+// @Summary Удалить кастинг
+// @Description Удаляет кастинг. Только владелец может удалить.
+// @Tags Casting
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID кастинга"
+// @Success 204 "No Content"
+// @Failure 400,403,404,500 {object} response.Response
+// @Router /castings/{id} [delete]
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -305,6 +318,22 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 }
 
 // List handles GET /castings
+// @Summary Список кастингов (Поиск)
+// @Description Поиск кастингов по фильтрам.
+// @Tags Casting
+// @Produce json
+// @Param city query string false "Город"
+// @Param q query string false "Поисковый запрос (по заголовку)"
+// @Param status query string false "Статус (active, closed, draft)"
+// @Param creator_id query string false "ID создателя"
+// @Param pay_min query number false "Минимальная оплата"
+// @Param pay_max query number false "Максимальная оплата"
+// @Param sort_by query string false "Сортировка (newest, pay_desc, pay_asc, views)"
+// @Param page query int false "Номер страницы" default(1)
+// @Param limit query int false "Количество на странице" default(20)
+// @Success 200 {object} response.Response{data=[]CastingResponse,meta=response.Meta}
+// @Failure 500 {object} response.Response
+// @Router /castings [get]
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	filter := &Filter{}
@@ -388,6 +417,16 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 // ListMy handles GET /castings/my
+// @Summary Мои кастинги
+// @Description Получить список кастингов текущего пользователя (работодателя).
+// @Tags Casting
+// @Produce json
+// @Security BearerAuth
+// @Param page query int false "Номер страницы" default(1)
+// @Param limit query int false "Количество на странице" default(20)
+// @Success 200 {object} response.Response{data=[]CastingResponse,meta=response.Meta}
+// @Failure 500 {object} response.Response
+// @Router /castings/my [get]
 func (h *Handler) ListMy(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 

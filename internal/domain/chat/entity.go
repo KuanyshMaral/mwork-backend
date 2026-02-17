@@ -16,39 +16,59 @@ const (
 	MessageTypeSystem MessageType = "system"
 )
 
-// Room represents a chat room between two users
+// RoomType represents the type of chat room
+type RoomType string
+
+const (
+	RoomTypeDirect  RoomType = "direct"  // 1-to-1 chat
+	RoomTypeCasting RoomType = "casting" // Chat linked to casting
+	RoomTypeGroup   RoomType = "group"   // Multi-user group chat
+)
+
+// MemberRole represents a user's role in a chat room
+type MemberRole string
+
+const (
+	MemberRoleAdmin  MemberRole = "admin"  // Room administrator
+	MemberRoleMember MemberRole = "member" // Regular member
+)
+
+// Room represents a chat room
 type Room struct {
 	ID                 uuid.UUID      `db:"id" json:"id"`
-	Participant1ID     uuid.UUID      `db:"participant1_id" json:"participant1_id"`
-	Participant2ID     uuid.UUID      `db:"participant2_id" json:"participant2_id"`
+	RoomType           RoomType       `db:"room_type" json:"room_type"`
+	Name               sql.NullString `db:"name" json:"name,omitempty"`
+	CreatorID          uuid.NullUUID  `db:"creator_id" json:"creator_id,omitempty"`
 	CastingID          uuid.NullUUID  `db:"casting_id" json:"casting_id,omitempty"`
 	LastMessageAt      sql.NullTime   `db:"last_message_at" json:"last_message_at,omitempty"`
 	LastMessagePreview sql.NullString `db:"last_message_preview" json:"last_message_preview,omitempty"`
 	CreatedAt          time.Time      `db:"created_at" json:"created_at"`
 }
 
-// HasParticipant checks if user is in this room
-func (r *Room) HasParticipant(userID uuid.UUID) bool {
-	return r.Participant1ID == userID || r.Participant2ID == userID
+// RoomMember represents a user's membership in a chat room
+type RoomMember struct {
+	ID       uuid.UUID  `db:"id" json:"id"`
+	RoomID   uuid.UUID  `db:"room_id" json:"room_id"`
+	UserID   uuid.UUID  `db:"user_id" json:"user_id"`
+	Role     MemberRole `db:"role" json:"role"`
+	JoinedAt time.Time  `db:"joined_at" json:"joined_at"`
 }
 
-// GetOtherParticipant returns the other user in the room
-func (r *Room) GetOtherParticipant(userID uuid.UUID) uuid.UUID {
-	if r.Participant1ID == userID {
-		return r.Participant2ID
-	}
-	return r.Participant1ID
+// IsAdmin checks if member is admin
+func (m *RoomMember) IsAdmin() bool {
+	return m.Role == MemberRoleAdmin
 }
 
 // Message represents a chat message
 type Message struct {
-	ID          uuid.UUID    `db:"id" json:"id"`
-	RoomID      uuid.UUID    `db:"room_id" json:"room_id"`
-	SenderID    uuid.UUID    `db:"sender_id" json:"sender_id"`
-	Content     string       `db:"content" json:"content"`
-	MessageType MessageType  `db:"message_type" json:"message_type"`
-	IsRead      bool         `db:"is_read" json:"is_read"`
-	ReadAt      sql.NullTime `db:"read_at" json:"read_at,omitempty"`
-	CreatedAt   time.Time    `db:"created_at" json:"created_at"`
-	DeletedAt   sql.NullTime `db:"deleted_at" json:"-"`
+	ID                 uuid.UUID     `db:"id" json:"id"`
+	RoomID             uuid.UUID     `db:"room_id" json:"room_id"`
+	SenderID           uuid.UUID     `db:"sender_id" json:"sender_id"`
+	Content            string        `db:"content" json:"content"`
+	MessageType        MessageType   `db:"message_type" json:"message_type"`
+	AttachmentUploadID uuid.NullUUID `db:"attachment_upload_id" json:"attachment_upload_id,omitempty"`
+	IsRead             bool          `db:"is_read" json:"is_read"`
+	ReadAt             sql.NullTime  `db:"read_at" json:"read_at,omitempty"`
+	CreatedAt          time.Time     `db:"created_at" json:"created_at"`
+	DeletedAt          sql.NullTime  `db:"deleted_at" json:"-"`
 }

@@ -8,15 +8,19 @@ import (
 
 // CreateRoomRequest for POST /chat/rooms
 type CreateRoomRequest struct {
-	RecipientID uuid.UUID  `json:"recipient_id" validate:"required"`
-	CastingID   *uuid.UUID `json:"casting_id,omitempty"`
-	Message     string     `json:"message,omitempty"` // Optional initial message
+	RoomType    string      `json:"room_type" validate:"required,oneof=direct casting group"`
+	RecipientID *uuid.UUID  `json:"recipient_id,omitempty"` // For direct and casting rooms
+	MemberIDs   []uuid.UUID `json:"member_ids,omitempty"`   // For group rooms
+	Name        string      `json:"name,omitempty"`         // For group rooms
+	CastingID   *uuid.UUID  `json:"casting_id,omitempty"`   // For casting rooms
+	Message     string      `json:"message,omitempty"`      // Optional initial message
 }
 
 // SendMessageRequest for WebSocket/POST
 type SendMessageRequest struct {
-	Content     string `json:"content" validate:"required,min=1,max=5000"`
-	MessageType string `json:"message_type,omitempty"`
+	Content            string     `json:"content,omitempty"`
+	MessageType        string     `json:"message_type,omitempty"`
+	AttachmentUploadID *uuid.UUID `json:"attachment_upload_id,omitempty"`
 }
 
 // MarkReadRequest for POST /chat/rooms/{id}/read
@@ -26,14 +30,16 @@ type MarkReadRequest struct {
 
 // RoomResponse represents room in API
 type RoomResponse struct {
-	ID                 uuid.UUID        `json:"id"`
-	OtherParticipantID uuid.UUID        `json:"other_participant_id"`
-	OtherParticipant   *ParticipantInfo `json:"other_participant,omitempty"`
-	CastingID          *uuid.UUID       `json:"casting_id,omitempty"`
-	LastMessageAt      *string          `json:"last_message_at,omitempty"`
-	LastMessagePreview *string          `json:"last_message_preview,omitempty"`
-	UnreadCount        int              `json:"unread_count"`
-	CreatedAt          string           `json:"created_at"`
+	ID                 uuid.UUID         `json:"id"`
+	RoomType           string            `json:"room_type"`
+	Name               *string           `json:"name,omitempty"`
+	Members            []ParticipantInfo `json:"members"`
+	IsAdmin            bool              `json:"is_admin"`
+	CastingID          *uuid.UUID        `json:"casting_id,omitempty"`
+	LastMessageAt      *string           `json:"last_message_at,omitempty"`
+	LastMessagePreview *string           `json:"last_message_preview,omitempty"`
+	UnreadCount        int               `json:"unread_count"`
+	CreatedAt          string            `json:"created_at"`
 }
 
 // ParticipantInfo for room response
@@ -46,14 +52,24 @@ type ParticipantInfo struct {
 
 // MessageResponse represents message in API
 type MessageResponse struct {
-	ID          uuid.UUID `json:"id"`
-	RoomID      uuid.UUID `json:"room_id"`
-	SenderID    uuid.UUID `json:"sender_id"`
-	Content     string    `json:"content"`
-	MessageType string    `json:"message_type"`
-	IsRead      bool      `json:"is_read"`
-	IsMine      bool      `json:"is_mine"` // Helper for client
-	CreatedAt   string    `json:"created_at"`
+	ID          uuid.UUID       `json:"id"`
+	RoomID      uuid.UUID       `json:"room_id"`
+	SenderID    uuid.UUID       `json:"sender_id"`
+	Content     string          `json:"content"`
+	MessageType string          `json:"message_type"`
+	Attachment  *AttachmentInfo `json:"attachment,omitempty"`
+	IsRead      bool            `json:"is_read"`
+	IsMine      bool            `json:"is_mine"` // Helper for client
+	CreatedAt   string          `json:"created_at"`
+}
+
+// AttachmentInfo represents file attachment metadata
+type AttachmentInfo struct {
+	UploadID uuid.UUID `json:"upload_id"`
+	URL      string    `json:"url"`
+	FileName string    `json:"file_name"`
+	MimeType string    `json:"mime_type"`
+	Size     int64     `json:"size"`
 }
 
 // MessageResponseFromEntity converts entity to response
@@ -70,15 +86,21 @@ func MessageResponseFromEntity(m *Message, currentUserID uuid.UUID) *MessageResp
 	}
 }
 
-// RoomResponseFromEntity converts entity to response
-func RoomResponseFromEntity(r *Room, currentUserID uuid.UUID, unreadCount int) *RoomResponse {
+// RoomResponseFromEntity will be updated in service layer to populate members
+// This is just a placeholder - actual implementation will fetch members from repository
+func RoomResponseFromEntity(r *Room, members []ParticipantInfo, isAdmin bool, unreadCount int) *RoomResponse {
 	resp := &RoomResponse{
-		ID:                 r.ID,
-		OtherParticipantID: r.GetOtherParticipant(currentUserID),
-		UnreadCount:        unreadCount,
-		CreatedAt:          r.CreatedAt.Format(time.RFC3339),
+		ID:          r.ID,
+		RoomType:    string(r.RoomType),
+		Members:     members,
+		IsAdmin:     isAdmin,
+		UnreadCount: unreadCount,
+		CreatedAt:   r.CreatedAt.Format(time.RFC3339),
 	}
 
+	if r.Name.Valid {
+		resp.Name = &r.Name.String
+	}
 	if r.CastingID.Valid {
 		resp.CastingID = &r.CastingID.UUID
 	}
@@ -92,6 +114,14 @@ func RoomResponseFromEntity(r *Room, currentUserID uuid.UUID, unreadCount int) *
 
 	return resp
 }
+
+// AddMemberRequest for POST /chat/rooms/{id}/members
+type AddMemberRequest struct {
+	UserID uuid.UUID `json:"user_id" validate:"required"`
+}
+
+// RemoveMemberRequest for DELETE /chat/rooms/{id}/members/{userId}
+// No body needed, userId in URL
 
 type SendMessageRequestDoc struct {
 	Text               string `json:"text,omitempty" example:"optional text"`

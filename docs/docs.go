@@ -2076,12 +2076,113 @@ const docTemplate = `{
             }
         },
         "/castings": {
+            "get": {
+                "description": "Поиск кастингов по фильтрам.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Casting"
+                ],
+                "summary": "Список кастингов (Поиск)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Город",
+                        "name": "city",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Поисковый запрос (по заголовку)",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Статус (active, closed, draft)",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID создателя",
+                        "name": "creator_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "Минимальная оплата",
+                        "name": "pay_min",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "Максимальная оплата",
+                        "name": "pay_max",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Сортировка (newest, pay_desc, pay_asc, views)",
+                        "name": "sort_by",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Номер страницы",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Количество на странице",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/internal_domain_casting.CastingResponse"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Meta"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            },
             "post": {
                 "security": [
                     {
                         "BearerAuth": []
                     }
                 ],
+                "description": "Создать новый кастинг. Доступно только для работодателей (Employer).",
                 "consumes": [
                     "application/json"
                 ],
@@ -2149,6 +2250,71 @@ const docTemplate = `{
                 }
             }
         },
+        "/castings/my": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Получить список кастингов текущего пользователя (работодателя).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Casting"
+                ],
+                "summary": "Мои кастинги",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Номер страницы",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Количество на странице",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/internal_domain_casting.CastingResponse"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Meta"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/castings/saved": {
             "get": {
                 "security": [
@@ -2201,6 +2367,7 @@ const docTemplate = `{
         },
         "/castings/{id}": {
             "get": {
+                "description": "Получить полную информацию о кастинге. Черновики (draft) видны только владельцу.",
                 "produces": [
                     "application/json"
                 ],
@@ -2268,6 +2435,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
+                "description": "Обновить данные кастинга. Доступно только владельцу.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2335,6 +2503,59 @@ const docTemplate = `{
                     },
                     "422": {
                         "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Удаляет кастинг. Только владелец может удалить.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Casting"
+                ],
+                "summary": "Удалить кастинг",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID кастинга",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
                         }
@@ -2686,6 +2907,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
+                "description": "Доступные статусы: draft, active, closed.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2816,6 +3038,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
+                "description": "Создает комнату. Типы комнат (room_type):\n- direct: личный чат (требует recipient_id)\n- casting: чат кастинга (требует casting_id)\n- group: групповой чат (требует name, member_ids)",
                 "consumes": [
                     "application/json"
                 ],
@@ -2984,7 +3207,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "attachment_upload_id requires committed upload with purpose=chat_file.",
+                "description": "Отправка сообщения в комнату. Для файлов используйте attachment_upload_id (должен быть committed с purpose=chat_file).",
                 "consumes": [
                     "application/json"
                 ],
@@ -3009,7 +3232,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_domain_chat.SendMessageRequestDoc"
+                            "$ref": "#/definitions/internal_domain_chat.SendMessageRequest"
                         }
                     }
                 ],
@@ -3878,6 +4101,11 @@ const docTemplate = `{
         },
         "/files/{id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -8359,6 +8587,10 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "error_trace": {
+                    "description": "Full error details/stack trace",
+                    "type": "string"
+                },
                 "message": {
                     "type": "string"
                 }
@@ -9073,27 +9305,71 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_domain_chat.AttachmentInfo": {
+            "type": "object",
+            "properties": {
+                "file_name": {
+                    "type": "string"
+                },
+                "mime_type": {
+                    "type": "string"
+                },
+                "size": {
+                    "type": "integer"
+                },
+                "upload_id": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
         "internal_domain_chat.CreateRoomRequest": {
             "type": "object",
             "required": [
-                "recipient_id"
+                "room_type"
             ],
             "properties": {
                 "casting_id": {
+                    "description": "For casting rooms",
                     "type": "string"
+                },
+                "member_ids": {
+                    "description": "For group rooms",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "message": {
                     "description": "Optional initial message",
                     "type": "string"
                 },
-                "recipient_id": {
+                "name": {
+                    "description": "For group rooms",
                     "type": "string"
+                },
+                "recipient_id": {
+                    "description": "For direct and casting rooms",
+                    "type": "string"
+                },
+                "room_type": {
+                    "type": "string",
+                    "enum": [
+                        "direct",
+                        "casting",
+                        "group"
+                    ]
                 }
             }
         },
         "internal_domain_chat.MessageResponse": {
             "type": "object",
             "properties": {
+                "attachment": {
+                    "$ref": "#/definitions/internal_domain_chat.AttachmentInfo"
+                },
                 "content": {
                     "type": "string"
                 },
@@ -9150,16 +9426,25 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
+                "is_admin": {
+                    "type": "boolean"
+                },
                 "last_message_at": {
                     "type": "string"
                 },
                 "last_message_preview": {
                     "type": "string"
                 },
-                "other_participant": {
-                    "$ref": "#/definitions/internal_domain_chat.ParticipantInfo"
+                "members": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_domain_chat.ParticipantInfo"
+                    }
                 },
-                "other_participant_id": {
+                "name": {
+                    "type": "string"
+                },
+                "room_type": {
                     "type": "string"
                 },
                 "unread_count": {
@@ -9167,16 +9452,17 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_domain_chat.SendMessageRequestDoc": {
+        "internal_domain_chat.SendMessageRequest": {
             "type": "object",
             "properties": {
                 "attachment_upload_id": {
-                    "type": "string",
-                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                    "type": "string"
                 },
-                "text": {
-                    "type": "string",
-                    "example": "optional text"
+                "content": {
+                    "type": "string"
+                },
+                "message_type": {
+                    "type": "string"
                 }
             }
         },
