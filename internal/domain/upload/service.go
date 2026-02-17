@@ -18,8 +18,26 @@ import (
 )
 
 const (
-	StagingTTL = 1 * time.Hour // Files expire after 1 hour if not committed
+	DefaultMaxUploadSize = 50 * 1024 * 1024 // 50MB unified limit
+	DefaultStagingTTL    = 1 * time.Hour
+	DefaultPresignExpiry = 15 * time.Minute
 )
+
+// Config holds upload service configuration
+type Config struct {
+	MaxUploadSize int64
+	StagingTTL    time.Duration
+	PresignExpiry time.Duration
+}
+
+// DefaultConfig returns default configuration
+func DefaultConfig() Config {
+	return Config{
+		MaxUploadSize: DefaultMaxUploadSize,
+		StagingTTL:    DefaultStagingTTL,
+		PresignExpiry: DefaultPresignExpiry,
+	}
+}
 
 // Service handles upload business logic
 type Service struct {
@@ -27,6 +45,7 @@ type Service struct {
 	stagingStorage storage.Storage
 	cloudStorage   storage.Storage // nil if cloud not configured
 	stagingBaseURL string
+	config         Config
 }
 
 // NewService creates upload service
@@ -36,6 +55,18 @@ func NewService(repo Repository, stagingStorage storage.Storage, cloudStorage st
 		stagingStorage: stagingStorage,
 		cloudStorage:   cloudStorage,
 		stagingBaseURL: stagingBaseURL,
+		config:         DefaultConfig(),
+	}
+}
+
+// NewServiceWithConfig creates upload service with custom config
+func NewServiceWithConfig(repo Repository, stagingStorage storage.Storage, cloudStorage storage.Storage, stagingBaseURL string, config Config) *Service {
+	return &Service{
+		repo:           repo,
+		stagingStorage: stagingStorage,
+		cloudStorage:   cloudStorage,
+		stagingBaseURL: stagingBaseURL,
+		config:         config,
 	}
 }
 
@@ -64,13 +95,14 @@ func (s *Service) Stage(ctx context.Context, userID uuid.UUID, category Category
 		ID:           uploadID,
 		UserID:       userID,
 		Category:     category,
+		Purpose:      string(category), // Map category to purpose
 		Status:       StatusStaged,
 		OriginalName: filepath.Base(filename),
 		MimeType:     mimeType,
 		Size:         sql.NullInt64{Int64: sizeBytes, Valid: true},
 		StagingKey:   stagingKey,
 		CreatedAt:    now,
-		ExpiresAt:    now.Add(StagingTTL),
+		ExpiresAt:    now.Add(s.config.StagingTTL),
 	}
 
 	if err := s.repo.Create(ctx, upload); err != nil {
@@ -110,12 +142,13 @@ func (s *Service) StageExisting(ctx context.Context, uploadID, userID uuid.UUID,
 
 	now := time.Now().UTC()
 	upload.Category = category
+	upload.Purpose = string(category)
 	upload.Status = StatusStaged
 	upload.OriginalName = filepath.Base(filename)
 	upload.MimeType = mimeType
 	upload.Size = sql.NullInt64{Int64: sizeBytes, Valid: true}
 	upload.StagingKey = stagingKey
-	upload.ExpiresAt = now.Add(StagingTTL)
+	upload.ExpiresAt = now.Add(s.config.StagingTTL)
 	upload.CommittedAt = nil
 	upload.PermanentKey = ""
 	upload.PermanentURL = ""
@@ -336,8 +369,12 @@ func (s *Service) permanentStorage() storage.Storage {
 }
 
 func (s *Service) buildPermanentKey(upload *Upload) string {
+	purpose := upload.Purpose
+	if purpose == "" {
+		purpose = string(upload.Category) // Fallback to legacy category
+	}
 	name := sanitizeFileName(upload.OriginalName)
-	return fmt.Sprintf("uploads/final/%s/%s_%s", upload.UserID.String(), upload.ID.String(), name)
+	return fmt.Sprintf("uploads/%s/%s/%s_%s", purpose, upload.UserID.String(), upload.ID.String(), name)
 }
 
 func normalizeContentType(v string) string {

@@ -169,7 +169,11 @@ func main() {
 	}
 
 	uploadRepo := uploadDomain.NewRepository(db)
-	uploadService := uploadDomain.NewService(uploadRepo, uploadFileStorage, uploadCloudStorage, filesBaseURL)
+	uploadService := uploadDomain.NewServiceWithConfig(uploadRepo, uploadFileStorage, uploadCloudStorage, filesBaseURL, uploadDomain.Config{
+		MaxUploadSize: int64(cfg.UploadMaxMB) * 1024 * 1024,
+		StagingTTL:    time.Duration(cfg.UploadStagingHours) * time.Hour,
+		PresignExpiry: time.Duration(cfg.UploadPresignMin) * time.Minute,
+	})
 	uploadHandler := uploadDomain.NewHandler(uploadService, filesBaseURL, uploadStorage, uploadRepo, proxyUploadMode)
 
 	// ---------- WebSocket hub ----------
@@ -935,6 +939,20 @@ func (c *chatUploadResolver) GetUploadURL(ctx context.Context, uploadID uuid.UUI
 		return "", err
 	}
 	return upload.GetURL(c.baseURL), nil
+}
+
+func (c *chatUploadResolver) CommitUpload(ctx context.Context, uploadID, userID uuid.UUID) (*chat.AttachmentInfo, error) {
+	up, err := c.uploadService.Confirm(ctx, uploadID, userID)
+	if err != nil {
+		return nil, err
+	}
+	return &chat.AttachmentInfo{
+		UploadID: up.ID,
+		URL:      up.PermanentURL,
+		FileName: up.OriginalName,
+		MimeType: up.MimeType,
+		Size:     up.Size.Int64,
+	}, nil
 }
 
 type chatProfileFetcher struct {

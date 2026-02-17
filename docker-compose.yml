@@ -10,7 +10,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U mwork -d mwork_dev"]
+      test: [ "CMD-SHELL", "pg_isready -U mwork -d mwork_dev" ]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -22,7 +22,7 @@ services:
       - redis_data:/data
     command: redis-server --appendonly yes
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -44,12 +44,10 @@ services:
         condition: service_healthy
     volumes:
       - ./migrations:/migrations:ro
-    env_file:
-      - .env.docker.example
-    environment:
-      DATABASE_URL: ${DATABASE_URL:-}   # не обязательно, но ок
-    entrypoint: ["/bin/sh", "-lc"]
-    command: 'echo "DB=$$DATABASE_URL" && migrate -path=/migrations -database "$$DATABASE_URL" up'
+    command:
+      - -path=/migrations
+      - -database=postgresql://mwork:mwork_secret@postgres:5432/mwork_dev?sslmode=disable
+      - up
     restart: "no"
 
   api:

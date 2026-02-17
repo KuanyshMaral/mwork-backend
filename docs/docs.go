@@ -4077,6 +4077,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
+                "description": "Get list of uploads for the current user.",
                 "produces": [
                     "application/json"
                 ],
@@ -4087,7 +4088,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Категория",
+                        "description": "Фильтр по категории/назначению (purpose)",
                         "name": "category",
                         "in": "query"
                     }
@@ -4130,7 +4131,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Confirm is idempotent: committed uploads return 200 with current fields.\nPossible error codes: UPLOAD_NOT_FOUND, UPLOAD_FORBIDDEN, UPLOAD_EXPIRED, UPLOAD_INVALID_STATUS, INVALID_CONTENT_TYPE, FILE_TOO_LARGE, STORAGE_ERROR",
+                "description": "Finalizes the upload process. Moves file from staging to permanent storage.\nConfirm is idempotent: committed uploads return 200 with current fields.\nPossible error codes: UPLOAD_NOT_FOUND, UPLOAD_FORBIDDEN, UPLOAD_EXPIRED, UPLOAD_INVALID_STATUS, INVALID_CONTENT_TYPE, FILE_TOO_LARGE, STORAGE_ERROR",
                 "consumes": [
                     "application/json"
                 ],
@@ -4223,7 +4224,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Purpose enum: avatar, portfolio, casting_cover, chat_file (and legacy photo/document where applicable).",
+                "description": "Initializes a new upload. Supports resumable uploads.\nPurpose enum: avatar, photo, document, casting_cover, portfolio, chat_file, gallery, video, audio.\nLegacy parameters 'filename' and 'size' are supported but deprecated.",
                 "consumes": [
                     "application/json"
                 ],
@@ -4310,6 +4311,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
+                "description": "Uploads a file directly to staging storage.\nSupported purposes: avatar, photo, document, casting_cover, portfolio, chat_file, gallery, video, audio.",
                 "consumes": [
                     "multipart/form-data"
                 ],
@@ -4319,11 +4321,17 @@ const docTemplate = `{
                 "tags": [
                     "Upload"
                 ],
-                "summary": "Загрузить файл во временное хранилище",
+                "summary": "Загрузить файл во временное хранилище (Direct Upload)",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Категория (avatar|photo|document)",
+                        "description": "Назначение файла (purpose)",
+                        "name": "purpose",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Категория (deprecated, use purpose)",
                         "name": "category",
                         "in": "formData"
                     },
@@ -4488,13 +4496,14 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
+                "description": "Manually commit an upload by ID. Similar to /files/confirm but via path parameter.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Upload"
                 ],
-                "summary": "Закоммитить загруженный файл",
+                "summary": "Закоммитить загруженный файл (Alias for Confirm)",
                 "parameters": [
                     {
                         "type": "string",
@@ -11770,7 +11779,11 @@ const docTemplate = `{
         "internal_domain_upload.UploadResponse": {
             "type": "object",
             "properties": {
+                "batch_id": {
+                    "type": "string"
+                },
                 "category": {
+                    "description": "Deprecated: use Purpose",
                     "type": "string"
                 },
                 "created_at": {
@@ -11786,10 +11799,19 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
                 "mime_type": {
                     "type": "string"
                 },
                 "original_name": {
+                    "type": "string"
+                },
+                "purpose": {
                     "type": "string"
                 },
                 "size": {

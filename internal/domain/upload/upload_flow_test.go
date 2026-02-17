@@ -3,8 +3,8 @@ package upload
 import (
 	"bytes"
 	"context"
-	"errors"
 	"database/sql"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -37,8 +37,10 @@ func (r *repoStub) Delete(_ context.Context, _ uuid.UUID) error { return nil }
 func (r *repoStub) ListByUser(_ context.Context, _ uuid.UUID, _ Category) ([]*Upload, error) {
 	return nil, nil
 }
-func (r *repoStub) ListExpired(_ context.Context, _ time.Time) ([]*Upload, error) { return nil, nil }
-func (r *repoStub) DeleteExpired(_ context.Context, _ time.Time) (int, error)     { return 0, nil }
+func (r *repoStub) ListExpired(_ context.Context, _ time.Time) ([]*Upload, error)  { return nil, nil }
+func (r *repoStub) DeleteExpired(_ context.Context, _ time.Time) (int, error)      { return 0, nil }
+func (r *repoStub) CreateBatch(_ context.Context, _ []*Upload) error               { return nil }
+func (r *repoStub) GetByBatchID(_ context.Context, _ uuid.UUID) ([]*Upload, error) { return nil, nil }
 
 type storageStub struct {
 	info *storage.FileInfo
@@ -108,6 +110,7 @@ func TestConfirmCommittedWithPositiveSize(t *testing.T) {
 		ID:           uploadID,
 		UserID:       uid,
 		Category:     CategoryAvatar,
+		Purpose:      "avatar",
 		Status:       StatusStaged,
 		OriginalName: "avatar.jpg",
 		MimeType:     "image/jpeg",
@@ -140,6 +143,7 @@ func TestConfirmCommittedWhenStagedSizeUnknownUsesStorageSize(t *testing.T) {
 		ID:           uploadID,
 		UserID:       uid,
 		Category:     CategoryAvatar,
+		Purpose:      "avatar",
 		Status:       StatusStaged,
 		OriginalName: "avatar.jpg",
 		MimeType:     "image/jpeg",
@@ -174,6 +178,7 @@ func TestConfirmAllowsEmptyStagingContentType(t *testing.T) {
 		ID:           uploadID,
 		UserID:       uid,
 		Category:     CategoryAvatar,
+		Purpose:      "avatar",
 		Status:       StatusStaged,
 		OriginalName: "avatar.jpg",
 		MimeType:     "image/jpeg",
@@ -202,6 +207,7 @@ func TestConfirmFailsWhenSizeZero(t *testing.T) {
 		ID:           uploadID,
 		UserID:       uid,
 		Category:     CategoryAvatar,
+		Purpose:      "avatar",
 		Status:       StatusStaged,
 		OriginalName: "avatar.jpg",
 		MimeType:     "image/jpeg",
@@ -225,7 +231,7 @@ func TestConfirmFailsWhenSizeZero(t *testing.T) {
 }
 
 func TestUploadResponseUsesNilForNullSize(t *testing.T) {
-	u := &Upload{ID: uuid.New(), Category: CategoryPhoto, Status: StatusStaged, OriginalName: "a", MimeType: "image/jpeg", Size: sql.NullInt64{}, CreatedAt: time.Now(), ExpiresAt: time.Now()}
+	u := &Upload{ID: uuid.New(), Category: CategoryPhoto, Purpose: "photo", Status: StatusStaged, OriginalName: "a", MimeType: "image/jpeg", Size: sql.NullInt64{}, CreatedAt: time.Now(), ExpiresAt: time.Now()}
 	resp := UploadResponseFromEntity(u, "https://staging")
 	if resp.Size != nil {
 		t.Fatalf("expected nil size for NULL size, got %v", *resp.Size)
@@ -256,7 +262,7 @@ func TestStagePersistsSizeAfterStorageReaderConsumption(t *testing.T) {
 func TestStageExistingPersistsSizeAfterStorageReaderConsumption(t *testing.T) {
 	uid := uuid.New()
 	uploadID := uuid.New()
-	repo := &repoStub{getByID: &Upload{ID: uploadID, UserID: uid, StagingKey: "uploads/staging/u/f.jpg", ExpiresAt: time.Now().Add(time.Hour)}}
+	repo := &repoStub{getByID: &Upload{ID: uploadID, UserID: uid, Purpose: "photo", StagingKey: "uploads/staging/u/f.jpg", ExpiresAt: time.Now().Add(time.Hour)}}
 	st := &drainingStorageStub{}
 	svc := NewService(repo, st, nil, "https://staging")
 
@@ -276,7 +282,7 @@ func TestStageExistingPersistsSizeAfterStorageReaderConsumption(t *testing.T) {
 func TestGetByIDForUser(t *testing.T) {
 	uid := uuid.New()
 	uploadID := uuid.New()
-	repo := &repoStub{getByID: &Upload{ID: uploadID, UserID: uid}}
+	repo := &repoStub{getByID: &Upload{ID: uploadID, UserID: uid, Purpose: "photo"}}
 	svc := NewService(repo, &storageStub{}, nil, "https://staging")
 
 	t.Run("owner can access upload", func(t *testing.T) {
