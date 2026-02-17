@@ -221,9 +221,9 @@ func (r *repository) HasCastingResponseAccess(ctx context.Context, castingID, us
 			JOIN casting_responses cr ON cr.casting_id = c.id
 			WHERE c.id = $1
 			  AND (
-				(cr.user_id = $2 AND c.user_id = $3)
+				(cr.user_id = $2 AND c.creator_id = $3)
 				OR
-				(cr.user_id = $3 AND c.user_id = $2)
+				(cr.user_id = $3 AND c.creator_id = $2)
 			  )
 		)
 	`
