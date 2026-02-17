@@ -1137,21 +1137,17 @@ definitions:
       caption:
         maxLength: 2000
         type: string
-      key:
-        type: string
-      original_name:
-        maxLength: 255
-        type: string
       project_name:
         maxLength: 200
+        type: string
+      upload_id:
         type: string
       year:
         maximum: 2100
         minimum: 1900
         type: integer
     required:
-    - key
-    - original_name
+    - upload_id
     type: object
   internal_domain_photo.PhotoResponse:
     properties:
