@@ -18,8 +18,22 @@ type testChatRepo struct {
 
 func (r *testChatRepo) CreateRoom(ctx context.Context, room *Room) error             { r.room = room; return nil }
 func (r *testChatRepo) GetRoomByID(ctx context.Context, id uuid.UUID) (*Room, error) { return nil, nil }
-func (r *testChatRepo) GetRoomByParticipants(ctx context.Context, user1, user2 uuid.UUID) (*Room, error) {
+func (r *testChatRepo) GetDirectRoomByUsers(ctx context.Context, user1, user2 uuid.UUID) (*Room, error) {
 	return nil, nil
+}
+func (r *testChatRepo) AddMember(ctx context.Context, member *RoomMember) error          { return nil }
+func (r *testChatRepo) RemoveMember(ctx context.Context, roomID, userID uuid.UUID) error { return nil }
+func (r *testChatRepo) GetMembers(ctx context.Context, roomID uuid.UUID) ([]*RoomMember, error) {
+	return nil, nil
+}
+func (r *testChatRepo) GetMember(ctx context.Context, roomID, userID uuid.UUID) (*RoomMember, error) {
+	return nil, nil
+}
+func (r *testChatRepo) IsMember(ctx context.Context, roomID, userID uuid.UUID) (bool, error) {
+	return true, nil
+}
+func (r *testChatRepo) UpdateMemberRole(ctx context.Context, roomID, userID uuid.UUID, role MemberRole) error {
+	return nil
 }
 func (r *testChatRepo) ListRoomsByUser(ctx context.Context, userID uuid.UUID) ([]*Room, error) {
 	return nil, nil
@@ -88,6 +102,24 @@ func (l *testLimitChecker) CanUseChat(ctx context.Context, userID uuid.UUID) err
 	return l.err
 }
 
+type testAccessChecker struct {
+	err error
+}
+
+func (c *testAccessChecker) CanCommunicate(ctx context.Context, user1, user2 uuid.UUID) error {
+	return c.err
+}
+
+type testUploadResolver struct{}
+
+func (u *testUploadResolver) IsCommitted(ctx context.Context, uploadID uuid.UUID) (bool, error) {
+	return true, nil
+}
+
+func (u *testUploadResolver) GetUploadURL(ctx context.Context, uploadID uuid.UUID) (string, error) {
+	return "", nil
+}
+
 func TestCreateOrGetRoom_AllowsFreePlanWithResponseAccess(t *testing.T) {
 	senderID := uuid.New()
 	recipientID := uuid.New()
@@ -100,9 +132,12 @@ func TestCreateOrGetRoom_AllowsFreePlanWithResponseAccess(t *testing.T) {
 		recipientID: {ID: recipientID, Role: user.RoleEmployer},
 	}}
 
-	svc := NewService(repo, users, nil, nil, limits)
+	access := &testAccessChecker{}
+	uploads := &testUploadResolver{}
+	svc := NewService(repo, users, nil, access, limits, uploads)
 	room, err := svc.CreateOrGetRoom(context.Background(), senderID, &CreateRoomRequest{
-		RecipientID: recipientID,
+		RoomType:    string(RoomTypeDirect),
+		RecipientID: &recipientID,
 		CastingID:   &castingID,
 	})
 	if err != nil {
@@ -116,7 +151,7 @@ func TestCreateOrGetRoom_AllowsFreePlanWithResponseAccess(t *testing.T) {
 	}
 }
 
-func TestCreateOrGetRoom_FallsBackToPlanLimitWithoutResponseAccess(t *testing.T) {
+func TestCreateOrGetRoom_DeniesAccessWithoutResponse(t *testing.T) {
 	senderID := uuid.New()
 	recipientID := uuid.New()
 	castingID := uuid.New()
@@ -128,16 +163,19 @@ func TestCreateOrGetRoom_FallsBackToPlanLimitWithoutResponseAccess(t *testing.T)
 		recipientID: {ID: recipientID, Role: user.RoleEmployer},
 	}}
 
-	svc := NewService(repo, users, nil, nil, limits)
+	access := &testAccessChecker{}
+	uploads := &testUploadResolver{}
+	svc := NewService(repo, users, nil, access, limits, uploads)
 	_, err := svc.CreateOrGetRoom(context.Background(), senderID, &CreateRoomRequest{
-		RecipientID: recipientID,
+		RoomType:    string(RoomTypeDirect),
+		RecipientID: &recipientID,
 		CastingID:   &castingID,
 		Message:     time.Now().String(),
 	})
-	if err == nil {
-		t.Fatal("expected limit error")
+	if err != ErrNoAccess {
+		t.Fatalf("expected ErrNoAccess, got %v", err)
 	}
-	if limits.calls != 1 {
-		t.Fatalf("expected chat limit checker to be called once, got %d", limits.calls)
+	if limits.calls != 0 {
+		t.Fatalf("expected chat limit checker to be skipped, got %d", limits.calls)
 	}
 }

@@ -166,3 +166,18 @@ func (s *Service) ResolveReport(ctx context.Context, reportID uuid.UUID, req *Re
 func (s *Service) CountReports(ctx context.Context, filter *ListReportsFilter) (int, error) {
 	return s.repo.CountReports(ctx, filter)
 }
+
+// IsUserBanned checks if a user is banned from the platform
+func (s *Service) IsUserBanned(ctx context.Context, userID uuid.UUID) error {
+	u, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if u == nil {
+		return ErrBlockNotFound
+	}
+	if u.IsBanned {
+		return ErrUserBanned
+	}
+	return nil
+}
