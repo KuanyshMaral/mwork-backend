@@ -2,6 +2,7 @@ package chat
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
@@ -23,6 +24,7 @@ type LimitChecker interface {
 type UploadResolver interface {
 	IsCommitted(ctx context.Context, uploadID uuid.UUID) (bool, error)
 	GetUploadURL(ctx context.Context, uploadID uuid.UUID) (string, error)
+	CommitUpload(ctx context.Context, uploadID, userID uuid.UUID) (*AttachmentInfo, error)
 }
 
 // Service handles chat business logic
@@ -181,6 +183,23 @@ func (s *Service) SendMessage(ctx context.Context, userID, roomID uuid.UUID, req
 		}
 	}
 
+	var attachmentInfo *AttachmentInfo
+	if req.AttachmentUploadID != nil {
+		var err error
+		attachmentInfo, err = s.uploadResolver.CommitUpload(ctx, *req.AttachmentUploadID, userID)
+		if err != nil {
+			return nil, err
+		}
+
+		if req.Content == "" {
+			req.Content = attachmentInfo.URL
+		}
+		// Auto-detect image type from mime if needed, or stick to what client sent
+		if attachmentInfo.MimeType != "" && len(attachmentInfo.MimeType) >= 6 && attachmentInfo.MimeType[:6] == "image/" {
+			msgType = MessageTypeImage
+		}
+	}
+
 	msg := &Message{
 		ID:          uuid.New(),
 		RoomID:      roomID,
@@ -189,6 +208,14 @@ func (s *Service) SendMessage(ctx context.Context, userID, roomID uuid.UUID, req
 		MessageType: msgType,
 		IsRead:      false,
 		CreatedAt:   time.Now(),
+	}
+
+	if attachmentInfo != nil {
+		msg.AttachmentUploadID = uuid.NullUUID{UUID: attachmentInfo.UploadID, Valid: true}
+		msg.AttachmentURL = sql.NullString{String: attachmentInfo.URL, Valid: true}
+		msg.AttachmentName = sql.NullString{String: attachmentInfo.FileName, Valid: true}
+		msg.AttachmentMime = sql.NullString{String: attachmentInfo.MimeType, Valid: true}
+		msg.AttachmentSize = sql.NullInt64{Int64: attachmentInfo.Size, Valid: true}
 	}
 
 	if err := s.repo.CreateMessage(ctx, msg); err != nil {

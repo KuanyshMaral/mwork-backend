@@ -2,6 +2,7 @@ package upload
 
 import (
 	"database/sql"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -9,22 +10,27 @@ import (
 
 // StageRequest for POST /uploads/stage
 type StageRequest struct {
-	Category string `json:"category" validate:"required,oneof=avatar photo document"`
+	Category string     `json:"category"` // Deprecated: use Purpose
+	Purpose  string     `json:"purpose" validate:"omitempty,oneof=avatar photo document casting_cover portfolio chat_file gallery video audio"`
+	BatchID  *uuid.UUID `json:"batch_id,omitempty"`
 }
 
 // UploadResponse represents upload in API response
 type UploadResponse struct {
-	ID           uuid.UUID `json:"id"`
-	Category     string    `json:"category"`
-	Status       string    `json:"status"`
-	OriginalName string    `json:"original_name"`
-	MimeType     string    `json:"mime_type"`
-	Size         *int64    `json:"size,omitempty"`
-	URL          string    `json:"url"`
-	Width        int       `json:"width,omitempty"`
-	Height       int       `json:"height,omitempty"`
-	CreatedAt    string    `json:"created_at"`
-	ExpiresAt    *string   `json:"expires_at,omitempty"` // Only for staged files
+	ID           uuid.UUID         `json:"id"`
+	Category     string            `json:"category"` // Deprecated: use Purpose
+	Purpose      string            `json:"purpose"`
+	Status       string            `json:"status"`
+	OriginalName string            `json:"original_name"`
+	MimeType     string            `json:"mime_type"`
+	Size         *int64            `json:"size,omitempty"`
+	URL          string            `json:"url"`
+	Width        int               `json:"width,omitempty"`
+	Height       int               `json:"height,omitempty"`
+	BatchID      *uuid.UUID        `json:"batch_id,omitempty"`
+	Metadata     map[string]string `json:"metadata,omitempty"`
+	CreatedAt    string            `json:"created_at"`
+	ExpiresAt    *string           `json:"expires_at,omitempty"` // Only for staged files
 }
 
 // UploadResponseFromEntity converts entity to response
@@ -32,6 +38,7 @@ func UploadResponseFromEntity(u *Upload, stagingBaseURL string) *UploadResponse 
 	resp := &UploadResponse{
 		ID:           u.ID,
 		Category:     string(u.Category),
+		Purpose:      u.Purpose,
 		Status:       string(u.Status),
 		OriginalName: u.OriginalName,
 		MimeType:     u.MimeType,
@@ -40,6 +47,18 @@ func UploadResponseFromEntity(u *Upload, stagingBaseURL string) *UploadResponse 
 		Width:        u.Width,
 		Height:       u.Height,
 		CreatedAt:    u.CreatedAt.Format(time.RFC3339),
+	}
+
+	if u.BatchID.Valid {
+		batchID := u.BatchID.UUID
+		resp.BatchID = &batchID
+	}
+
+	if len(u.Metadata) > 0 {
+		var metadata map[string]string
+		if err := json.Unmarshal(u.Metadata, &metadata); err == nil {
+			resp.Metadata = metadata
+		}
 	}
 
 	if u.IsStaged() {

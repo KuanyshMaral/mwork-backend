@@ -146,7 +146,16 @@ func (r *repository) CreateMessage(ctx context.Context, msg *Message) error {
 }
 
 func (r *repository) GetMessageByID(ctx context.Context, id uuid.UUID) (*Message, error) {
-	query := `SELECT * FROM messages WHERE id = $1 AND deleted_at IS NULL`
+	query := `
+		SELECT m.*,
+			u.permanent_url as attachment_url,
+			u.original_name as attachment_name,
+			u.mime_type as attachment_mime,
+			u.size as attachment_size
+		FROM messages m
+		LEFT JOIN uploads u ON m.attachment_upload_id = u.id
+		WHERE m.id = $1 AND m.deleted_at IS NULL
+	`
 	var msg Message
 	err := r.db.GetContext(ctx, &msg, query, id)
 	if err != nil {
@@ -160,9 +169,15 @@ func (r *repository) GetMessageByID(ctx context.Context, id uuid.UUID) (*Message
 
 func (r *repository) ListMessagesByRoom(ctx context.Context, roomID uuid.UUID, limit, offset int) ([]*Message, error) {
 	query := `
-		SELECT * FROM messages 
-		WHERE room_id = $1 AND deleted_at IS NULL
-		ORDER BY created_at DESC
+		SELECT m.*,
+			u.permanent_url as attachment_url,
+			u.original_name as attachment_name,
+			u.mime_type as attachment_mime,
+			u.size as attachment_size
+		FROM messages m
+		LEFT JOIN uploads u ON m.attachment_upload_id = u.id
+		WHERE m.room_id = $1 AND m.deleted_at IS NULL
+		ORDER BY m.created_at DESC
 		LIMIT $2 OFFSET $3
 	`
 	var messages []*Message

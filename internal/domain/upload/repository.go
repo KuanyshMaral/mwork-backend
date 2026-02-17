@@ -21,6 +21,10 @@ type Repository interface {
 	ListByUser(ctx context.Context, userID uuid.UUID, category Category) ([]*Upload, error)
 	ListExpired(ctx context.Context, before time.Time) ([]*Upload, error)
 	DeleteExpired(ctx context.Context, before time.Time) (int, error)
+
+	// Batch operations
+	CreateBatch(ctx context.Context, uploads []*Upload) error
+	GetByBatchID(ctx context.Context, batchID uuid.UUID) ([]*Upload, error)
 }
 
 type repository struct {
@@ -32,6 +36,7 @@ const uploadSelectColumns = `
 	original_name, mime_type, size,
 	staging_key, permanent_key, permanent_url,
 	width, height, error_message,
+	purpose, batch_id, metadata,
 	created_at, committed_at, expires_at
 `
 
@@ -47,13 +52,15 @@ func (r *repository) Create(ctx context.Context, upload *Upload) error {
 			original_name, mime_type, size,
 			staging_key, permanent_key, permanent_url,
 			width, height, error_message,
+			purpose, batch_id, metadata,
 			created_at, committed_at, expires_at
 		) VALUES (
 			$1, $2, $3, $4,
 			$5, $6, $7,
 			$8, $9, $10,
 			$11, $12, $13,
-			$14, $15, $16
+			$14, $15, $16,
+			$17, $18, $19
 		)
 	`
 	_, err := r.db.ExecContext(ctx, query,
@@ -61,6 +68,7 @@ func (r *repository) Create(ctx context.Context, upload *Upload) error {
 		upload.OriginalName, upload.MimeType, upload.Size,
 		upload.StagingKey, upload.PermanentKey, upload.PermanentURL,
 		upload.Width, upload.Height, upload.ErrorMessage,
+		upload.Purpose, upload.BatchID, upload.Metadata,
 		upload.CreatedAt, upload.CommittedAt, upload.ExpiresAt,
 	)
 	return err
@@ -190,4 +198,64 @@ func (r *repository) DeleteExpired(ctx context.Context, before time.Time) (int, 
 	}
 	count, _ := result.RowsAffected()
 	return int(count), nil
+}
+
+// CreateBatch inserts multiple uploads in a single transaction
+func (r *repository) CreateBatch(ctx context.Context, uploads []*Upload) error {
+	if len(uploads) == 0 {
+		return nil
+	}
+
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	query := `
+		INSERT INTO uploads (
+			id, user_id, category, status,
+			original_name, mime_type, size,
+			staging_key, permanent_key, permanent_url,
+			width, height, error_message,
+			purpose, batch_id, metadata,
+			created_at, committed_at, expires_at
+		) VALUES (
+			$1, $2, $3, $4,
+			$5, $6, $7,
+			$8, $9, $10,
+			$11, $12, $13,
+			$14, $15, $16,
+			$17, $18, $19
+		)
+	`
+
+	for _, upload := range uploads {
+		_, err := tx.ExecContext(ctx, query,
+			upload.ID, upload.UserID, upload.Category, upload.Status,
+			upload.OriginalName, upload.MimeType, upload.Size,
+			upload.StagingKey, upload.PermanentKey, upload.PermanentURL,
+			upload.Width, upload.Height, upload.ErrorMessage,
+			upload.Purpose, upload.BatchID, upload.Metadata,
+			upload.CreatedAt, upload.CommittedAt, upload.ExpiresAt,
+		)
+		if err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
+}
+
+// GetByBatchID returns all uploads belonging to a batch
+func (r *repository) GetByBatchID(ctx context.Context, batchID uuid.UUID) ([]*Upload, error) {
+	query := `
+		SELECT ` + uploadSelectColumns + ` FROM uploads 
+		WHERE batch_id = $1 
+		AND status != 'deleted'
+		ORDER BY created_at ASC
+	`
+	var uploads []*Upload
+	err := r.db.SelectContext(ctx, &uploads, query, batchID)
+	return uploads, err
 }

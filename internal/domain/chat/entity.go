@@ -71,4 +71,10 @@ type Message struct {
 	ReadAt             sql.NullTime  `db:"read_at" json:"read_at,omitempty"`
 	CreatedAt          time.Time     `db:"created_at" json:"created_at"`
 	DeletedAt          sql.NullTime  `db:"deleted_at" json:"-"`
+
+	// ID-joined fields
+	AttachmentURL  sql.NullString `db:"attachment_url" json:"-"`
+	AttachmentName sql.NullString `db:"attachment_name" json:"-"`
+	AttachmentMime sql.NullString `db:"attachment_mime" json:"-"`
+	AttachmentSize sql.NullInt64  `db:"attachment_size" json:"-"`
 }

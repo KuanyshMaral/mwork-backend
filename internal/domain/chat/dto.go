@@ -74,7 +74,7 @@ type AttachmentInfo struct {
 
 // MessageResponseFromEntity converts entity to response
 func MessageResponseFromEntity(m *Message, currentUserID uuid.UUID) *MessageResponse {
-	return &MessageResponse{
+	resp := &MessageResponse{
 		ID:          m.ID,
 		RoomID:      m.RoomID,
 		SenderID:    m.SenderID,
@@ -84,6 +84,18 @@ func MessageResponseFromEntity(m *Message, currentUserID uuid.UUID) *MessageResp
 		IsMine:      m.SenderID == currentUserID,
 		CreatedAt:   m.CreatedAt.Format(time.RFC3339),
 	}
+
+	if m.AttachmentUploadID.Valid {
+		resp.Attachment = &AttachmentInfo{
+			UploadID: m.AttachmentUploadID.UUID,
+			URL:      m.AttachmentURL.String,
+			FileName: m.AttachmentName.String,
+			MimeType: m.AttachmentMime.String,
+			Size:     m.AttachmentSize.Int64,
+		}
+	}
+
+	return resp
 }
 
 // RoomResponseFromEntity will be updated in service layer to populate members
