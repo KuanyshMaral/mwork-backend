@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/mwork/mwork-api/internal/middleware"
+	"github.com/mwork/mwork-api/internal/pkg/errorhandler"
 	"github.com/mwork/mwork-api/internal/pkg/response"
 )
 
@@ -57,7 +58,7 @@ func (h *Handler) BlockUser(w http.ResponseWriter, r *http.Request) {
 
 	userID := middleware.GetUserID(r.Context())
 	if err := h.service.BlockUser(r.Context(), userID, targetUserID); err != nil {
-		response.InternalError(w)
+		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		return
 	}
 
@@ -83,7 +84,7 @@ func (h *Handler) UnblockUser(w http.ResponseWriter, r *http.Request) {
 
 	userID := middleware.GetUserID(r.Context())
 	if err := h.service.UnblockUser(r.Context(), userID, targetUserID); err != nil {
-		response.InternalError(w)
+		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		return
 	}
 
@@ -103,7 +104,7 @@ func (h *Handler) ListBlocked(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 	blocks, err := h.service.ListMyBlocks(r.Context(), userID)
 	if err != nil {
-		response.InternalError(w)
+		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		return
 	}
 
