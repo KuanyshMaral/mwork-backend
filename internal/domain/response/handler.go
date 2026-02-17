@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/mwork/mwork-api/internal/middleware"
+	"github.com/mwork/mwork-api/internal/pkg/errorhandler"
 	"github.com/mwork/mwork-api/internal/pkg/response"
 	"github.com/mwork/mwork-api/internal/pkg/validator"
 )
@@ -65,7 +66,7 @@ func (h *Handler) Apply(w http.ResponseWriter, r *http.Request) {
 	if h.limitChecker != nil {
 		count, err := h.service.CountMonthlyByUserID(r.Context(), userID)
 		if err != nil {
-			response.InternalError(w)
+			errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 			return
 		}
 
@@ -73,7 +74,7 @@ func (h *Handler) Apply(w http.ResponseWriter, r *http.Request) {
 			if middleware.WriteLimitExceeded(w, err) {
 				return
 			}
-			response.InternalError(w)
+			errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 			return
 		}
 	}
@@ -100,7 +101,7 @@ func (h *Handler) Apply(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, ErrCreditOperationFailed):
 			response.Error(w, http.StatusServiceUnavailable, "CREDIT_SERVICE_UNAVAILABLE", "Credit operation is temporarily unavailable")
 		default:
-			response.InternalError(w)
+			errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		}
 		return
 	}
@@ -151,7 +152,7 @@ func (h *Handler) ListByCasting(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, ErrNotCastingOwner):
 			response.Forbidden(w, "Only the casting owner can view responses")
 		default:
-			response.InternalError(w)
+			errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		}
 		return
 	}
@@ -213,7 +214,7 @@ func (h *Handler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, ErrCastingFullOrClosed):
 			response.Conflict(w, "Casting is full or closed")
 		default:
-			response.InternalError(w)
+			errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		}
 		return
 	}
@@ -255,7 +256,7 @@ func (h *Handler) ListMyApplications(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, ErrProfileRequired):
 			response.BadRequest(w, "You need to create a profile first")
 		default:
-			response.InternalError(w)
+			errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		}
 		return
 	}

@@ -13,6 +13,7 @@ import (
 	"github.com/mwork/mwork-api/internal/domain/profile"
 
 	"github.com/mwork/mwork-api/internal/middleware"
+	"github.com/mwork/mwork-api/internal/pkg/errorhandler"
 	"github.com/mwork/mwork-api/internal/pkg/response"
 )
 
@@ -104,7 +105,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 
 	exists, err := h.repo.HasReviewed(r.Context(), profileID, userID, castingID)
 	if err != nil {
-		response.InternalError(w)
+		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		return
 	}
 	if exists {
@@ -126,7 +127,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.repo.Create(r.Context(), review); err != nil {
-		response.InternalError(w)
+		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		return
 	}
 
@@ -173,13 +174,13 @@ func (h *Handler) ListByProfile(w http.ResponseWriter, r *http.Request) {
 
 	reviews, err := h.repo.GetByProfileID(r.Context(), profileID, limit, offset)
 	if err != nil {
-		response.InternalError(w)
+		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		return
 	}
 
 	total, err := h.repo.CountByProfileID(r.Context(), profileID)
 	if err != nil {
-		response.InternalError(w)
+		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		return
 	}
 
@@ -219,24 +220,24 @@ func (h *Handler) GetSummary(w http.ResponseWriter, r *http.Request) {
 
 	avg, err := h.repo.GetAverageRating(r.Context(), profileID)
 	if err != nil {
-		response.InternalError(w)
+		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		return
 	}
 	total, err := h.repo.CountByProfileID(r.Context(), profileID)
 	if err != nil {
-		response.InternalError(w)
+		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		return
 	}
 	dist, err := h.repo.GetRatingDistribution(r.Context(), profileID)
 	if err != nil {
-		response.InternalError(w)
+		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		return
 	}
 
 	// Get recent reviews
 	recent, err := h.repo.GetByProfileID(r.Context(), profileID, 3, 0)
 	if err != nil {
-		response.InternalError(w)
+		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		return
 	}
 	recentResp := make([]*ReviewResponse, len(recent))
@@ -289,7 +290,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.repo.Delete(r.Context(), reviewID); err != nil {
-		response.InternalError(w)
+		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		return
 	}
 

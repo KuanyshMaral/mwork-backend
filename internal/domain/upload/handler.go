@@ -16,6 +16,7 @@ import (
 	"github.com/lib/pq"
 
 	"github.com/mwork/mwork-api/internal/middleware"
+	"github.com/mwork/mwork-api/internal/pkg/errorhandler"
 	"github.com/mwork/mwork-api/internal/pkg/response"
 	"github.com/mwork/mwork-api/internal/pkg/storage"
 	"github.com/mwork/mwork-api/internal/pkg/validator"
@@ -138,7 +139,7 @@ func (h *Handler) Init(w http.ResponseWriter, r *http.Request) {
 		var err error
 		uploadURL, err = h.storage.GeneratePresignedPutURL(r.Context(), stagingKey, PresignExpiry, req.ContentType)
 		if err != nil {
-			response.Error(w, http.StatusBadGateway, "STORAGE_ERROR", "storage error")
+			errorhandler.HandleError(r.Context(), w, http.StatusBadGateway, "STORAGE_ERROR", "storage error", err)
 			return
 		}
 	}
@@ -176,6 +177,9 @@ func (h *Handler) Init(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		response.Error(w, http.StatusInternalServerError, "DB_ERROR", "failed to save upload")
+		if err != nil {
+			errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "DB_ERROR", "failed to save upload", err)
+		}
 		return
 	}
 
@@ -245,7 +249,7 @@ func (h *Handler) Confirm(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, ErrInvalidUploadSize):
 			response.Error(w, http.StatusUnprocessableEntity, "INVALID_FILE_SIZE", "invalid file size")
 		default:
-			response.Error(w, http.StatusBadGateway, "STORAGE_ERROR", "storage error")
+			errorhandler.HandleError(r.Context(), w, http.StatusBadGateway, "STORAGE_ERROR", "storage error", err)
 		}
 		return
 	}
@@ -350,7 +354,7 @@ func (h *Handler) Stage(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, ErrNotUploadOwner):
 			response.Forbidden(w, "Not upload owner")
 		default:
-			response.InternalError(w)
+			errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		}
 		return
 	}
@@ -395,7 +399,7 @@ func (h *Handler) Commit(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, ErrUploadExpired):
 			response.BadRequest(w, "Upload has expired, please upload again")
 		default:
-			response.InternalError(w)
+			errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		}
 		return
 	}
@@ -426,7 +430,7 @@ func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, ErrUploadNotFound):
 			response.NotFound(w, "Upload not found")
 		default:
-			response.InternalError(w)
+			errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		}
 		return
 	}
@@ -474,7 +478,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, ErrNotUploadOwner):
 			response.Forbidden(w, "Not upload owner")
 		default:
-			response.InternalError(w)
+			errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		}
 		return
 	}
@@ -502,7 +506,7 @@ func (h *Handler) ListMy(w http.ResponseWriter, r *http.Request) {
 
 	uploads, err := h.service.ListByUser(r.Context(), userID, category)
 	if err != nil {
-		response.InternalError(w)
+		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		return
 	}
 

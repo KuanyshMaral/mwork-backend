@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/mwork/mwork-api/internal/middleware"
+	"github.com/mwork/mwork-api/internal/pkg/errorhandler"
 	"github.com/mwork/mwork-api/internal/pkg/response"
 	"github.com/mwork/mwork-api/internal/pkg/validator"
 )
@@ -54,7 +55,7 @@ func (h *Handler) BlockUser(w http.ResponseWriter, r *http.Request) {
 		case ErrAlreadyBlocked:
 			response.BadRequest(w, "User already blocked")
 		default:
-			response.InternalError(w)
+			errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		}
 		return
 	}
@@ -90,7 +91,7 @@ func (h *Handler) UnblockUser(w http.ResponseWriter, r *http.Request) {
 		if err == ErrBlockNotFound {
 			response.NotFound(w, "Block not found")
 		} else {
-			response.InternalError(w)
+			errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		}
 		return
 	}
@@ -112,7 +113,7 @@ func (h *Handler) ListBlocks(w http.ResponseWriter, r *http.Request) {
 
 	blocks, err := h.service.ListBlocks(r.Context(), userID)
 	if err != nil {
-		response.InternalError(w)
+		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		return
 	}
 
@@ -152,7 +153,7 @@ func (h *Handler) CreateReport(w http.ResponseWriter, r *http.Request) {
 		case ErrReportNotFound:
 			response.NotFound(w, "Reported user not found")
 		default:
-			response.InternalError(w)
+			errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		}
 		return
 	}
@@ -173,7 +174,7 @@ func (h *Handler) ListMyReports(w http.ResponseWriter, r *http.Request) {
 
 	reports, err := h.service.ListMyReports(r.Context(), userID)
 	if err != nil {
-		response.InternalError(w)
+		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		return
 	}
 
@@ -206,7 +207,7 @@ func (h *Handler) ListReports(w http.ResponseWriter, r *http.Request) {
 
 	reports, err := h.service.ListReports(r.Context(), filter)
 	if err != nil {
-		response.InternalError(w)
+		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		return
 	}
 
@@ -257,7 +258,7 @@ func (h *Handler) ResolveReport(w http.ResponseWriter, r *http.Request) {
 		case ErrInvalidReportStatus:
 			response.BadRequest(w, "Invalid action")
 		default:
-			response.InternalError(w)
+			errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		}
 		return
 	}
