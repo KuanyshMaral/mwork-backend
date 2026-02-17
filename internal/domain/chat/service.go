@@ -40,12 +40,27 @@ func NewService(repo Repository, userRepo user.Repository, hub *Hub, blockChecke
 }
 
 // CreateOrGetRoom creates a room or returns existing one
-func (s *Service) CreateOrGetRoom(ctx context.Context, userID uuid.UUID, req *CreateRoomRequest) (*Room, error) {
-	if s.limitChecker != nil {
-		if err := s.limitChecker.CanUseChat(ctx, userID); err != nil {
-			return nil, err
+
+func (s *Service) canCreateRoom(ctx context.Context, userID uuid.UUID, req *CreateRoomRequest) error {
+	if req.CastingID != nil {
+		hasAccess, err := s.repo.HasCastingResponseAccess(ctx, *req.CastingID, userID, req.RecipientID)
+		if err != nil {
+			return err
+		}
+		if hasAccess {
+			return nil
 		}
 	}
+	if s.limitChecker != nil {
+		if err := s.limitChecker.CanUseChat(ctx, userID); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *Service) CreateOrGetRoom(ctx context.Context, userID uuid.UUID, req *CreateRoomRequest) (*Room, error) {
 
 	// Can't chat with yourself
 	if userID == req.RecipientID {
@@ -59,6 +74,10 @@ func (s *Service) CreateOrGetRoom(ctx context.Context, userID uuid.UUID, req *Cr
 	}
 	if (sender.Role == user.RoleEmployer || sender.Role == user.RoleAgency) && !sender.IsVerificationApproved() {
 		return nil, ErrEmployerNotVerified
+	}
+
+	if err := s.canCreateRoom(ctx, userID, req); err != nil {
+		return nil, err
 	}
 
 	// Check recipient exists

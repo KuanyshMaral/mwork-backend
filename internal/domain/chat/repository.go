@@ -18,6 +18,7 @@ type Repository interface {
 	ListRoomsByUser(ctx context.Context, userID uuid.UUID) ([]*Room, error)
 	UpdateRoomLastMessage(ctx context.Context, roomID uuid.UUID, preview string) error
 	DeleteRoom(ctx context.Context, id uuid.UUID) error
+	HasCastingResponseAccess(ctx context.Context, castingID, user1, user2 uuid.UUID) (bool, error)
 
 	// Message operations
 	CreateMessage(ctx context.Context, msg *Message) error
@@ -209,4 +210,28 @@ func (r *repository) DeleteRoom(ctx context.Context, id uuid.UUID) error {
 	// Delete the room
 	_, err = r.db.ExecContext(ctx, `DELETE FROM chat_rooms WHERE id = $1`, id)
 	return err
+}
+
+// HasCastingResponseAccess checks if users can access chat for a casting through a response-owner pair.
+func (r *repository) HasCastingResponseAccess(ctx context.Context, castingID, user1, user2 uuid.UUID) (bool, error) {
+	query := `
+		SELECT EXISTS (
+			SELECT 1
+			FROM castings c
+			JOIN casting_responses cr ON cr.casting_id = c.id
+			WHERE c.id = $1
+			  AND (
+				(cr.user_id = $2 AND c.user_id = $3)
+				OR
+				(cr.user_id = $3 AND c.user_id = $2)
+			  )
+		)
+	`
+
+	var exists bool
+	if err := r.db.GetContext(ctx, &exists, query, castingID, user1, user2); err != nil {
+		return false, err
+	}
+
+	return exists, nil
 }

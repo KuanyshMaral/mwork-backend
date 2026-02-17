@@ -474,7 +474,7 @@ func main() {
 
 		r.Route("/chat", func(r chi.Router) {
 			r.Use(authWithVerifiedEmailMiddleware)
-			r.With(chatLimitMiddleware).Post("/rooms", chatHandler.CreateRoom)
+			r.Post("/rooms", chatHandler.CreateRoom)
 			r.Get("/rooms", chatHandler.ListRooms)
 
 			r.Get("/rooms/{id}/messages", chatHandler.GetMessages)
