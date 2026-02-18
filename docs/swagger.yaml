@@ -322,14 +322,21 @@ definitions:
         type: string
       date_to:
         type: string
+      deadline_at:
+        type: string
       description:
+        type: string
+      event_datetime:
+        type: string
+      event_location:
         type: string
       id:
         type: string
       is_promoted:
         type: boolean
+      is_urgent:
+        type: boolean
       moderation_status:
-        description: 'Task 3: Added moderation status'
         type: string
       pay_max:
         type: number
@@ -341,8 +348,8 @@ definitions:
         type: string
       requirements:
         allOf:
-        - $ref: '#/definitions/internal_domain_casting.Requirements'
-        description: Requirements (from JSONB)
+        - $ref: '#/definitions/internal_domain_casting.RequirementsResponse'
+        description: Model requirements
       response_count:
         type: integer
       status:
@@ -353,26 +360,56 @@ definitions:
         type: string
       view_count:
         type: integer
+      work_type:
+        description: Work details
+        type: string
     type: object
   internal_domain_casting.CreateCastingRequest:
     properties:
       address:
         maxLength: 500
         type: string
+      age_max:
+        maximum: 100
+        minimum: 0
+        type: integer
+      age_min:
+        maximum: 100
+        minimum: 0
+        type: integer
       city:
         maxLength: 100
         minLength: 2
         type: string
+      clothing_sizes:
+        items:
+          type: string
+        type: array
       cover_image_url:
         type: string
       date_from:
         type: string
       date_to:
         type: string
+      deadline_at:
+        type: string
       description:
         maxLength: 5000
         minLength: 20
         type: string
+      event_datetime:
+        type: string
+      event_location:
+        maxLength: 500
+        type: string
+      height_max:
+        minimum: 0
+        type: integer
+      height_min:
+        minimum: 0
+        type: integer
+      is_urgent:
+        type: boolean
       pay_max:
         minimum: 0
         type: number
@@ -386,10 +423,28 @@ definitions:
         - negotiable
         - free
         type: string
-      requirements:
-        allOf:
-        - $ref: '#/definitions/internal_domain_casting.RequirementsRequest'
-        description: Requirements (stored as JSONB)
+      required_experience:
+        enum:
+        - none
+        - beginner
+        - medium
+        - professional
+        type: string
+      required_gender:
+        description: Model requirements
+        enum:
+        - male
+        - female
+        - other
+        type: string
+      required_languages:
+        items:
+          type: string
+        type: array
+      shoe_sizes:
+        items:
+          type: string
+        type: array
       status:
         enum:
         - draft
@@ -399,76 +454,101 @@ definitions:
         maxLength: 200
         minLength: 5
         type: string
+      weight_max:
+        minimum: 0
+        type: integer
+      weight_min:
+        minimum: 0
+        type: integer
+      work_type:
+        description: Work details
+        enum:
+        - one_time
+        - contract
+        - permanent
+        type: string
     required:
     - city
     - description
     - title
     type: object
-  internal_domain_casting.Requirements:
+  internal_domain_casting.RequirementsResponse:
     properties:
       age_max:
         type: integer
       age_min:
         type: integer
-      experience_required:
-        type: boolean
+      clothing_sizes:
+        items:
+          type: string
+        type: array
+      experience:
+        type: string
       gender:
         type: string
       height_max:
-        type: number
+        type: integer
       height_min:
-        type: number
+        type: integer
       languages:
         items:
           type: string
         type: array
-    type: object
-  internal_domain_casting.RequirementsRequest:
-    properties:
-      age_max:
-        minimum: 0
-        type: integer
-      age_min:
-        minimum: 0
-        type: integer
-      experience_required:
-        type: boolean
-      gender:
-        enum:
-        - male
-        - female
-        - other
-        type: string
-      height_max:
-        minimum: 0
-        type: number
-      height_min:
-        minimum: 0
-        type: number
-      languages:
+      shoe_sizes:
         items:
           type: string
         type: array
+      weight_max:
+        type: integer
+      weight_min:
+        type: integer
     type: object
   internal_domain_casting.UpdateCastingRequest:
     properties:
       address:
         maxLength: 500
         type: string
+      age_max:
+        maximum: 100
+        minimum: 0
+        type: integer
+      age_min:
+        maximum: 100
+        minimum: 0
+        type: integer
       city:
         maxLength: 100
         minLength: 2
         type: string
+      clothing_sizes:
+        items:
+          type: string
+        type: array
       cover_image_url:
         type: string
       date_from:
         type: string
       date_to:
         type: string
+      deadline_at:
+        type: string
       description:
         maxLength: 5000
         minLength: 20
         type: string
+      event_datetime:
+        type: string
+      event_location:
+        maxLength: 500
+        type: string
+      height_max:
+        minimum: 0
+        type: integer
+      height_min:
+        minimum: 0
+        type: integer
+      is_urgent:
+        type: boolean
       pay_max:
         minimum: 0
         type: number
@@ -482,11 +562,44 @@ definitions:
         - negotiable
         - free
         type: string
-      requirements:
-        $ref: '#/definitions/internal_domain_casting.RequirementsRequest'
+      required_experience:
+        enum:
+        - none
+        - beginner
+        - medium
+        - professional
+        type: string
+      required_gender:
+        description: Model requirements
+        enum:
+        - male
+        - female
+        - other
+        type: string
+      required_languages:
+        items:
+          type: string
+        type: array
+      shoe_sizes:
+        items:
+          type: string
+        type: array
       title:
         maxLength: 200
         minLength: 5
+        type: string
+      weight_max:
+        minimum: 0
+        type: integer
+      weight_min:
+        minimum: 0
+        type: integer
+      work_type:
+        description: Work details
+        enum:
+        - one_time
+        - contract
+        - permanent
         type: string
     type: object
   internal_domain_casting.UpdateStatusRequest:
@@ -3341,7 +3454,7 @@ paths:
       - application/json
       description: Создать новый кастинг. Доступно только для работодателей (Employer).
       parameters:
-      - description: Данные кастинга
+      - description: Данные кастинга (включая детальные требования к модели)
         in: body
         name: request
         required: true
@@ -3465,7 +3578,7 @@ paths:
         name: id
         required: true
         type: string
-      - description: Поля для обновления
+      - description: Поля для обновления (включая детальные требования)
         in: body
         name: request
         required: true
