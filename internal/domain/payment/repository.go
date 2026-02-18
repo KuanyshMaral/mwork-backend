@@ -21,6 +21,7 @@ type Repository interface {
 	GetByPromotionID(ctx context.Context, promotionID string) (*Payment, error)
 	CreateRobokassaPending(ctx context.Context, payment *Payment) error
 	GetByRobokassaInvIDForUpdate(ctx context.Context, tx *sqlx.Tx, invID int64) (*Payment, error)
+	GetByInvIDForUpdate(ctx context.Context, tx *sqlx.Tx, invID string) (*Payment, error)
 	MarkRobokassaSucceeded(ctx context.Context, tx *sqlx.Tx, paymentID uuid.UUID, callbackPayload map[string]string) error
 	CreatePaymentEvent(ctx context.Context, tx *sqlx.Tx, paymentID uuid.UUID, eventType string, payload any) error
 	BeginTxx(ctx context.Context) (*sqlx.Tx, error)
@@ -130,12 +131,16 @@ func (r *repository) GetByPromotionID(ctx context.Context, promotionID string) (
 
 func (r *repository) CreateRobokassaPending(ctx context.Context, payment *Payment) error {
 	query := `
-		INSERT INTO payments (id, user_id, subscription_id, amount, currency, status, provider, external_id, robokassa_inv_id, description, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())`
+		INSERT INTO payments (id, user_id, subscription_id, type, plan, inv_id, response_package, amount, currency, status, provider, external_id, robokassa_inv_id, description, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW())`
 	_, err := r.db.ExecContext(ctx, query,
 		payment.ID,
 		payment.UserID,
 		payment.SubscriptionID,
+		payment.Type,
+		payment.Plan,
+		payment.InvID,
+		payment.ResponsePackage,
 		payment.Amount,
 		payment.Currency,
 		payment.Status,
@@ -160,6 +165,19 @@ func (r *repository) GetByRobokassaInvIDForUpdate(ctx context.Context, tx *sqlx.
 	return &p, nil
 }
 
+func (r *repository) GetByInvIDForUpdate(ctx context.Context, tx *sqlx.Tx, invID string) (*Payment, error) {
+	query := `SELECT * FROM payments WHERE provider = 'robokassa' AND inv_id = $1 FOR UPDATE`
+	var p Payment
+	err := tx.GetContext(ctx, &p, query, invID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &p, nil
+}
+
 func (r *repository) MarkRobokassaSucceeded(ctx context.Context, tx *sqlx.Tx, paymentID uuid.UUID, callbackPayload map[string]string) error {
 	payloadJSON, err := json.Marshal(callbackPayload)
 	if err != nil {
@@ -167,7 +185,7 @@ func (r *repository) MarkRobokassaSucceeded(ctx context.Context, tx *sqlx.Tx, pa
 	}
 	query := `
 		UPDATE payments
-		SET status = 'completed', paid_at = NOW(), updated_at = NOW(), raw_callback_payload = $2
+		SET status = 'paid', paid_at = NOW(), updated_at = NOW(), raw_callback_payload = $2
 		WHERE id = $1`
 	_, err = tx.ExecContext(ctx, query, paymentID, payloadJSON)
 	return err

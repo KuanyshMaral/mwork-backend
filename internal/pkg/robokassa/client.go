@@ -16,7 +16,7 @@ type Config struct {
 	Password1     string        // Password #1 for payment initialization
 	Password2     string        // Password #2 for webhook verification (ResultURL)
 	TestMode      bool          // Test mode flag
-	HashAlgo      HashAlgorithm // Hash algorithm: MD5 or SHA256 (default: SHA256)
+	HashAlgo      HashAlgorithm // Hash algorithm: SHA256
 	Timeout       time.Duration
 }
 

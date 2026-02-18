@@ -28,6 +28,14 @@ type InitRobokassaRequest struct {
 	Description    string `json:"description"`
 }
 
+type CreateSubscriptionPaymentRequest struct {
+	Plan string `json:"plan"`
+}
+
+type CreateResponsePaymentRequest struct {
+	Package int `json:"package"`
+}
+
 // InitRobokassaPayment handles POST /payments/robokassa/init
 // @Summary Инициализация оплаты через Robokassa
 // @Description Создает новый платеж и возвращает URL для перенаправления на платежную форму Robokassa
@@ -87,14 +95,14 @@ func (h *Handler) InitRobokassaPayment(w http.ResponseWriter, r *http.Request) {
 // @Router /webhooks/robokassa/result [get]
 func (h *Handler) RobokassaResult(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		response.Error(w, http.StatusBadRequest, "BAD_REQUEST", "invalid form data")
+		http.Error(w, "invalid form data", http.StatusBadRequest)
 		return
 	}
 	outSum := r.Form.Get("OutSum")
 	invID := r.Form.Get("InvId")
 	signature := r.Form.Get("SignatureValue")
 	if outSum == "" || invID == "" || signature == "" {
-		response.Error(w, http.StatusBadRequest, "BAD_REQUEST", "required fields are missing")
+		http.Error(w, "required fields are missing", http.StatusBadRequest)
 		return
 	}
 
@@ -113,12 +121,42 @@ func (h *Handler) RobokassaResult(w http.ResponseWriter, r *http.Request) {
 	err := h.service.ProcessRobokassaResult(r.Context(), outSum, invID, signature, shp, raw)
 	if err != nil {
 		log.Warn().Err(err).Str("inv_id", invID).Msg("robokassa result rejected")
-		response.Error(w, http.StatusBadRequest, "BAD_REQUEST", "invalid callback")
+		http.Error(w, "invalid callback", http.StatusBadRequest)
 		return
 	}
 
 	w.Header().Set("Content-Type", "text/plain")
 	_, _ = w.Write([]byte(fmt.Sprintf("OK[%s]", invID)))
+}
+
+func (h *Handler) CreateRobokassaSubscriptionPayment(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+	var req CreateSubscriptionPaymentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.BadRequest(w, "invalid request body")
+		return
+	}
+	out, err := h.service.CreateSubscriptionPayment(r.Context(), userID, req.Plan)
+	if err != nil {
+		response.BadRequest(w, err.Error())
+		return
+	}
+	response.OK(w, out)
+}
+
+func (h *Handler) CreateRobokassaResponsePayment(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+	var req CreateResponsePaymentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.BadRequest(w, "invalid request body")
+		return
+	}
+	out, err := h.service.CreateResponsePayment(r.Context(), userID, req.Package)
+	if err != nil {
+		response.BadRequest(w, err.Error())
+		return
+	}
+	response.OK(w, out)
 }
 
 // RobokassaSuccess handles GET/POST /payments/robokassa/success
@@ -249,6 +287,8 @@ func (h *Handler) Routes(authMiddleware func(http.Handler) http.Handler) chi.Rou
 		r.Post("/robokassa/success", h.RobokassaSuccess)
 		r.Get("/robokassa/fail", h.RobokassaFail)
 		r.Post("/robokassa/fail", h.RobokassaFail)
+		r.Post("/robokassa/subscriptions", h.CreateRobokassaSubscriptionPayment)
+		r.Post("/robokassa/responses", h.CreateRobokassaResponsePayment)
 	})
 
 	return r
