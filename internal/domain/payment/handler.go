@@ -2,6 +2,7 @@ package payment
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 
+	"github.com/mwork/mwork-api/internal/config"
 	"github.com/mwork/mwork-api/internal/middleware"
 	"github.com/mwork/mwork-api/internal/pkg/response"
 )
@@ -17,6 +19,7 @@ import (
 // Handler handles payment HTTP requests
 type Handler struct {
 	service *Service
+	config  *config.Config
 }
 
 type InitRobokassaRequest struct {
@@ -115,7 +118,7 @@ func (h *Handler) RobokassaResult(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/plain")
-	_, _ = w.Write([]byte("OK" + invID))
+	_, _ = w.Write([]byte(fmt.Sprintf("OK[%s]", invID)))
 }
 
 // RobokassaSuccess handles GET/POST /payments/robokassa/success
@@ -128,7 +131,9 @@ func (h *Handler) RobokassaResult(w http.ResponseWriter, r *http.Request) {
 // @Router /payments/robokassa/success [get]
 // @Router /payments/robokassa/success [post]
 func (h *Handler) RobokassaSuccess(w http.ResponseWriter, r *http.Request) {
-	response.OK(w, map[string]string{"status": "processing", "message": "Оплата принята, проверяем статус"})
+	// Redirect to frontend success page
+	// HTTP 302 Found is appropriate for temporary redirect after POST/GET
+	http.Redirect(w, r, h.config.RobokassaFrontendSuccessURL, http.StatusFound)
 }
 
 // RobokassaFail handles GET/POST /payments/robokassa/fail
@@ -141,12 +146,16 @@ func (h *Handler) RobokassaSuccess(w http.ResponseWriter, r *http.Request) {
 // @Router /payments/robokassa/fail [get]
 // @Router /payments/robokassa/fail [post]
 func (h *Handler) RobokassaFail(w http.ResponseWriter, r *http.Request) {
-	response.OK(w, map[string]string{"status": "failed", "message": "Платеж отменен или не завершен"})
+	// Redirect to frontend fail page
+	http.Redirect(w, r, h.config.RobokassaFrontendFailURL, http.StatusFound)
 }
 
 // NewHandler creates payment handler
-func NewHandler(service *Service) *Handler {
-	return &Handler{service: service}
+func NewHandler(service *Service, cfg *config.Config) *Handler {
+	return &Handler{
+		service: service,
+		config:  cfg,
+	}
 }
 
 // GetHistory handles GET /payments

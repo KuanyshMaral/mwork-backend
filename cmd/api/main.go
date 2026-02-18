@@ -330,7 +330,7 @@ func main() {
 		FrontendURL: "http://localhost:3000",
 		BackendURL:  "http://localhost:8080",
 	})
-	paymentHandler := payment.NewHandler(paymentService)
+	paymentHandler := payment.NewHandler(paymentService, cfg)
 
 	dashboardHandler := dashboard.NewHandler(dashboardRepo, dashboardSvc)
 	promotionHandler := promotion.NewHandler(promotionRepo)

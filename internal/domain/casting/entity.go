@@ -2,11 +2,11 @@ package casting
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 // Status represents casting status (matches casting_status enum)
@@ -27,16 +27,24 @@ const (
 	ModerationRejected ModerationStatus = "rejected"
 )
 
-// Requirements stored as JSONB in DB
-type Requirements struct {
-	Gender             string   `json:"gender,omitempty"`
-	AgeMin             int      `json:"age_min,omitempty"`
-	AgeMax             int      `json:"age_max,omitempty"`
-	HeightMin          float64  `json:"height_min,omitempty"`
-	HeightMax          float64  `json:"height_max,omitempty"`
-	ExperienceRequired bool     `json:"experience_required,omitempty"`
-	Languages          []string `json:"languages,omitempty"`
-}
+// ExperienceLevel represents required experience level
+type ExperienceLevel string
+
+const (
+	ExperienceNone         ExperienceLevel = "none"
+	ExperienceBeginner     ExperienceLevel = "beginner"
+	ExperienceMedium       ExperienceLevel = "medium"
+	ExperienceProfessional ExperienceLevel = "professional"
+)
+
+// WorkType represents the type of work
+type WorkType string
+
+const (
+	WorkTypeOneTime   WorkType = "one_time"
+	WorkTypeContract  WorkType = "contract"
+	WorkTypePermanent WorkType = "permanent"
+)
 
 // Casting represents a job posting (matches actual castings table)
 type Casting struct {
@@ -67,14 +75,31 @@ type Casting struct {
 	// Cover image
 	CoverImageURL sql.NullString `db:"cover_image_url"`
 
-	// Requirements (JSONB)
-	Requirements json.RawMessage `db:"requirements"`
+	// Model requirements (dedicated columns from migration 000015)
+	RequiredGender     sql.NullString `db:"required_gender"`
+	AgeMin             sql.NullInt32  `db:"min_age"`
+	AgeMax             sql.NullInt32  `db:"max_age"`
+	HeightMin          sql.NullInt32  `db:"min_height"`
+	HeightMax          sql.NullInt32  `db:"max_height"`
+	WeightMin          sql.NullInt32  `db:"min_weight"`
+	WeightMax          sql.NullInt32  `db:"max_weight"`
+	RequiredExperience sql.NullString `db:"required_experience"`
+	RequiredLanguages  pq.StringArray `db:"required_languages"`
+	ClothingSizes      pq.StringArray `db:"clothing_sizes"`
+	ShoeSizes          pq.StringArray `db:"shoe_sizes"`
+
+	// Work details (from migration 000015)
+	WorkType      sql.NullString `db:"work_type"`
+	EventDatetime sql.NullTime   `db:"event_datetime"`
+	EventLocation sql.NullString `db:"event_location"`
+	DeadlineAt    sql.NullTime   `db:"deadline_at"`
+	IsUrgent      bool           `db:"is_urgent"`
 
 	// Status and promotion
 	Status     Status `db:"status"`
 	IsPromoted bool   `db:"is_promoted"`
 
-	// Task 3: Moderation fields
+	// Moderation fields
 	ModerationStatus ModerationStatus `db:"moderation_status"`
 
 	// Stats
@@ -117,20 +142,6 @@ func (c *Casting) GetPayRange() string {
 		return fmt.Sprintf("от %.0f ₸", c.PayMin.Float64)
 	}
 	return fmt.Sprintf("до %.0f ₸", c.PayMax.Float64)
-}
-
-// GetRequirements parses requirements JSON
-func (c *Casting) GetRequirements() Requirements {
-	var req Requirements
-	if c.Requirements != nil {
-		_ = json.Unmarshal(c.Requirements, &req)
-	}
-	return req
-}
-
-// SetRequirements serializes requirements to JSON
-func (c *Casting) SetRequirements(req Requirements) {
-	c.Requirements, _ = json.Marshal(req)
 }
 
 // IsFree returns true if casting has no payment

@@ -3,10 +3,10 @@ package casting
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 
 	"github.com/mwork/mwork-api/internal/domain/user"
 )
@@ -42,31 +42,16 @@ func validateCreateCastingRequest(req *CreateCastingRequest) ValidationErrors {
 	if req.PayMin != nil && req.PayMax != nil && *req.PayMin > *req.PayMax {
 		errs["pay_min"] = "pay_min must be <= pay_max"
 	}
-
-	if reqErrs := validateRequirementsRange(req.Requirements); reqErrs != nil {
-		for k, v := range reqErrs {
-			errs[k] = v
-		}
-	}
-
-	if len(errs) == 0 {
-		return nil
-	}
-	return errs
-}
-
-func validateRequirementsRange(req *RequirementsRequest) ValidationErrors {
-	if req == nil {
-		return nil
-	}
-
-	errs := ValidationErrors{}
 	if req.AgeMin != nil && req.AgeMax != nil && *req.AgeMin > *req.AgeMax {
-		errs["requirements.age_min"] = "requirements.age_min must be <= requirements.age_max"
+		errs["age_min"] = "age_min must be <= age_max"
 	}
 	if req.HeightMin != nil && req.HeightMax != nil && *req.HeightMin > *req.HeightMax {
-		errs["requirements.height_min"] = "requirements.height_min must be <= requirements.height_max"
+		errs["height_min"] = "height_min must be <= height_max"
 	}
+	if req.WeightMin != nil && req.WeightMax != nil && *req.WeightMin > *req.WeightMax {
+		errs["weight_min"] = "weight_min must be <= weight_max"
+	}
+
 	if len(errs) == 0 {
 		return nil
 	}
@@ -107,6 +92,96 @@ func parseRFC3339Field(value *string) (sql.NullTime, error) {
 	return sql.NullTime{Time: t, Valid: true}, nil
 }
 
+// applyRequirementsToCreate maps flat request fields to the Casting entity
+func applyRequirementsToCreate(casting *Casting, req *CreateCastingRequest) {
+	if req.RequiredGender != "" {
+		casting.RequiredGender = sql.NullString{String: req.RequiredGender, Valid: true}
+	}
+	if req.AgeMin != nil {
+		casting.AgeMin = sql.NullInt32{Int32: int32(*req.AgeMin), Valid: true}
+	}
+	if req.AgeMax != nil {
+		casting.AgeMax = sql.NullInt32{Int32: int32(*req.AgeMax), Valid: true}
+	}
+	if req.HeightMin != nil {
+		casting.HeightMin = sql.NullInt32{Int32: int32(*req.HeightMin), Valid: true}
+	}
+	if req.HeightMax != nil {
+		casting.HeightMax = sql.NullInt32{Int32: int32(*req.HeightMax), Valid: true}
+	}
+	if req.WeightMin != nil {
+		casting.WeightMin = sql.NullInt32{Int32: int32(*req.WeightMin), Valid: true}
+	}
+	if req.WeightMax != nil {
+		casting.WeightMax = sql.NullInt32{Int32: int32(*req.WeightMax), Valid: true}
+	}
+	if req.RequiredExperience != "" {
+		casting.RequiredExperience = sql.NullString{String: req.RequiredExperience, Valid: true}
+	}
+	if len(req.RequiredLanguages) > 0 {
+		casting.RequiredLanguages = pq.StringArray(req.RequiredLanguages)
+	}
+	if len(req.ClothingSizes) > 0 {
+		casting.ClothingSizes = pq.StringArray(req.ClothingSizes)
+	}
+	if len(req.ShoeSizes) > 0 {
+		casting.ShoeSizes = pq.StringArray(req.ShoeSizes)
+	}
+	if req.WorkType != "" {
+		casting.WorkType = sql.NullString{String: req.WorkType, Valid: true}
+	}
+	if req.EventLocation != "" {
+		casting.EventLocation = sql.NullString{String: req.EventLocation, Valid: true}
+	}
+	casting.IsUrgent = req.IsUrgent
+}
+
+// applyRequirementsToUpdate maps flat update request fields to the Casting entity
+func applyRequirementsToUpdate(casting *Casting, req *UpdateCastingRequest) {
+	if req.RequiredGender != "" {
+		casting.RequiredGender = sql.NullString{String: req.RequiredGender, Valid: true}
+	}
+	if req.AgeMin != nil {
+		casting.AgeMin = sql.NullInt32{Int32: int32(*req.AgeMin), Valid: true}
+	}
+	if req.AgeMax != nil {
+		casting.AgeMax = sql.NullInt32{Int32: int32(*req.AgeMax), Valid: true}
+	}
+	if req.HeightMin != nil {
+		casting.HeightMin = sql.NullInt32{Int32: int32(*req.HeightMin), Valid: true}
+	}
+	if req.HeightMax != nil {
+		casting.HeightMax = sql.NullInt32{Int32: int32(*req.HeightMax), Valid: true}
+	}
+	if req.WeightMin != nil {
+		casting.WeightMin = sql.NullInt32{Int32: int32(*req.WeightMin), Valid: true}
+	}
+	if req.WeightMax != nil {
+		casting.WeightMax = sql.NullInt32{Int32: int32(*req.WeightMax), Valid: true}
+	}
+	if req.RequiredExperience != "" {
+		casting.RequiredExperience = sql.NullString{String: req.RequiredExperience, Valid: true}
+	}
+	if req.RequiredLanguages != nil {
+		casting.RequiredLanguages = pq.StringArray(req.RequiredLanguages)
+	}
+	if req.ClothingSizes != nil {
+		casting.ClothingSizes = pq.StringArray(req.ClothingSizes)
+	}
+	if req.ShoeSizes != nil {
+		casting.ShoeSizes = pq.StringArray(req.ShoeSizes)
+	}
+	if req.WorkType != "" {
+		casting.WorkType = sql.NullString{String: req.WorkType, Valid: true}
+	}
+	if req.EventLocation != "" {
+		casting.EventLocation = sql.NullString{String: req.EventLocation, Valid: true}
+	}
+	if req.IsUrgent != nil {
+		casting.IsUrgent = *req.IsUrgent
+	}
+}
+
 // Create creates a new casting
 func (s *Service) Create(ctx context.Context, userID uuid.UUID, req *CreateCastingRequest) (*Casting, error) {
 	if verr := validateCreateCastingRequest(req); verr != nil {
@@ -123,6 +198,15 @@ func (s *Service) Create(ctx context.Context, userID uuid.UUID, req *CreateCasti
 	}
 	if dateFrom.Valid && dateTo.Valid && dateFrom.Time.After(dateTo.Time) {
 		return nil, ErrInvalidDateRange
+	}
+
+	eventDatetime, err := parseRFC3339Field(req.EventDatetime)
+	if err != nil {
+		return nil, ErrInvalidDateFromFormat
+	}
+	deadlineAt, err := parseRFC3339Field(req.DeadlineAt)
+	if err != nil {
+		return nil, ErrInvalidDateToFormat
 	}
 
 	// Check if user is employer
@@ -150,7 +234,7 @@ func (s *Service) Create(ctx context.Context, userID uuid.UUID, req *CreateCasti
 		Description:   req.Description,
 		City:          req.City,
 		PayType:       "negotiable",
-		Status:        StatusActive,
+		Status:        requestedStatus,
 		IsPromoted:    false,
 		ViewCount:     0,
 		ResponseCount: 0,
@@ -158,6 +242,8 @@ func (s *Service) Create(ctx context.Context, userID uuid.UUID, req *CreateCasti
 		UpdatedAt:     now,
 		DateFrom:      dateFrom,
 		DateTo:        dateTo,
+		EventDatetime: eventDatetime,
+		DeadlineAt:    deadlineAt,
 	}
 
 	if u.IsCompanyVerified() {
@@ -169,41 +255,21 @@ func (s *Service) Create(ctx context.Context, userID uuid.UUID, req *CreateCasti
 	if req.Address != "" {
 		casting.Address = sql.NullString{String: req.Address, Valid: true}
 	}
-
 	if req.PayType != "" {
 		casting.PayType = req.PayType
 	}
-
+	if req.PayMin != nil {
+		casting.PayMin = sql.NullFloat64{Float64: *req.PayMin, Valid: true}
+	}
+	if req.PayMax != nil {
+		casting.PayMax = sql.NullFloat64{Float64: *req.PayMax, Valid: true}
+	}
 	if req.CoverImageURL != "" {
 		casting.CoverImageURL = sql.NullString{String: req.CoverImageURL, Valid: true}
 	}
 
-	if req.Requirements != nil {
-		reqData := Requirements{
-			Gender:             req.Requirements.Gender,
-			ExperienceRequired: req.Requirements.ExperienceRequired,
-			Languages:          req.Requirements.Languages,
-		}
-		if req.Requirements.AgeMin != nil {
-			reqData.AgeMin = *req.Requirements.AgeMin
-		}
-		if req.Requirements.AgeMax != nil {
-			reqData.AgeMax = *req.Requirements.AgeMax
-		}
-		if req.Requirements.HeightMin != nil {
-			reqData.HeightMin = *req.Requirements.HeightMin
-		}
-		if req.Requirements.HeightMax != nil {
-			reqData.HeightMax = *req.Requirements.HeightMax
-		}
-		casting.Requirements, _ = json.Marshal(reqData)
-	} else {
-		casting.Requirements, _ = json.Marshal(Requirements{})
-	}
-
-	if req.Status != "" {
-		casting.Status = Status(req.Status)
-	}
+	// Apply requirements from flat fields
+	applyRequirementsToCreate(casting, req)
 
 	if err := s.repo.Create(ctx, casting); err != nil {
 		return nil, err
@@ -235,18 +301,28 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, re
 		return nil, ErrNotCastingOwner
 	}
 
+	// Validate pay range
+	newPayMin := casting.PayMin
+	newPayMax := casting.PayMax
 	if req.PayMin != nil {
-		casting.PayMin = sql.NullFloat64{Float64: *req.PayMin, Valid: true}
+		newPayMin = sql.NullFloat64{Float64: *req.PayMin, Valid: true}
 	}
 	if req.PayMax != nil {
-		casting.PayMax = sql.NullFloat64{Float64: *req.PayMax, Valid: true}
+		newPayMax = sql.NullFloat64{Float64: *req.PayMax, Valid: true}
 	}
-	if casting.PayMin.Valid && casting.PayMax.Valid && casting.PayMin.Float64 > casting.PayMax.Float64 {
+	if newPayMin.Valid && newPayMax.Valid && newPayMin.Float64 > newPayMax.Float64 {
 		return nil, ValidationErrors{"pay_min": "pay_min must be <= pay_max"}
 	}
 
-	if reqErrs := validateRequirementsRange(req.Requirements); reqErrs != nil {
-		return nil, reqErrs
+	// Validate requirements ranges
+	if req.AgeMin != nil && req.AgeMax != nil && *req.AgeMin > *req.AgeMax {
+		return nil, ValidationErrors{"age_min": "age_min must be <= age_max"}
+	}
+	if req.HeightMin != nil && req.HeightMax != nil && *req.HeightMin > *req.HeightMax {
+		return nil, ValidationErrors{"height_min": "height_min must be <= height_max"}
+	}
+	if req.WeightMin != nil && req.WeightMax != nil && *req.WeightMin > *req.WeightMax {
+		return nil, ValidationErrors{"weight_min": "weight_min must be <= weight_max"}
 	}
 
 	if req.DateFrom != nil {
@@ -267,6 +343,21 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, re
 		return nil, ErrInvalidDateRange
 	}
 
+	if req.EventDatetime != nil {
+		t, err := parseRFC3339Field(req.EventDatetime)
+		if err != nil {
+			return nil, ErrInvalidDateFromFormat
+		}
+		casting.EventDatetime = t
+	}
+	if req.DeadlineAt != nil {
+		t, err := parseRFC3339Field(req.DeadlineAt)
+		if err != nil {
+			return nil, ErrInvalidDateToFormat
+		}
+		casting.DeadlineAt = t
+	}
+
 	if req.Title != "" {
 		casting.Title = req.Title
 	}
@@ -279,12 +370,8 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, re
 	if req.Address != "" {
 		casting.Address = sql.NullString{String: req.Address, Valid: true}
 	}
-	if req.PayMin != nil {
-		casting.PayMin = sql.NullFloat64{Float64: *req.PayMin, Valid: true}
-	}
-	if req.PayMax != nil {
-		casting.PayMax = sql.NullFloat64{Float64: *req.PayMax, Valid: true}
-	}
+	casting.PayMin = newPayMin
+	casting.PayMax = newPayMax
 	if req.PayType != "" {
 		casting.PayType = req.PayType
 	}
@@ -292,26 +379,8 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, re
 		casting.CoverImageURL = sql.NullString{String: req.CoverImageURL, Valid: true}
 	}
 
-	if req.Requirements != nil {
-		reqData := Requirements{
-			Gender:             req.Requirements.Gender,
-			ExperienceRequired: req.Requirements.ExperienceRequired,
-			Languages:          req.Requirements.Languages,
-		}
-		if req.Requirements.AgeMin != nil {
-			reqData.AgeMin = *req.Requirements.AgeMin
-		}
-		if req.Requirements.AgeMax != nil {
-			reqData.AgeMax = *req.Requirements.AgeMax
-		}
-		if req.Requirements.HeightMin != nil {
-			reqData.HeightMin = *req.Requirements.HeightMin
-		}
-		if req.Requirements.HeightMax != nil {
-			reqData.HeightMax = *req.Requirements.HeightMax
-		}
-		casting.Requirements, _ = json.Marshal(reqData)
-	}
+	// Apply requirements from flat fields
+	applyRequirementsToUpdate(casting, req)
 
 	casting.UpdatedAt = time.Now()
 

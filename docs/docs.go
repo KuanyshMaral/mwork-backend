@@ -2195,7 +2195,7 @@ const docTemplate = `{
                 "summary": "Создать кастинг",
                 "parameters": [
                     {
-                        "description": "Данные кастинга",
+                        "description": "Данные кастинга (включая детальные требования к модели)",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -2455,7 +2455,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Поля для обновления",
+                        "description": "Поля для обновления (включая детальные требования)",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -9464,7 +9464,16 @@ const docTemplate = `{
                 "date_to": {
                     "type": "string"
                 },
+                "deadline_at": {
+                    "type": "string"
+                },
                 "description": {
+                    "type": "string"
+                },
+                "event_datetime": {
+                    "type": "string"
+                },
+                "event_location": {
                     "type": "string"
                 },
                 "id": {
@@ -9473,8 +9482,10 @@ const docTemplate = `{
                 "is_promoted": {
                     "type": "boolean"
                 },
+                "is_urgent": {
+                    "type": "boolean"
+                },
                 "moderation_status": {
-                    "description": "Task 3: Added moderation status",
                     "type": "string"
                 },
                 "pay_max": {
@@ -9490,10 +9501,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "requirements": {
-                    "description": "Requirements (from JSONB)",
+                    "description": "Model requirements",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/internal_domain_casting.Requirements"
+                            "$ref": "#/definitions/internal_domain_casting.RequirementsResponse"
                         }
                     ]
                 },
@@ -9511,6 +9522,10 @@ const docTemplate = `{
                 },
                 "view_count": {
                     "type": "integer"
+                },
+                "work_type": {
+                    "description": "Work details",
+                    "type": "string"
                 }
             }
         },
@@ -9526,10 +9541,26 @@ const docTemplate = `{
                     "type": "string",
                     "maxLength": 500
                 },
+                "age_max": {
+                    "type": "integer",
+                    "maximum": 100,
+                    "minimum": 0
+                },
+                "age_min": {
+                    "type": "integer",
+                    "maximum": 100,
+                    "minimum": 0
+                },
                 "city": {
                     "type": "string",
                     "maxLength": 100,
                     "minLength": 2
+                },
+                "clothing_sizes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "cover_image_url": {
                     "type": "string"
@@ -9540,10 +9571,31 @@ const docTemplate = `{
                 "date_to": {
                     "type": "string"
                 },
+                "deadline_at": {
+                    "type": "string"
+                },
                 "description": {
                     "type": "string",
                     "maxLength": 5000,
                     "minLength": 20
+                },
+                "event_datetime": {
+                    "type": "string"
+                },
+                "event_location": {
+                    "type": "string",
+                    "maxLength": 500
+                },
+                "height_max": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "height_min": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "is_urgent": {
+                    "type": "boolean"
                 },
                 "pay_max": {
                     "type": "number",
@@ -9562,13 +9614,35 @@ const docTemplate = `{
                         "free"
                     ]
                 },
-                "requirements": {
-                    "description": "Requirements (stored as JSONB)",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/internal_domain_casting.RequirementsRequest"
-                        }
+                "required_experience": {
+                    "type": "string",
+                    "enum": [
+                        "none",
+                        "beginner",
+                        "medium",
+                        "professional"
                     ]
+                },
+                "required_gender": {
+                    "description": "Model requirements",
+                    "type": "string",
+                    "enum": [
+                        "male",
+                        "female",
+                        "other"
+                    ]
+                },
+                "required_languages": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "shoe_sizes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "status": {
                     "type": "string",
@@ -9581,10 +9655,27 @@ const docTemplate = `{
                     "type": "string",
                     "maxLength": 200,
                     "minLength": 5
+                },
+                "weight_max": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "weight_min": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "work_type": {
+                    "description": "Work details",
+                    "type": "string",
+                    "enum": [
+                        "one_time",
+                        "contract",
+                        "permanent"
+                    ]
                 }
             }
         },
-        "internal_domain_casting.Requirements": {
+        "internal_domain_casting.RequirementsResponse": {
             "type": "object",
             "properties": {
                 "age_max": {
@@ -9593,61 +9684,41 @@ const docTemplate = `{
                 "age_min": {
                     "type": "integer"
                 },
-                "experience_required": {
-                    "type": "boolean"
+                "clothing_sizes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "experience": {
+                    "type": "string"
                 },
                 "gender": {
                     "type": "string"
                 },
                 "height_max": {
-                    "type": "number"
+                    "type": "integer"
                 },
                 "height_min": {
-                    "type": "number"
+                    "type": "integer"
                 },
                 "languages": {
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
-                }
-            }
-        },
-        "internal_domain_casting.RequirementsRequest": {
-            "type": "object",
-            "properties": {
-                "age_max": {
-                    "type": "integer",
-                    "minimum": 0
                 },
-                "age_min": {
-                    "type": "integer",
-                    "minimum": 0
-                },
-                "experience_required": {
-                    "type": "boolean"
-                },
-                "gender": {
-                    "type": "string",
-                    "enum": [
-                        "male",
-                        "female",
-                        "other"
-                    ]
-                },
-                "height_max": {
-                    "type": "number",
-                    "minimum": 0
-                },
-                "height_min": {
-                    "type": "number",
-                    "minimum": 0
-                },
-                "languages": {
+                "shoe_sizes": {
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
+                },
+                "weight_max": {
+                    "type": "integer"
+                },
+                "weight_min": {
+                    "type": "integer"
                 }
             }
         },
@@ -9658,10 +9729,26 @@ const docTemplate = `{
                     "type": "string",
                     "maxLength": 500
                 },
+                "age_max": {
+                    "type": "integer",
+                    "maximum": 100,
+                    "minimum": 0
+                },
+                "age_min": {
+                    "type": "integer",
+                    "maximum": 100,
+                    "minimum": 0
+                },
                 "city": {
                     "type": "string",
                     "maxLength": 100,
                     "minLength": 2
+                },
+                "clothing_sizes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "cover_image_url": {
                     "type": "string"
@@ -9672,10 +9759,31 @@ const docTemplate = `{
                 "date_to": {
                     "type": "string"
                 },
+                "deadline_at": {
+                    "type": "string"
+                },
                 "description": {
                     "type": "string",
                     "maxLength": 5000,
                     "minLength": 20
+                },
+                "event_datetime": {
+                    "type": "string"
+                },
+                "event_location": {
+                    "type": "string",
+                    "maxLength": 500
+                },
+                "height_max": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "height_min": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "is_urgent": {
+                    "type": "boolean"
                 },
                 "pay_max": {
                     "type": "number",
@@ -9694,13 +9802,57 @@ const docTemplate = `{
                         "free"
                     ]
                 },
-                "requirements": {
-                    "$ref": "#/definitions/internal_domain_casting.RequirementsRequest"
+                "required_experience": {
+                    "type": "string",
+                    "enum": [
+                        "none",
+                        "beginner",
+                        "medium",
+                        "professional"
+                    ]
+                },
+                "required_gender": {
+                    "description": "Model requirements",
+                    "type": "string",
+                    "enum": [
+                        "male",
+                        "female",
+                        "other"
+                    ]
+                },
+                "required_languages": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "shoe_sizes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "title": {
                     "type": "string",
                     "maxLength": 200,
                     "minLength": 5
+                },
+                "weight_max": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "weight_min": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "work_type": {
+                    "description": "Work details",
+                    "type": "string",
+                    "enum": [
+                        "one_time",
+                        "contract",
+                        "permanent"
+                    ]
                 }
             }
         },

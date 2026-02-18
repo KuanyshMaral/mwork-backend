@@ -48,18 +48,20 @@ type Config struct {
 	AllowLegacyRefresh     bool
 
 	// Robokassa Payment
-	PaymentMode            string
-	RobokassaMerchantLogin string
-	RobokassaPassword1     string
-	RobokassaPassword2     string
-	RobokassaTestPassword1 string
-	RobokassaTestPassword2 string
-	RobokassaIsTest        bool
-	RobokassaHashAlgo      string
-	RobokassaPaymentURL    string
-	RobokassaResultURL     string
-	RobokassaSuccessURL    string
-	RobokassaFailURL       string
+	PaymentMode                 string
+	RobokassaMerchantLogin      string
+	RobokassaPassword1          string
+	RobokassaPassword2          string
+	RobokassaTestPassword1      string
+	RobokassaTestPassword2      string
+	RobokassaIsTest             bool
+	RobokassaHashAlgo           string
+	RobokassaPaymentURL         string
+	RobokassaResultURL          string
+	RobokassaSuccessURL         string
+	RobokassaFailURL            string
+	RobokassaFrontendSuccessURL string
+	RobokassaFrontendFailURL    string
 
 	// PhotoStudio
 	PhotoStudioBaseURL        string
@@ -116,18 +118,20 @@ func Load() *Config {
 		AllowLegacyRefresh:     parseBool(getEnv("ALLOW_LEGACY_REFRESH", "false"), false),
 
 		// Robokassa Payment
-		PaymentMode:            getEnv("PAYMENT_MODE", "real"),
-		RobokassaMerchantLogin: getEnv("ROBOKASSA_MERCHANT_LOGIN", ""),
-		RobokassaPassword1:     getEnv("ROBOKASSA_PASSWORD_1", ""),
-		RobokassaPassword2:     getEnv("ROBOKASSA_PASSWORD_2", ""),
-		RobokassaTestPassword1: getEnv("ROBOKASSA_TEST_PASSWORD_1", ""),
-		RobokassaTestPassword2: getEnv("ROBOKASSA_TEST_PASSWORD_2", ""),
-		RobokassaIsTest:        parseBool(getEnv("ROBOKASSA_IS_TEST", "false"), false),
-		RobokassaHashAlgo:      getEnv("ROBOKASSA_HASH_ALGO", "MD5"),
-		RobokassaPaymentURL:    getEnv("ROBOKASSA_PAYMENT_URL", "https://auth.robokassa.kz/Merchant/Index.aspx"),
-		RobokassaResultURL:     getEnv("ROBOKASSA_RESULT_URL", "/webhooks/robokassa/result"),
-		RobokassaSuccessURL:    getEnv("ROBOKASSA_SUCCESS_URL", "/api/v1/payments/robokassa/success"),
-		RobokassaFailURL:       getEnv("ROBOKASSA_FAIL_URL", "/api/v1/payments/robokassa/fail"),
+		PaymentMode:                 getEnv("PAYMENT_MODE", "real"),
+		RobokassaMerchantLogin:      getEnv("ROBOKASSA_MERCHANT_LOGIN", ""),
+		RobokassaPassword1:          getEnv("ROBOKASSA_PASSWORD_1", ""),
+		RobokassaPassword2:          getEnv("ROBOKASSA_PASSWORD_2", ""),
+		RobokassaTestPassword1:      getEnv("ROBOKASSA_TEST_PASSWORD_1", ""),
+		RobokassaTestPassword2:      getEnv("ROBOKASSA_TEST_PASSWORD_2", ""),
+		RobokassaIsTest:             parseBool(getEnv("ROBOKASSA_IS_TEST", "false"), false),
+		RobokassaHashAlgo:           getEnv("ROBOKASSA_HASH_ALGO", "SHA256"),
+		RobokassaPaymentURL:         getEnv("ROBOKASSA_PAYMENT_URL", "https://auth.robokassa.kz/Merchant/Index.aspx"),
+		RobokassaResultURL:          getEnv("ROBOKASSA_RESULT_URL", "/webhooks/robokassa/result"),
+		RobokassaSuccessURL:         getEnv("ROBOKASSA_SUCCESS_URL", "/api/v1/payments/robokassa/success"),
+		RobokassaFailURL:            getEnv("ROBOKASSA_FAIL_URL", "/api/v1/payments/robokassa/fail"),
+		RobokassaFrontendSuccessURL: getEnv("ROBOKASSA_FRONTEND_SUCCESS_URL", "http://89.35.125.136/profile?payment=success"),
+		RobokassaFrontendFailURL:    getEnv("ROBOKASSA_FRONTEND_FAIL_URL", "http://89.35.125.136/payment-error"),
 
 		// PhotoStudio
 		PhotoStudioBaseURL:        getEnv("PHOTOSTUDIO_BASE_URL", ""),
