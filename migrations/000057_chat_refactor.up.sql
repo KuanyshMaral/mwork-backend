@@ -1,4 +1,5 @@
 -- 000057_chat_refactor.up.sql
+-- Force update: 2026-02-19 Correct Version (Chat)
 -- Refactor chat to support multiple room types (direct, casting, group)
 
 -- 1. Add room_type column to chat_rooms
