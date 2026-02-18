@@ -1,11 +1,11 @@
 -- 000057_chat_refactor.up.sql
--- Force update: 2026-02-19 Correct Version (Chat - Idempotent Fix)
+-- Force update: 2026-02-19 Correct Version (Chat - Idempotent Fix v2)
 -- Refactor chat to support multiple room types (direct, casting, group)
 
 -- 1. Add room_type column to chat_rooms
 ALTER TABLE chat_rooms ADD COLUMN IF NOT EXISTS room_type VARCHAR(10) NOT NULL DEFAULT 'direct';
 
--- Drop constraint if exists to avoid duplicate/error, then re-add
+-- Drop check constraint if exists, then re-add
 ALTER TABLE chat_rooms DROP CONSTRAINT IF EXISTS check_room_type;
 ALTER TABLE chat_rooms ADD CONSTRAINT check_room_type CHECK (room_type IN ('direct', 'casting', 'group'));
 
@@ -33,26 +33,34 @@ CREATE TABLE IF NOT EXISTS chat_room_members (
     CONSTRAINT unique_room_member UNIQUE (room_id, user_id)
 );
 
--- 4. Migrate existing participants to chat_room_members (Idempotent)
-INSERT INTO chat_room_members (room_id, user_id, role, joined_at)
-SELECT 
-    id as room_id,
-    participant1_id as user_id,
-    'member' as role,
-    created_at as joined_at
-FROM chat_rooms
-WHERE participant1_id IS NOT NULL
-ON CONFLICT DO NOTHING;
-
-INSERT INTO chat_room_members (room_id, user_id, role, joined_at)
-SELECT 
-    id as room_id,
-    participant2_id as user_id,
-    'member' as role,
-    created_at as joined_at
-FROM chat_rooms
-WHERE participant2_id IS NOT NULL
-ON CONFLICT DO NOTHING;
+-- 4. Migrate existing participants to chat_room_members (Safe Data Migration)
+-- Only attempt to select from participant columns if they exist
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='chat_rooms' AND column_name='participant1_id') THEN
+        INSERT INTO chat_room_members (room_id, user_id, role, joined_at)
+        SELECT 
+            id as room_id,
+            participant1_id as user_id,
+            'member' as role,
+            created_at as joined_at
+        FROM chat_rooms
+        WHERE participant1_id IS NOT NULL
+        ON CONFLICT DO NOTHING;
+    END IF;
+    
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='chat_rooms' AND column_name='participant2_id') THEN
+        INSERT INTO chat_room_members (room_id, user_id, role, joined_at)
+        SELECT 
+            id as room_id,
+            participant2_id as user_id,
+            'member' as role,
+            created_at as joined_at
+        FROM chat_rooms
+        WHERE participant2_id IS NOT NULL
+        ON CONFLICT DO NOTHING;
+    END IF;
+END $$;
 
 -- 5. Add attachment support to messages
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS attachment_upload_id UUID;
