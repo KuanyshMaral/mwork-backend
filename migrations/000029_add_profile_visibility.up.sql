@@ -1,11 +1,11 @@
 -- 000029_add_profile_visibility.up.sql
 
--- Добавляем колонку для видимости профиля
-ALTER TABLE profiles ADD COLUMN IF NOT EXISTS visibility VARCHAR(20) DEFAULT 'public';
+-- Add visibility column to model_profiles
+ALTER TABLE model_profiles ADD COLUMN IF NOT EXISTS visibility VARCHAR(20) DEFAULT 'public';
 
--- Добавляем проверку на допустимые значения для видимости
-ALTER TABLE profiles ADD CONSTRAINT profiles_visibility_check
+-- Add check constraint for allowed visibility values
+ALTER TABLE model_profiles ADD CONSTRAINT model_profiles_visibility_check
     CHECK (visibility IN ('public', 'link_only', 'hidden'));
 
--- Добавляем комментарий к колонке
-COMMENT ON COLUMN profiles.visibility IS 'Profile visibility: public, link_only, or hidden';
+-- Add comment to column
+COMMENT ON COLUMN model_profiles.visibility IS 'Profile visibility: public, link_only, or hidden';

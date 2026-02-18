@@ -3,7 +3,7 @@
 -- Создаем таблицу для опыта работы моделей
 CREATE TABLE IF NOT EXISTS work_experiences (
                                                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                                                profile_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+                                                profile_id UUID NOT NULL REFERENCES model_profiles(id) ON DELETE CASCADE,
                                                 title VARCHAR(200) NOT NULL,
                                                 company VARCHAR(200),
                                                 role VARCHAR(100),
