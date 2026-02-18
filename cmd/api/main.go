@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -33,6 +34,7 @@ import (
 	"github.com/mwork/mwork-api/internal/domain/photostudio_booking"
 	"github.com/mwork/mwork-api/internal/domain/profile"
 	"github.com/mwork/mwork-api/internal/domain/promotion"
+	"github.com/mwork/mwork-api/internal/domain/relationships"
 	"github.com/mwork/mwork-api/internal/domain/response"
 	"github.com/mwork/mwork-api/internal/domain/review"
 	"github.com/mwork/mwork-api/internal/domain/subscription"
@@ -49,7 +51,6 @@ import (
 	pkgresponse "github.com/mwork/mwork-api/internal/pkg/response"
 	"github.com/mwork/mwork-api/internal/pkg/robokassa"
 	"github.com/mwork/mwork-api/internal/pkg/storage"
-	"github.com/mwork/mwork-api/internal/pkg/upload"
 
 	_ "github.com/mwork/mwork-api/docs"
 	httpSwagger "github.com/swaggo/http-swagger"
@@ -98,15 +99,6 @@ func main() {
 		FromName:  cfg.SendGridFromName,
 	})
 	defer emailService.Close()
-
-	// Legacy upload service used by photo module (as in your current main)
-	uploadSvc := upload.NewService(&upload.Config{
-		AccountID:       cfg.R2AccountID,
-		AccessKeyID:     cfg.R2AccessKeyID,
-		AccessKeySecret: cfg.R2AccessKeySecret,
-		BucketName:      cfg.R2BucketName,
-		PublicURL:       cfg.R2PublicURL,
-	})
 
 	// ---------- Repositories ----------
 	userRepo := user.NewRepository(db)
@@ -167,7 +159,11 @@ func main() {
 	}
 
 	uploadRepo := uploadDomain.NewRepository(db)
-	uploadService := uploadDomain.NewService(uploadRepo, uploadFileStorage, uploadCloudStorage, filesBaseURL)
+	uploadService := uploadDomain.NewServiceWithConfig(uploadRepo, uploadFileStorage, uploadCloudStorage, filesBaseURL, uploadDomain.Config{
+		MaxUploadSize: int64(cfg.UploadMaxMB) * 1024 * 1024,
+		StagingTTL:    time.Duration(cfg.UploadStagingHours) * time.Hour,
+		PresignExpiry: time.Duration(cfg.UploadPresignMin) * time.Minute,
+	})
 	uploadHandler := uploadDomain.NewHandler(uploadService, filesBaseURL, uploadStorage, uploadRepo, proxyUploadMode)
 
 	// ---------- WebSocket hub ----------
@@ -192,8 +188,10 @@ func main() {
 	profileService := profile.NewService(modelRepo, employerRepo, adminProfRepo, userRepo)
 	castingService := casting.NewService(castingRepo, userRepo)
 	responseService := response.NewService(responseRepo, castingRepo, modelRepo, employerRepo)
-	photoService := photo.NewService(photoRepo, modelRepo, uploadSvc)
+	photoService := photo.NewService(photoRepo, modelRepo, uploadService)
 	moderationService := moderation.NewService(moderationRepo, userRepo)
+	relationshipsRepo := relationships.NewRepository(db)
+	relationshipsService := relationships.NewService(relationshipsRepo)
 	var chatService *chat.Service
 	notificationService := notification.NewService(notificationRepo)
 	subscriptionService := subscription.NewService(subscriptionRepo, nil, nil, nil, nil)
@@ -201,6 +199,18 @@ func main() {
 	walletService := wallet.NewService(walletRepo)
 
 	// ---------- Adapters ----------
+	// AccessChecker: composite adapter for chat access (checks both bans and blocks)
+	accessChecker := &chatAccessChecker{
+		moderationService:    moderationService,
+		relationshipsService: relationshipsService,
+	}
+
+	// UploadResolver: adapter for resolving upload details
+	uploadResolver := &chatUploadResolver{
+		uploadService: uploadService,
+		baseURL:       filesBaseURL,
+	}
+
 	// Adapter for auth model profile repository
 	authModelRepo := &authModelProfileAdapter{repo: modelRepo}
 
@@ -260,7 +270,7 @@ func main() {
 	// Adapter for subscription payment service (must use configured paymentService instance)
 	subscriptionPaymentService := &subscriptionPaymentAdapter{service: paymentService}
 	limitChecker := subscription.NewLimitChecker(subscriptionService)
-	chatService = chat.NewService(chatRepo, userRepo, chatHub, moderationService, limitChecker)
+	chatService = chat.NewService(chatRepo, userRepo, chatHub, accessChecker, limitChecker, uploadResolver)
 
 	// Adapter for chat service to response service
 	chatServiceAdapter := &chatServiceAdapter{service: chatService}
@@ -299,8 +309,17 @@ func main() {
 	experienceHandler := experience.NewHandler(experienceRepo, modelRepo)
 	responseHandler := response.NewHandler(responseService, limitChecker)
 	photoHandler := photo.NewHandler(photoService)
-	chatHandler := chat.NewHandler(chatService, chatHub, redis, cfg.AllowedOrigins)
+	chatProfileFetcher := &chatProfileFetcher{
+		userRepo:       userRepo,
+		profileService: profileService,
+	}
+	chatHandler := chat.NewHandler(chatService, chatHub, redis, cfg.AllowedOrigins, chatProfileFetcher)
 	moderationHandler := moderation.NewHandler(moderationService)
+	relationshipProfileFetcher := &relationshipProfileFetcher{
+		userRepo:       userRepo,
+		profileService: profileService,
+	}
+	relationshipHandler := relationships.NewHandler(relationshipsService, relationshipProfileFetcher)
 	notificationHandler := notification.NewHandler(notificationService)
 
 	prefsRepo := notification.NewPreferencesRepository(db)
@@ -474,15 +493,22 @@ func main() {
 
 		r.Route("/chat", func(r chi.Router) {
 			r.Use(authWithVerifiedEmailMiddleware)
-			r.With(chatLimitMiddleware).Post("/rooms", chatHandler.CreateRoom)
+			r.Post("/rooms", chatHandler.CreateRoom)
 			r.Get("/rooms", chatHandler.ListRooms)
 
 			r.Get("/rooms/{id}/messages", chatHandler.GetMessages)
 			r.With(chatLimitMiddleware).Post("/rooms/{id}/messages", chatHandler.SendMessage)
 			r.Post("/rooms/{id}/read", chatHandler.MarkAsRead)
 
+			// Member management
+			r.Get("/rooms/{id}/members", chatHandler.GetMembers)
+			r.Post("/rooms/{id}/members", chatHandler.AddMember)
+			r.Delete("/rooms/{id}/members/{userId}", chatHandler.RemoveMember)
+			r.Post("/rooms/{id}/leave", chatHandler.LeaveRoom)
+
 			r.Get("/unread", chatHandler.GetUnreadCount)
 		})
+		r.Mount("/", relationshipHandler.Routes(authWithVerifiedEmailMiddleware))
 		r.Mount("/moderation", moderationHandler.Routes(authWithVerifiedEmailMiddleware))
 		r.Mount("/notifications", notificationHandler.Routes(authWithVerifiedEmailMiddleware))
 		r.Mount("/notifications/preferences", preferencesHandler.Routes(authWithVerifiedEmailMiddleware))
@@ -623,9 +649,13 @@ type chatServiceAdapter struct {
 func (a *chatServiceAdapter) CreateOrGetRoom(ctx context.Context, userID uuid.UUID, req *response.ChatRoomRequest) (*response.ChatRoom, error) {
 	// Convert response.ChatRoomRequest to chat.CreateRoomRequest
 	chatReq := &chat.CreateRoomRequest{
-		RecipientID: req.RecipientID,
+		RecipientID: &req.RecipientID, // Fix: take address
 		CastingID:   req.CastingID,
 		Message:     req.Message,
+		RoomType:    "direct", // Assume direct for response-casting flow
+	}
+	if req.CastingID != nil {
+		chatReq.RoomType = "casting"
 	}
 
 	// Call the actual chat service
@@ -634,11 +664,27 @@ func (a *chatServiceAdapter) CreateOrGetRoom(ctx context.Context, userID uuid.UU
 		return nil, err
 	}
 
+	// Fetch members to populate legacy fields
+	members, err := a.service.GetMembers(ctx, userID, room.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Map members (legacy support logic)
+	p1 := uuid.Nil
+	p2 := uuid.Nil
+	if len(members) > 0 {
+		p1 = members[0].UserID
+	}
+	if len(members) > 1 {
+		p2 = members[1].UserID
+	}
+
 	// Convert chat.Room to response.ChatRoom
 	return &response.ChatRoom{
 		ID:             room.ID,
-		Participant1ID: room.Participant1ID,
-		Participant2ID: room.Participant2ID,
+		Participant1ID: p1,
+		Participant2ID: p2,
 	}, nil
 }
 
@@ -826,4 +872,181 @@ type leadEmployerProfileAdapter struct{ repo profile.EmployerRepository }
 
 func (a *leadEmployerProfileAdapter) Create(ctx context.Context, p *lead.EmployerProfile) error {
 	return a.repo.Create(ctx, &profile.EmployerProfile{ID: p.ID, UserID: p.UserID, CompanyName: p.CompanyName, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt})
+}
+
+// Chat adapters
+
+type chatAccessChecker struct {
+	moderationService    *moderation.Service
+	relationshipsService *relationships.Service
+}
+
+func (c *chatAccessChecker) CanCommunicate(ctx context.Context, user1, user2 uuid.UUID) error {
+	// Check if either user is banned
+	if err := c.moderationService.IsUserBanned(ctx, user1); err != nil {
+		return err
+	}
+	if err := c.moderationService.IsUserBanned(ctx, user2); err != nil {
+		return err
+	}
+
+	// Check if either has blocked the other
+	blocked, err := c.relationshipsService.HasBlocked(ctx, user1, user2)
+	if err != nil {
+		return err
+	}
+	if blocked {
+		return chat.ErrUserBlocked
+	}
+
+	blocked, err = c.relationshipsService.HasBlocked(ctx, user2, user1)
+	if err != nil {
+		return err
+	}
+	if blocked {
+		return chat.ErrUserBlocked
+	}
+
+	return nil
+}
+
+type chatUploadResolver struct {
+	uploadService *uploadDomain.Service
+	baseURL       string
+}
+
+func (c *chatUploadResolver) IsCommitted(ctx context.Context, uploadID uuid.UUID) (bool, error) {
+	upload, err := c.uploadService.GetByID(ctx, uploadID)
+	if err != nil {
+		return false, err
+	}
+	return upload.IsCommitted(), nil
+}
+
+func (c *chatUploadResolver) GetUploadURL(ctx context.Context, uploadID uuid.UUID) (string, error) {
+	upload, err := c.uploadService.GetByID(ctx, uploadID)
+	if err != nil {
+		return "", err
+	}
+	return upload.GetURL(c.baseURL), nil
+}
+
+func (c *chatUploadResolver) CommitUpload(ctx context.Context, uploadID, userID uuid.UUID) (*chat.AttachmentInfo, error) {
+	up, err := c.uploadService.Confirm(ctx, uploadID, userID)
+	if err != nil {
+		return nil, err
+	}
+	return &chat.AttachmentInfo{
+		UploadID: up.ID,
+		URL:      up.PermanentURL,
+		FileName: up.OriginalName,
+		MimeType: up.MimeType,
+		Size:     up.Size.Int64,
+	}, nil
+}
+
+type chatProfileFetcher struct {
+	userRepo       user.Repository
+	profileService *profile.Service
+}
+
+func (f *chatProfileFetcher) GetParticipantInfo(ctx context.Context, userID uuid.UUID) (*chat.ParticipantInfo, error) {
+	u, err := f.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if u == nil {
+		return &chat.ParticipantInfo{
+			ID:        userID,
+			FirstName: "Deleted",
+			LastName:  "User",
+		}, nil
+	}
+
+	info := &chat.ParticipantInfo{
+		ID: userID,
+	}
+
+	if u.IsModel() {
+		prof, _ := f.profileService.GetModelProfileByUserID(ctx, userID)
+		if prof != nil && prof.Name.Valid {
+			// Split name for display
+			parts := strings.SplitN(prof.Name.String, " ", 2)
+			info.FirstName = parts[0]
+			if len(parts) > 1 {
+				info.LastName = parts[1]
+			}
+		}
+	} else if u.IsEmployer() {
+		prof, _ := f.profileService.GetEmployerProfileByUserID(ctx, userID)
+		if prof != nil {
+			info.FirstName = prof.CompanyName
+			if prof.ContactPerson.Valid {
+				info.LastName = "(" + prof.ContactPerson.String + ")"
+			}
+		}
+	} else if u.Role == user.RoleAdmin {
+		prof, _ := f.profileService.GetAdminProfileByUserID(ctx, userID)
+		if prof != nil {
+			if prof.Name.Valid {
+				info.FirstName = prof.Name.String
+			}
+			if prof.AvatarURL.Valid {
+				info.AvatarURL = &prof.AvatarURL.String
+			}
+		}
+	}
+
+	if info.FirstName == "" {
+		info.FirstName = u.Email
+	}
+
+	return info, nil
+}
+
+type relationshipProfileFetcher struct {
+	userRepo       user.Repository
+	profileService *profile.Service
+}
+
+func (f *relationshipProfileFetcher) GetUserProfile(ctx context.Context, userID uuid.UUID) (*relationships.UserProfile, error) {
+	u, err := f.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if u == nil {
+		return &relationships.UserProfile{
+			ID:        userID,
+			FirstName: "Unknown",
+		}, nil
+	}
+
+	prof := &relationships.UserProfile{
+		ID: userID,
+	}
+
+	if u.IsModel() {
+		modelProf, _ := f.profileService.GetModelProfileByUserID(ctx, userID)
+		if modelProf != nil && modelProf.Name.Valid {
+			parts := strings.SplitN(modelProf.Name.String, " ", 2)
+			prof.FirstName = parts[0]
+			if len(parts) > 1 {
+				prof.LastName = parts[1]
+			}
+		}
+	} else if u.IsEmployer() {
+		employerProf, _ := f.profileService.GetEmployerProfileByUserID(ctx, userID)
+		if employerProf != nil {
+			prof.FirstName = employerProf.CompanyName
+			if employerProf.ContactPerson.Valid {
+				prof.LastName = employerProf.ContactPerson.String
+			}
+		}
+	}
+
+	if prof.FirstName == "" {
+		prof.FirstName = u.Email
+	}
+
+	return prof, nil
 }

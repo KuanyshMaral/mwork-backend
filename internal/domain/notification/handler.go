@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/mwork/mwork-api/internal/middleware"
+	"github.com/mwork/mwork-api/internal/pkg/errorhandler"
 	"github.com/mwork/mwork-api/internal/pkg/response"
 )
 
@@ -49,7 +50,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 
 	notifications, err := h.service.List(r.Context(), userID, limit, offset)
 	if err != nil {
-		response.InternalError(w)
+		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		return
 	}
 
@@ -91,7 +92,7 @@ func (h *Handler) MarkAsRead(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.service.MarkAsRead(r.Context(), id); err != nil {
-		response.InternalError(w)
+		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		return
 	}
 
@@ -110,7 +111,7 @@ func (h *Handler) MarkAllAsRead(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 
 	if err := h.service.MarkAllAsRead(r.Context(), userID); err != nil {
-		response.InternalError(w)
+		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		return
 	}
 

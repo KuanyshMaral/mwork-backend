@@ -7,22 +7,22 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/mwork/mwork-api/internal/domain/profile"
-	"github.com/mwork/mwork-api/internal/pkg/upload"
+	uploadDomain "github.com/mwork/mwork-api/internal/domain/upload"
 )
 
 // Service handles photo business logic
 type Service struct {
-	repo      Repository
-	modelRepo profile.ModelRepository
-	uploadSvc *upload.Service
+	repo          Repository
+	modelRepo     profile.ModelRepository
+	uploadService *uploadDomain.Service
 }
 
 // NewService creates photo service
-func NewService(repo Repository, modelRepo profile.ModelRepository, uploadSvc *upload.Service) *Service {
+func NewService(repo Repository, modelRepo profile.ModelRepository, uploadService *uploadDomain.Service) *Service {
 	return &Service{
-		repo:      repo,
-		modelRepo: modelRepo,
-		uploadSvc: uploadSvc,
+		repo:          repo,
+		modelRepo:     modelRepo,
+		uploadService: uploadService,
 	}
 }
 
@@ -30,6 +30,7 @@ func NewService(repo Repository, modelRepo profile.ModelRepository, uploadSvc *u
 const FreeTierPhotoLimit = 5
 
 // GeneratePresignedURL creates presigned URL for direct upload
+// DEPRECATED: Use /files/init (purpose=portfolio) instead
 func (s *Service) GeneratePresignedURL(ctx context.Context, userID uuid.UUID, req *PresignRequest) (*PresignResponse, error) {
 	// Get user's model profile
 	prof, err := s.modelRepo.GetByUserID(ctx, userID)
@@ -44,17 +45,17 @@ func (s *Service) GeneratePresignedURL(ctx context.Context, userID uuid.UUID, re
 		return nil, ErrPhotoLimitReached
 	}
 
-	// Generate presigned URL
-	result, err := s.uploadSvc.GeneratePresignedURL(ctx, userID, req.Filename, req.ContentType, req.Size)
+	// Delegate to new upload service - Stage a multipart upload
+	upload, err := s.uploadService.Stage(ctx, userID, uploadDomain.CategoryPhoto, req.Filename, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	return &PresignResponse{
-		UploadURL: result.UploadURL,
-		Key:       result.Key,
-		PublicURL: result.PublicURL,
-		ExpiresAt: result.ExpiresAt,
+		UploadURL: upload.GetURL(""),
+		Key:       upload.ID.String(), // Return upload_id as "key" for backward compatibility
+		PublicURL: upload.PermanentURL,
+		ExpiresAt: upload.ExpiresAt,
 	}, nil
 }
 
@@ -66,14 +67,35 @@ func (s *Service) ConfirmUpload(ctx context.Context, userID uuid.UUID, req *Conf
 		return nil, ErrNoProfileFound
 	}
 
-	// Verify file exists in R2
-	metadata, err := s.uploadSvc.VerifyUpload(ctx, req.Key)
+	// Check photo limit (for Free tier)
+	count, _ := s.repo.CountByProfile(ctx, prof.ID)
+	if count >= FreeTierPhotoLimit {
+		// TODO: Check subscription for Pro tier
+		return nil, ErrPhotoLimitReached
+	}
+
+	// Parse upload ID
+	uploadID, err := uuid.Parse(req.UploadID)
 	if err != nil {
 		return nil, ErrUploadNotVerified
 	}
 
-	// Check if already registered (idempotency)
-	existing, _ := s.repo.GetByKey(ctx, req.Key)
+	// Get and verify upload from new upload service
+	upload, err := s.uploadService.GetByIDForUser(ctx, uploadID, userID)
+	if err != nil {
+		return nil, ErrUploadNotVerified
+	}
+
+	// Ensure upload is committed
+	if upload.Status != uploadDomain.StatusCommitted {
+		upload, err = s.uploadService.Confirm(ctx, uploadID, userID)
+		if err != nil {
+			return nil, ErrUploadNotVerified
+		}
+	}
+
+	// Check if already registered (idempotency) using upload_id
+	existing, _ := s.repo.GetByUploadID(ctx, uploadID)
 	if existing != nil {
 		return existing, nil
 	}
@@ -88,11 +110,12 @@ func (s *Service) ConfirmUpload(ctx context.Context, userID uuid.UUID, req *Conf
 	photo := &Photo{
 		ID:           uuid.New(),
 		ProfileID:    prof.ID,
-		Key:          req.Key,
-		URL:          s.uploadSvc.GetPublicURL(req.Key),
-		OriginalName: req.OriginalName,
-		MimeType:     metadata.ContentType,
-		SizeBytes:    metadata.Size,
+		UploadID:     uploadID,
+		Key:          upload.PermanentKey,
+		URL:          upload.PermanentURL,
+		OriginalName: upload.OriginalName,
+		MimeType:     upload.MimeType,
+		SizeBytes:    upload.Size.Int64,
 		IsAvatar:     isAvatar,
 		SortOrder:    sortOrder,
 		Caption:      req.Caption,
@@ -105,17 +128,6 @@ func (s *Service) ConfirmUpload(ctx context.Context, userID uuid.UUID, req *Conf
 	if err := s.repo.Create(ctx, photo); err != nil {
 		return nil, err
 	}
-
-	// Update profile avatar URL if first photo (assume photos are portfolio items, separate from avatar_url field, but maybe we sync?)
-	// Actually logic here updates profile.AvatarURL. But ModelProfile has no AvatarURL field in my previous rewrite?
-	// Let's check ModelProfile entity again. It has no AvatarURL. It relies on Photos? or separate field?
-	// DB schema `model_profiles` does NOT have `avatar_url`. It seems photos table is the source.
-	// Ah no, let me check `viewed_code_item` for model_profiles table.
-	// model_profiles table has: id, user_id, name, ... NO avatar_url.
-	// So AvatarURL is likely handled by logic.
-	// BUT, `profile/entity.go` rewrite REMOVED AvatarURL from ModelProfile struct.
-	// So we cannot update it. The avatar is determined by `is_avatar` flag in photos table.
-	// Good.
 
 	return photo, nil
 }
@@ -138,8 +150,10 @@ func (s *Service) Delete(ctx context.Context, userID, photoID uuid.UUID) error {
 		return ErrNotPhotoOwner
 	}
 
-	// Delete from R2 (async, don't block)
-	go s.uploadSvc.DeleteObject(context.Background(), photo.Key)
+	// Delete from storage via upload service (if we have upload_id)
+	if photo.UploadID != uuid.Nil {
+		go s.uploadService.Delete(context.Background(), photo.UploadID, userID)
+	}
 
 	// Delete from DB
 	if err := s.repo.Delete(ctx, photoID); err != nil {

@@ -30,17 +30,9 @@ func (s *NotifiableService) SendMessage(ctx context.Context, userID, roomID uuid
 		return nil, err
 	}
 
-	// Get room to find recipient
-	room, _ := s.repo.GetRoomByID(ctx, roomID)
-	if room != nil {
-		// Determine recipient ID
-		var recipientID uuid.UUID
-		if room.Participant1ID == userID {
-			recipientID = room.Participant2ID
-		} else {
-			recipientID = room.Participant1ID
-		}
-
+	// Get members to find recipients
+	members, err := s.repo.GetMembers(ctx, roomID)
+	if err == nil {
 		// Get sender info
 		sender, _ := s.userRepo.GetByID(ctx, userID)
 		senderName := "Пользователь"
@@ -56,19 +48,30 @@ func (s *NotifiableService) SendMessage(ctx context.Context, userID, roomID uuid
 		if req.MessageType == "image" {
 			preview = "📷 Фото"
 		}
+		if req.AttachmentUploadID != nil {
+			preview = "📎 Вложение"
+		}
 
-		// Send notification async using correct method
-		go func() {
-			s.notifSvc.NotifyNewMessage(
-				context.Background(),
-				recipientID,
-				"", // email
-				senderName,
-				preview,
-				roomID,
-				msg.ID,
-			)
-		}()
+		// Send notification to all other members
+		for _, member := range members {
+			if member.UserID == userID {
+				continue
+			}
+
+			recipientID := member.UserID
+			// Send notification async
+			go func(rid uuid.UUID) {
+				s.notifSvc.NotifyNewMessage(
+					context.Background(),
+					rid,
+					"", // email
+					senderName,
+					preview,
+					roomID,
+					msg.ID,
+				)
+			}(recipientID)
+		}
 	}
 
 	return msg, nil

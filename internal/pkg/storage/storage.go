@@ -48,14 +48,61 @@ var AllowedMimeTypes = map[string][]string{
 	},
 	"document": {
 		"application/pdf",
+		"application/msword",
+		"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+		"text/plain",
+	},
+	"casting_cover": {
+		"image/jpeg",
+		"image/png",
+		"image/webp",
+	},
+	"portfolio": {
+		"image/jpeg",
+		"image/png",
+		"image/webp",
+	},
+	"gallery": {
+		"image/jpeg",
+		"image/png",
+		"image/webp",
+	},
+	"chat_file": {
+		"image/jpeg",
+		"image/png",
+		"image/webp",
+		"image/gif",
+		"video/mp4",
+		"video/quicktime",
+		"audio/mpeg",
+		"audio/wav",
+		"application/pdf",
+		"application/msword",
+		"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+		"text/plain",
+		"application/zip",
+	},
+	"video": {
+		"video/mp4",
+		"video/quicktime",
+	},
+	"audio": {
+		"audio/mpeg",
+		"audio/wav",
 	},
 }
 
 // MaxFileSizes defines max file size per category (bytes)
 var MaxFileSizes = map[string]int64{
-	"avatar":   5 * 1024 * 1024,  // 5 MB
-	"photo":    10 * 1024 * 1024, // 10 MB
-	"document": 20 * 1024 * 1024, // 20 MB
+	"avatar":        5 * 1024 * 1024,   // 5 MB
+	"photo":         10 * 1024 * 1024,  // 10 MB
+	"document":      20 * 1024 * 1024,  // 20 MB
+	"casting_cover": 10 * 1024 * 1024,  // 10 MB
+	"portfolio":     10 * 1024 * 1024,  // 10 MB
+	"gallery":       10 * 1024 * 1024,  // 10 MB
+	"chat_file":     50 * 1024 * 1024,  // 50 MB
+	"video":         100 * 1024 * 1024, // 100 MB
+	"audio":         20 * 1024 * 1024,  // 20 MB
 }
 
 // Config holds storage configuration

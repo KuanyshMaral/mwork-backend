@@ -2,6 +2,7 @@ package upload
 
 import (
 	"database/sql"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,7 +18,7 @@ const (
 	StatusDeleted   Status = "deleted"   // Soft deleted
 )
 
-// Category represents the type of upload
+// Category represents the type of upload (DEPRECATED: use Purpose instead)
 type Category string
 
 const (
@@ -26,11 +27,26 @@ const (
 	CategoryDocument Category = "document"
 )
 
+// Purpose represents the intended use of the uploaded file
+type Purpose string
+
+const (
+	PurposeAvatar       Purpose = "avatar"
+	PurposePhoto        Purpose = "photo"
+	PurposeDocument     Purpose = "document"
+	PurposeCastingCover Purpose = "casting_cover"
+	PurposePortfolio    Purpose = "portfolio"
+	PurposeChatFile     Purpose = "chat_file"
+	PurposeGallery      Purpose = "gallery"
+	PurposeVideo        Purpose = "video"
+	PurposeAudio        Purpose = "audio"
+)
+
 // Upload represents a file upload record
 type Upload struct {
 	ID       uuid.UUID `db:"id"`
 	UserID   uuid.UUID `db:"user_id"`
-	Category Category  `db:"category"`
+	Category Category  `db:"category"` // DEPRECATED: use Purpose instead
 	Status   Status    `db:"status"`
 
 	// File metadata
@@ -49,6 +65,11 @@ type Upload struct {
 
 	// Error tracking
 	ErrorMessage string `db:"error_message"`
+
+	// New fields for extended functionality
+	Purpose  string          `db:"purpose"`  // Replaces Category eventually
+	BatchID  uuid.NullUUID   `db:"batch_id"` // For batch uploads
+	Metadata json.RawMessage `db:"metadata"` // Custom metadata (JSONB stored as bytes)
 
 	// Timestamps
 	CreatedAt   time.Time  `db:"created_at"`

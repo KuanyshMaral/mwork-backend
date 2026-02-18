@@ -2,6 +2,7 @@ package chat
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
@@ -9,9 +10,9 @@ import (
 	"github.com/mwork/mwork-api/internal/domain/user"
 )
 
-// BlockChecker defines interface for checking if users are blocked
-type BlockChecker interface {
-	IsBlocked(ctx context.Context, user1, user2 uuid.UUID) (bool, error)
+// AccessChecker defines interface for checking communication access between users
+type AccessChecker interface {
+	CanCommunicate(ctx context.Context, user1, user2 uuid.UUID) error
 }
 
 // LimitChecker defines interface for subscription limit checks.
@@ -19,104 +20,70 @@ type LimitChecker interface {
 	CanUseChat(ctx context.Context, userID uuid.UUID) error
 }
 
+// UploadResolver defines interface for resolving upload details
+type UploadResolver interface {
+	IsCommitted(ctx context.Context, uploadID uuid.UUID) (bool, error)
+	GetUploadURL(ctx context.Context, uploadID uuid.UUID) (string, error)
+	CommitUpload(ctx context.Context, uploadID, userID uuid.UUID) (*AttachmentInfo, error)
+}
+
 // Service handles chat business logic
 type Service struct {
-	repo         Repository
-	userRepo     user.Repository
-	hub          *Hub // WebSocket hub
-	blockChecker BlockChecker
-	limitChecker LimitChecker
+	repo           Repository
+	userRepo       user.Repository
+	hub            *Hub // WebSocket hub
+	accessChecker  AccessChecker
+	limitChecker   LimitChecker
+	uploadResolver UploadResolver
 }
 
 // NewService creates chat service
-func NewService(repo Repository, userRepo user.Repository, hub *Hub, blockChecker BlockChecker, limitChecker LimitChecker) *Service {
+func NewService(repo Repository, userRepo user.Repository, hub *Hub, accessChecker AccessChecker, limitChecker LimitChecker, uploadResolver UploadResolver) *Service {
 	return &Service{
-		repo:         repo,
-		userRepo:     userRepo,
-		hub:          hub,
-		blockChecker: blockChecker,
-		limitChecker: limitChecker,
+		repo:           repo,
+		userRepo:       userRepo,
+		hub:            hub,
+		accessChecker:  accessChecker,
+		limitChecker:   limitChecker,
+		uploadResolver: uploadResolver,
 	}
 }
 
-// CreateOrGetRoom creates a room or returns existing one
+// CreateOrGetRoom creates a room or returns existing one (router method)
 func (s *Service) CreateOrGetRoom(ctx context.Context, userID uuid.UUID, req *CreateRoomRequest) (*Room, error) {
-	if s.limitChecker != nil {
-		if err := s.limitChecker.CanUseChat(ctx, userID); err != nil {
-			return nil, err
+	switch RoomType(req.RoomType) {
+	case RoomTypeDirect:
+		if req.RecipientID == nil {
+			return nil, ErrUserNotFound
 		}
-	}
-
-	// Can't chat with yourself
-	if userID == req.RecipientID {
-		return nil, ErrCannotChatSelf
-	}
-
-	// Ensure employers/agencies are verified before using chat
-	sender, err := s.userRepo.GetByID(ctx, userID)
-	if err != nil || sender == nil {
-		return nil, ErrUserNotFound
-	}
-	if (sender.Role == user.RoleEmployer || sender.Role == user.RoleAgency) && !sender.IsVerificationApproved() {
-		return nil, ErrEmployerNotVerified
-	}
-
-	// Check recipient exists
-	recipient, err := s.userRepo.GetByID(ctx, req.RecipientID)
-	if err != nil || recipient == nil {
-		return nil, ErrUserNotFound
-	}
-
-	// Check if either user has blocked the other
-	if s.blockChecker != nil {
-		blocked, err := s.blockChecker.IsBlocked(ctx, userID, req.RecipientID)
+		room, err := s.CreateDirectRoom(ctx, userID, *req.RecipientID, req.CastingID)
 		if err != nil {
 			return nil, err
 		}
-		if blocked {
-			return nil, ErrUserBlocked
+		// Send initial message if provided
+		if req.Message != "" {
+			_, _ = s.SendMessage(ctx, userID, room.ID, &SendMessageRequest{
+				Content:     req.Message,
+				MessageType: "text",
+			})
 		}
-	}
+		return room, nil
 
-	// Check if room already exists
-	existing, err := s.repo.GetRoomByParticipants(ctx, userID, req.RecipientID)
-	if err != nil {
-		return nil, err
-	}
-	if existing != nil {
-		return existing, nil
-	}
+	case RoomTypeCasting:
+		if req.CastingID == nil {
+			return nil, ErrCastingRequired
+		}
+		if req.RecipientID != nil {
+			return s.CreateCastingRoom(ctx, userID, *req.CastingID, []uuid.UUID{*req.RecipientID}, req.Name)
+		}
+		return s.CreateCastingRoom(ctx, userID, *req.CastingID, req.MemberIDs, req.Name)
 
-	// Create new room (ensure consistent ordering)
-	p1, p2 := userID, req.RecipientID
-	if p1.String() > p2.String() {
-		p1, p2 = p2, p1
-	}
+	case RoomTypeGroup:
+		return s.CreateGroupRoom(ctx, userID, req.MemberIDs, req.Name)
 
-	room := &Room{
-		ID:             uuid.New(),
-		Participant1ID: p1,
-		Participant2ID: p2,
-		CreatedAt:      time.Now(),
+	default:
+		return nil, ErrInvalidRoomType
 	}
-
-	if req.CastingID != nil {
-		room.CastingID = uuid.NullUUID{UUID: *req.CastingID, Valid: true}
-	}
-
-	if err := s.repo.CreateRoom(ctx, room); err != nil {
-		return nil, err
-	}
-
-	// Send initial message if provided
-	if req.Message != "" {
-		_, _ = s.SendMessage(ctx, userID, room.ID, &SendMessageRequest{
-			Content:     req.Message,
-			MessageType: "text",
-		})
-	}
-
-	return room, nil
 }
 
 // GetRoom returns room by ID
@@ -126,7 +93,11 @@ func (s *Service) GetRoom(ctx context.Context, userID, roomID uuid.UUID) (*Room,
 		return nil, ErrRoomNotFound
 	}
 
-	if !room.HasParticipant(userID) {
+	isMember, err := s.repo.IsMember(ctx, roomID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if !isMember {
 		return nil, ErrNotRoomMember
 	}
 
@@ -172,19 +143,34 @@ func (s *Service) SendMessage(ctx context.Context, userID, roomID uuid.UUID, req
 		return nil, ErrRoomNotFound
 	}
 
-	if !room.HasParticipant(userID) {
+	isMember, err := s.repo.IsMember(ctx, roomID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if !isMember {
 		return nil, ErrNotRoomMember
 	}
 
-	// Check if either user has blocked the other
-	otherUserID := room.GetOtherParticipant(userID)
-	if s.blockChecker != nil {
-		blocked, err := s.blockChecker.IsBlocked(ctx, userID, otherUserID)
+	// Check if either user has blocked the other (only for direct chats)
+	if room.RoomType == RoomTypeDirect {
+		// Find other participant
+		members, err := s.repo.GetMembers(ctx, room.ID)
 		if err != nil {
 			return nil, err
 		}
-		if blocked {
-			return nil, ErrUserBlocked
+
+		var otherUserID uuid.UUID
+		for _, m := range members {
+			if m.UserID != userID {
+				otherUserID = m.UserID
+				break
+			}
+		}
+
+		if otherUserID != uuid.Nil {
+			if err := s.accessChecker.CanCommunicate(ctx, userID, otherUserID); err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -197,6 +183,23 @@ func (s *Service) SendMessage(ctx context.Context, userID, roomID uuid.UUID, req
 		}
 	}
 
+	var attachmentInfo *AttachmentInfo
+	if req.AttachmentUploadID != nil {
+		var err error
+		attachmentInfo, err = s.uploadResolver.CommitUpload(ctx, *req.AttachmentUploadID, userID)
+		if err != nil {
+			return nil, err
+		}
+
+		if req.Content == "" {
+			req.Content = attachmentInfo.URL
+		}
+		// Auto-detect image type from mime if needed, or stick to what client sent
+		if attachmentInfo.MimeType != "" && len(attachmentInfo.MimeType) >= 6 && attachmentInfo.MimeType[:6] == "image/" {
+			msgType = MessageTypeImage
+		}
+	}
+
 	msg := &Message{
 		ID:          uuid.New(),
 		RoomID:      roomID,
@@ -205,6 +208,14 @@ func (s *Service) SendMessage(ctx context.Context, userID, roomID uuid.UUID, req
 		MessageType: msgType,
 		IsRead:      false,
 		CreatedAt:   time.Now(),
+	}
+
+	if attachmentInfo != nil {
+		msg.AttachmentUploadID = uuid.NullUUID{UUID: attachmentInfo.UploadID, Valid: true}
+		msg.AttachmentURL = sql.NullString{String: attachmentInfo.URL, Valid: true}
+		msg.AttachmentName = sql.NullString{String: attachmentInfo.FileName, Valid: true}
+		msg.AttachmentMime = sql.NullString{String: attachmentInfo.MimeType, Valid: true}
+		msg.AttachmentSize = sql.NullInt64{Int64: attachmentInfo.Size, Valid: true}
 	}
 
 	if err := s.repo.CreateMessage(ctx, msg); err != nil {
@@ -234,7 +245,11 @@ func (s *Service) GetMessages(ctx context.Context, userID, roomID uuid.UUID, lim
 		return nil, ErrRoomNotFound
 	}
 
-	if !room.HasParticipant(userID) {
+	isMember, err := s.repo.IsMember(ctx, roomID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if !isMember {
 		return nil, ErrNotRoomMember
 	}
 
@@ -244,12 +259,8 @@ func (s *Service) GetMessages(ctx context.Context, userID, roomID uuid.UUID, lim
 // MarkAsRead marks all messages in room as read
 func (s *Service) MarkAsRead(ctx context.Context, userID, roomID uuid.UUID) error {
 	// Verify room access
-	room, err := s.repo.GetRoomByID(ctx, roomID)
-	if err != nil || room == nil {
-		return ErrRoomNotFound
-	}
-
-	if !room.HasParticipant(userID) {
+	isMember, err := s.repo.IsMember(ctx, roomID, userID)
+	if err != nil || !isMember {
 		return ErrNotRoomMember
 	}
 
@@ -257,13 +268,12 @@ func (s *Service) MarkAsRead(ctx context.Context, userID, roomID uuid.UUID) erro
 		return err
 	}
 
-	// Broadcast read event to other participant via WebSocket
+	// Broadcast read event via WebSocket
 	if s.hub != nil {
-		otherUserID := room.GetOtherParticipant(userID)
 		s.hub.BroadcastToRoom(roomID, &WSEvent{
 			Type:     EventRead,
 			RoomID:   roomID,
-			SenderID: otherUserID, // Notify the other user
+			SenderID: userID,
 		})
 	}
 

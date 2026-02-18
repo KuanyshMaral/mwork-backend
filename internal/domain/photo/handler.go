@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/mwork/mwork-api/internal/middleware"
+	"github.com/mwork/mwork-api/internal/pkg/errorhandler"
 	"github.com/mwork/mwork-api/internal/pkg/response"
 	"github.com/mwork/mwork-api/internal/pkg/validator"
 )
@@ -94,7 +95,7 @@ func (h *Handler) ConfirmUpload(w http.ResponseWriter, r *http.Request) {
 		case ErrUploadNotVerified:
 			response.BadRequest(w, "File not found. Please upload first.")
 		default:
-			response.InternalError(w)
+			errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		}
 		return
 	}
@@ -119,7 +120,7 @@ func (h *Handler) ListByProfile(w http.ResponseWriter, r *http.Request) {
 
 	photos, err := h.service.ListByProfile(r.Context(), profileID)
 	if err != nil {
-		response.InternalError(w)
+		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		return
 	}
 
@@ -155,7 +156,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		case ErrNotPhotoOwner:
 			response.Forbidden(w, "You can only delete your own photos")
 		default:
-			response.InternalError(w)
+			errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		}
 		return
 	}
@@ -188,7 +189,7 @@ func (h *Handler) SetAvatar(w http.ResponseWriter, r *http.Request) {
 		case ErrNotPhotoOwner:
 			response.Forbidden(w, "You can only manage your own photos")
 		default:
-			response.InternalError(w)
+			errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		}
 		return
 	}

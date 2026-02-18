@@ -8,6 +8,9 @@ definitions:
         additionalProperties:
           type: string
         type: object
+      error_trace:
+        description: Full error details/stack trace
+        type: string
       message:
         type: string
     type: object
@@ -497,20 +500,58 @@ definitions:
     required:
     - status
     type: object
+  internal_domain_chat.AddMemberRequest:
+    properties:
+      user_id:
+        type: string
+    required:
+    - user_id
+    type: object
+  internal_domain_chat.AttachmentInfo:
+    properties:
+      file_name:
+        type: string
+      mime_type:
+        type: string
+      size:
+        type: integer
+      upload_id:
+        type: string
+      url:
+        type: string
+    type: object
   internal_domain_chat.CreateRoomRequest:
     properties:
       casting_id:
+        description: For casting rooms
         type: string
+      member_ids:
+        description: For group rooms
+        items:
+          type: string
+        type: array
       message:
         description: Optional initial message
         type: string
+      name:
+        description: For group rooms
+        type: string
       recipient_id:
+        description: For direct and casting rooms
+        type: string
+      room_type:
+        enum:
+        - direct
+        - casting
+        - group
         type: string
     required:
-    - recipient_id
+    - room_type
     type: object
   internal_domain_chat.MessageResponse:
     properties:
+      attachment:
+        $ref: '#/definitions/internal_domain_chat.AttachmentInfo'
       content:
         type: string
       created_at:
@@ -548,24 +589,30 @@ definitions:
         type: string
       id:
         type: string
+      is_admin:
+        type: boolean
       last_message_at:
         type: string
       last_message_preview:
         type: string
-      other_participant:
-        $ref: '#/definitions/internal_domain_chat.ParticipantInfo'
-      other_participant_id:
+      members:
+        items:
+          $ref: '#/definitions/internal_domain_chat.ParticipantInfo'
+        type: array
+      name:
+        type: string
+      room_type:
         type: string
       unread_count:
         type: integer
     type: object
-  internal_domain_chat.SendMessageRequestDoc:
+  internal_domain_chat.SendMessageRequest:
     properties:
       attachment_upload_id:
-        example: 550e8400-e29b-41d4-a716-446655440000
         type: string
-      text:
-        example: optional text
+      content:
+        type: string
+      message_type:
         type: string
     type: object
   internal_domain_experience.CreateRequest:
@@ -1090,21 +1137,17 @@ definitions:
       caption:
         maxLength: 2000
         type: string
-      key:
-        type: string
-      original_name:
-        maxLength: 255
-        type: string
       project_name:
         maxLength: 200
+        type: string
+      upload_id:
         type: string
       year:
         maximum: 2100
         minimum: 1900
         type: integer
     required:
-    - key
-    - original_name
+    - upload_id
     type: object
   internal_domain_photo.PhotoResponse:
     properties:
@@ -1533,6 +1576,21 @@ definitions:
       updated_at:
         type: string
     type: object
+  internal_domain_relationships.BlockedUserResponse:
+    properties:
+      avatar_url:
+        type: string
+      blocked_at:
+        type: string
+      first_name:
+        type: string
+      id:
+        type: string
+      last_name:
+        type: string
+      user_id:
+        type: string
+    type: object
   internal_domain_response.ApplyRequest:
     properties:
       message:
@@ -1856,7 +1914,10 @@ definitions:
     type: object
   internal_domain_upload.UploadResponse:
     properties:
+      batch_id:
+        type: string
       category:
+        description: 'Deprecated: use Purpose'
         type: string
       created_at:
         type: string
@@ -1867,9 +1928,15 @@ definitions:
         type: integer
       id:
         type: string
+      metadata:
+        additionalProperties:
+          type: string
+        type: object
       mime_type:
         type: string
       original_name:
+        type: string
+      purpose:
         type: string
       size:
         type: integer
@@ -3205,9 +3272,74 @@ paths:
       tags:
       - Auth
   /castings:
+    get:
+      description: Поиск кастингов по фильтрам.
+      parameters:
+      - description: Город
+        in: query
+        name: city
+        type: string
+      - description: Поисковый запрос (по заголовку)
+        in: query
+        name: q
+        type: string
+      - description: Статус (active, closed, draft)
+        in: query
+        name: status
+        type: string
+      - description: ID создателя
+        in: query
+        name: creator_id
+        type: string
+      - description: Минимальная оплата
+        in: query
+        name: pay_min
+        type: number
+      - description: Максимальная оплата
+        in: query
+        name: pay_max
+        type: number
+      - description: Сортировка (newest, pay_desc, pay_asc, views)
+        in: query
+        name: sort_by
+        type: string
+      - default: 1
+        description: Номер страницы
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Количество на странице
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/internal_domain_casting.CastingResponse'
+                  type: array
+                meta:
+                  $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Meta'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      summary: Список кастингов (Поиск)
+      tags:
+      - Casting
     post:
       consumes:
       - application/json
+      description: Создать новый кастинг. Доступно только для работодателей (Employer).
       parameters:
       - description: Данные кастинга
         in: body
@@ -3249,7 +3381,43 @@ paths:
       tags:
       - Casting
   /castings/{id}:
+    delete:
+      description: Удаляет кастинг. Только владелец может удалить.
+      parameters:
+      - description: ID кастинга
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Удалить кастинг
+      tags:
+      - Casting
     get:
+      description: Получить полную информацию о кастинге. Черновики (draft) видны
+        только владельцу.
       parameters:
       - description: ID кастинга
         in: path
@@ -3290,6 +3458,7 @@ paths:
     put:
       consumes:
       - application/json
+      description: Обновить данные кастинга. Доступно только владельцу.
       parameters:
       - description: ID кастинга
         in: path
@@ -3548,6 +3717,7 @@ paths:
     patch:
       consumes:
       - application/json
+      description: 'Доступные статусы: draft, active, closed.'
       parameters:
       - description: ID кастинга
         in: path
@@ -3595,6 +3765,45 @@ paths:
       security:
       - BearerAuth: []
       summary: Обновить статус кастинга
+      tags:
+      - Casting
+  /castings/my:
+    get:
+      description: Получить список кастингов текущего пользователя (работодателя).
+      parameters:
+      - default: 1
+        description: Номер страницы
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Количество на странице
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/internal_domain_casting.CastingResponse'
+                  type: array
+                meta:
+                  $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Meta'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Мои кастинги
       tags:
       - Casting
   /castings/saved:
@@ -3656,6 +3865,11 @@ paths:
     post:
       consumes:
       - application/json
+      description: |-
+        Создает комнату. Типы комнат (room_type):
+        - direct: личный чат (требует recipient_id)
+        - casting: чат кастинга (требует casting_id)
+        - group: групповой чат (требует name, member_ids)
       parameters:
       - description: Данные для создания комнаты
         in: body
@@ -3702,6 +3916,179 @@ paths:
       security:
       - BearerAuth: []
       summary: Создать или получить чат-комнату
+      tags:
+      - Chat
+  /chat/rooms/{id}/leave:
+    post:
+      description: Покинуть групповую или кастинг-комнату.
+      parameters:
+      - description: ID комнаты
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Покинуть комнату
+      tags:
+      - Chat
+  /chat/rooms/{id}/members:
+    get:
+      description: Возвращает список участников с их профилями (имя, аватар).
+      parameters:
+      - description: ID комнаты
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/internal_domain_chat.ParticipantInfo'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Получить список участников комнаты
+      tags:
+      - Chat
+    post:
+      consumes:
+      - application/json
+      description: Добавить пользователя в групповую или кастинг-комнату. Только администратор
+        может добавлять участников.
+      parameters:
+      - description: ID комнаты
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: ID пользователя для добавления
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_domain_chat.AddMemberRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Добавить участника в комнату
+      tags:
+      - Chat
+  /chat/rooms/{id}/members/{userId}:
+    delete:
+      description: Удалить пользователя из групповой или кастинг-комнаты. Только администратор
+        может удалять участников.
+      parameters:
+      - description: ID комнаты
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: ID пользователя для удаления
+        in: path
+        name: userId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Удалить участника из комнаты
       tags:
       - Chat
   /chat/rooms/{id}/messages:
@@ -3758,7 +4145,8 @@ paths:
     post:
       consumes:
       - application/json
-      description: attachment_upload_id requires committed upload with purpose=chat_file.
+      description: Отправка сообщения в комнату. Для файлов используйте attachment_upload_id
+        (должен быть committed с purpose=chat_file).
       parameters:
       - description: ID комнаты
         in: path
@@ -3770,7 +4158,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/internal_domain_chat.SendMessageRequestDoc'
+          $ref: '#/definitions/internal_domain_chat.SendMessageRequest'
       produces:
       - application/json
       responses:
@@ -4120,8 +4508,9 @@ paths:
       - Favorite
   /files:
     get:
+      description: Get list of uploads for the current user.
       parameters:
-      - description: Категория
+      - description: Фильтр по категории/назначению (purpose)
         in: query
         name: category
         type: string
@@ -4211,11 +4600,15 @@ paths:
           description: Not Found
           schema:
             $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
       summary: Получить загрузку по ID
       tags:
       - Upload
   /files/{id}/commit:
     post:
+      description: Manually commit an upload by ID. Similar to /files/confirm but
+        via path parameter.
       parameters:
       - description: ID загрузки
         in: path
@@ -4252,7 +4645,7 @@ paths:
             $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
       security:
       - BearerAuth: []
-      summary: Закоммитить загруженный файл
+      summary: Закоммитить загруженный файл (Alias for Confirm)
       tags:
       - Upload
   /files/confirm:
@@ -4260,6 +4653,7 @@ paths:
       consumes:
       - application/json
       description: |-
+        Finalizes the upload process. Moves file from staging to permanent storage.
         Confirm is idempotent: committed uploads return 200 with current fields.
         Possible error codes: UPLOAD_NOT_FOUND, UPLOAD_FORBIDDEN, UPLOAD_EXPIRED, UPLOAD_INVALID_STATUS, INVALID_CONTENT_TYPE, FILE_TOO_LARGE, STORAGE_ERROR
       parameters:
@@ -4318,8 +4712,10 @@ paths:
     post:
       consumes:
       - application/json
-      description: 'Purpose enum: avatar, portfolio, casting_cover, chat_file (and
-        legacy photo/document where applicable).'
+      description: |-
+        Initializes a new upload. Supports resumable uploads.
+        Purpose enum: avatar, photo, document, casting_cover, portfolio, chat_file, gallery, video, audio.
+        Legacy parameters 'filename' and 'size' are supported but deprecated.
       parameters:
       - description: Метаданные файла
         in: body
@@ -4372,8 +4768,15 @@ paths:
     post:
       consumes:
       - multipart/form-data
+      description: |-
+        Uploads a file directly to staging storage.
+        Supported purposes: avatar, photo, document, casting_cover, portfolio, chat_file, gallery, video, audio.
       parameters:
-      - description: Категория (avatar|photo|document)
+      - description: Назначение файла (purpose)
+        in: formData
+        name: purpose
+        type: string
+      - description: Категория (deprecated, use purpose)
         in: formData
         name: category
         type: string
@@ -4404,7 +4807,7 @@ paths:
             $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
       security:
       - BearerAuth: []
-      summary: Загрузить файл во временное хранилище
+      summary: Загрузить файл во временное хранилище (Direct Upload)
       tags:
       - Upload
   /leads/employer:
@@ -6923,6 +7326,90 @@ paths:
       summary: Получить presigned URL для загрузки фото
       tags:
       - Photo
+  /users/{id}/block:
+    delete:
+      description: Разблокировать ранее заблокированного пользователя.
+      parameters:
+      - description: ID пользователя для разблокировки
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Разблокировать пользователя
+      tags:
+      - Relationships
+    post:
+      description: Заблокировать пользователя. Заблокированный пользователь не сможет
+        отправлять сообщения.
+      parameters:
+      - description: ID пользователя для блокировки
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Заблокировать пользователя
+      tags:
+      - Relationships
+  /users/me/blocked:
+    get:
+      description: Получить список всех пользователей, заблокированных текущим пользователем.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/internal_domain_relationships.BlockedUserResponse'
+                  type: array
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Список заблокированных пользователей
+      tags:
+      - Relationships
   /webhooks/payment/{provider}:
     post:
       consumes:

@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/mwork/mwork-api/internal/middleware"
+	"github.com/mwork/mwork-api/internal/pkg/errorhandler"
 	"github.com/mwork/mwork-api/internal/pkg/response"
 	"github.com/mwork/mwork-api/internal/pkg/validator"
 )
@@ -137,7 +138,7 @@ func (h *Handler) UpdateModel(w http.ResponseWriter, r *http.Request) {
 		case ErrNotProfileOwner:
 			response.Forbidden(w, "You can only edit your own profile")
 		default:
-			response.InternalError(w)
+			errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		}
 		return
 	}
@@ -194,7 +195,7 @@ func (h *Handler) UpdateEmployer(w http.ResponseWriter, r *http.Request) {
 		case ErrNotProfileOwner:
 			response.Forbidden(w, "You can only edit your own profile")
 		default:
-			response.InternalError(w)
+			errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		}
 		return
 	}
@@ -271,7 +272,7 @@ func (h *Handler) ListModels(w http.ResponseWriter, r *http.Request) {
 
 	profiles, total, err := h.service.ListModels(r.Context(), filter, pagination)
 	if err != nil {
-		response.InternalError(w)
+		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		return
 	}
 
@@ -317,7 +318,7 @@ func (h *Handler) ListPromotedModels(w http.ResponseWriter, r *http.Request) {
 
 	profiles, err := h.service.ListPromotedModels(r.Context(), city, limit)
 	if err != nil {
-		response.InternalError(w)
+		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		return
 	}
 
@@ -378,7 +379,7 @@ func (h *Handler) UpdateAdmin(w http.ResponseWriter, r *http.Request) {
 		case ErrProfileNotFound:
 			response.NotFound(w, "Profile not found")
 		default:
-			response.InternalError(w)
+			errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		}
 		return
 	}

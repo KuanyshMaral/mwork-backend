@@ -14,4 +14,5 @@ var (
 	ErrReportNotFound      = errors.New("report not found")
 	ErrInvalidReportReason = errors.New("invalid report reason")
 	ErrInvalidReportStatus = errors.New("invalid report status")
+	ErrUserBanned          = errors.New("user is banned from the platform")
 )

@@ -1,0 +1,64 @@
+
+func (a *modelProfileIDProvider) GetProfileIDByUserID(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
+	modelProfile, err := a.repo.GetByUserID(ctx, userID)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	return modelProfile.ID, nil
+}
+
+// Chat adapters
+
+type chatAccessChecker struct {
+	moderationService    *moderation.Service
+	relationshipsService *relationships.Service
+}
+
+func (c *chatAccessChecker) CanCommunicate(ctx context.Context, user1, user2 uuid.UUID) error {
+	// Check if either user is banned
+	if err := c.moderationService.IsUserBanned(ctx, user1); err != nil {
+		return err
+	}
+	if err := c.moderationService.IsUserBanned(ctx, user2); err != nil {
+		return err
+	}
+
+	// Check if either has blocked the other
+	blocked, err := c.relationshipsService.HasBlocked(ctx, user1, user2)
+	if err != nil {
+		return err
+	}
+	if blocked {
+		return chat.ErrUserBlocked
+	}
+
+	blocked, err = c.relationshipsService.HasBlocked(ctx, user2, user1)
+	if err != nil {
+		return err
+	}
+	if blocked {
+		return chat.ErrUserBlocked
+	}
+
+	return nil
+}
+
+type chatUploadResolver struct {
+	uploadService *uploadDomain.Service
+}
+
+func (c *chatUploadResolver) IsCommitted(ctx context.Context, uploadID uuid.UUID) (bool, error) {
+	upload, err := c.uploadService.GetByID(ctx, uploadID)
+	if err != nil {
+		return false, err
+	}
+	return upload.IsCommitted, nil
+}
+
+func (c *chatUploadResolver) GetUploadURL(ctx context.Context, uploadID uuid.UUID) (string, error) {
+	upload, err := c.uploadService.GetByID(ctx, uploadID)
+	if err != nil {
+		return "", err
+	}
+	return upload.URL, nil
+}

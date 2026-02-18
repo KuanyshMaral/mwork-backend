@@ -10,8 +10,9 @@ import (
 type Photo struct {
 	ID           uuid.UUID `db:"id" json:"id"`
 	ProfileID    uuid.UUID `db:"profile_id" json:"profile_id"`
-	Key          string    `db:"key" json:"key"` // R2 object key
-	URL          string    `db:"url" json:"url"` // Public CDN URL
+	UploadID     uuid.UUID `db:"upload_id" json:"upload_id"` // Link to uploads table
+	Key          string    `db:"key" json:"key"`             // R2 object key
+	URL          string    `db:"url" json:"url"`             // Public CDN URL
 	OriginalName string    `db:"original_name" json:"original_name"`
 	MimeType     string    `db:"mime_type" json:"mime_type"`
 	SizeBytes    int64     `db:"size_bytes" json:"size_bytes"`

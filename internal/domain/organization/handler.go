@@ -8,6 +8,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 	"github.com/mwork/mwork-api/internal/middleware"
+	"github.com/mwork/mwork-api/internal/pkg/errorhandler"
 	"github.com/mwork/mwork-api/internal/pkg/response"
 )
 
@@ -113,7 +114,7 @@ func (h *Handler) GetMembers(w http.ResponseWriter, r *http.Request) {
 
 	members, err := h.service.GetMembers(r.Context(), id)
 	if err != nil {
-		response.InternalError(w)
+		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		return
 	}
 
@@ -174,7 +175,7 @@ func (h *Handler) InviteMember(w http.ResponseWriter, r *http.Request) {
 		case ErrUserNotFound:
 			response.NotFound(w, "user not found")
 		default:
-			response.InternalError(w)
+			errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		}
 		return
 	}
@@ -232,7 +233,7 @@ func (h *Handler) UpdateMemberRole(w http.ResponseWriter, r *http.Request) {
 		case ErrMemberNotFound:
 			response.NotFound(w, "member not found")
 		default:
-			response.InternalError(w)
+			errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		}
 		return
 	}
@@ -279,7 +280,7 @@ func (h *Handler) RemoveMember(w http.ResponseWriter, r *http.Request) {
 		case ErrCannotRemoveOwner:
 			response.BadRequest(w, "cannot remove organization owner")
 		default:
-			response.InternalError(w)
+			errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		}
 		return
 	}
@@ -317,7 +318,7 @@ func (h *Handler) Follow(w http.ResponseWriter, r *http.Request) {
 		case ErrAlreadyFollowing:
 			response.Conflict(w, "already following this organization")
 		default:
-			response.InternalError(w)
+			errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		}
 		return
 	}
@@ -349,7 +350,7 @@ func (h *Handler) Unfollow(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.service.Unfollow(r.Context(), id, userID); err != nil {
-		response.InternalError(w)
+		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		return
 	}
 
@@ -381,7 +382,7 @@ func (h *Handler) CheckFollowing(w http.ResponseWriter, r *http.Request) {
 
 	isFollowing, err := h.service.CheckFollowing(r.Context(), id, userID)
 	if err != nil {
-		response.InternalError(w)
+		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		return
 	}
 

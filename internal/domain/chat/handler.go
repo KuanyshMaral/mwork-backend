@@ -15,6 +15,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/mwork/mwork-api/internal/middleware"
+	"github.com/mwork/mwork-api/internal/pkg/errorhandler"
 	"github.com/mwork/mwork-api/internal/pkg/response"
 	"github.com/mwork/mwork-api/internal/pkg/validator"
 )
@@ -27,12 +28,18 @@ const (
 	maxMessageSize = 512 * 1024 // 512KB
 )
 
+// ProfileFetcher interface to retrieve user details
+type ProfileFetcher interface {
+	GetParticipantInfo(ctx context.Context, userID uuid.UUID) (*ParticipantInfo, error)
+}
+
 // Handler handles chat HTTP requests
 type Handler struct {
-	service     *Service
-	hub         *Hub
-	rateLimiter *RateLimiter
-	upgrader    websocket.Upgrader
+	service        *Service
+	hub            *Hub
+	rateLimiter    *RateLimiter
+	upgrader       websocket.Upgrader
+	profileFetcher ProfileFetcher
 }
 
 // RateLimiter for chat messages
@@ -57,7 +64,7 @@ func (rl *RateLimiter) Allow(userID uuid.UUID) bool {
 		return true // No Redis, allow all
 	}
 
-	key := fmt.Sprintf("ratelimit:chat:%s", userID)
+	key := fmt.Sprintf("ratelimit:chat:%s", userID) // Fixed syntax
 	ctx := context.Background()
 
 	count, err := rl.redis.Incr(ctx, key).Result()
@@ -73,11 +80,12 @@ func (rl *RateLimiter) Allow(userID uuid.UUID) bool {
 }
 
 // NewHandler creates chat handler
-func NewHandler(service *Service, hub *Hub, redisClient *redis.Client, allowedOrigins []string) *Handler {
+func NewHandler(service *Service, hub *Hub, redisClient *redis.Client, allowedOrigins []string, profileFetcher ProfileFetcher) *Handler {
 	return &Handler{
-		service:     service,
-		hub:         hub,
-		rateLimiter: NewRateLimiter(redisClient),
+		service:        service,
+		hub:            hub,
+		rateLimiter:    NewRateLimiter(redisClient),
+		profileFetcher: profileFetcher,
 		upgrader: websocket.Upgrader{
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
@@ -104,6 +112,10 @@ func NewHandler(service *Service, hub *Hub, redisClient *redis.Client, allowedOr
 
 // CreateRoom handles POST /chat/rooms
 // @Summary Создать или получить чат-комнату
+// @Description Создает комнату. Типы комнат (room_type):
+// @Description - direct: личный чат (требует recipient_id)
+// @Description - casting: чат кастинга (требует casting_id)
+// @Description - group: групповой чат (требует name, member_ids)
 // @Tags Chat
 // @Accept json
 // @Produce json
@@ -140,13 +152,17 @@ func (h *Handler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 		case ErrEmployerNotVerified:
 			response.Forbidden(w, "Employer account is pending verification")
 		default:
-			response.InternalError(w)
+			errorhandler.HandleError(r.Context(), w,
+				http.StatusInternalServerError,
+				"INTERNAL_ERROR",
+				"Failed to create room",
+				err)
 		}
 		return
 	}
 
 	unread, _ := h.service.repo.CountUnreadByRoom(r.Context(), room.ID, userID)
-	response.Created(w, RoomResponseFromEntity(room, userID, unread))
+	response.Created(w, h.getRoomResponse(r.Context(), room, userID, unread))
 }
 
 // ListRooms handles GET /chat/rooms
@@ -162,13 +178,17 @@ func (h *Handler) ListRooms(w http.ResponseWriter, r *http.Request) {
 
 	rooms, err := h.service.ListRooms(r.Context(), userID)
 	if err != nil {
-		response.InternalError(w)
+		errorhandler.HandleError(r.Context(), w,
+			http.StatusInternalServerError,
+			"INTERNAL_ERROR",
+			"Failed to list rooms",
+			err)
 		return
 	}
 
 	items := make([]*RoomResponse, len(rooms))
-	for i, r := range rooms {
-		items[i] = RoomResponseFromEntity(r.Room, userID, r.UnreadCount)
+	for i, roomItem := range rooms {
+		items[i] = h.getRoomResponse(r.Context(), roomItem.Room, userID, roomItem.UnreadCount)
 	}
 
 	response.OK(w, items)
@@ -214,7 +234,11 @@ func (h *Handler) GetMessages(w http.ResponseWriter, r *http.Request) {
 		case ErrNotRoomMember:
 			response.Forbidden(w, "You are not a member of this chat")
 		default:
-			response.InternalError(w)
+			errorhandler.HandleError(r.Context(), w,
+				http.StatusInternalServerError,
+				"INTERNAL_ERROR",
+				"Failed to get messages",
+				err)
 		}
 		return
 	}
@@ -229,13 +253,13 @@ func (h *Handler) GetMessages(w http.ResponseWriter, r *http.Request) {
 
 // SendMessage handles POST /chat/rooms/{id}/messages
 // @Summary Отправить сообщение
-// @Description attachment_upload_id requires committed upload with purpose=chat_file.
+// @Description Отправка сообщения в комнату. Для файлов используйте attachment_upload_id (должен быть committed с purpose=chat_file).
 // @Tags Chat
 // @Accept json
 // @Produce json
 // @Security BearerAuth
 // @Param id path string true "ID комнаты"
-// @Param request body SendMessageRequestDoc true "Тело сообщения"
+// @Param request body SendMessageRequest true "Тело сообщения"
 // @Success 201 {object} response.Response{data=MessageResponse}
 // @Failure 400,403,404,422,429,500 {object} response.Response
 // @Router /chat/rooms/{id}/messages [post]
@@ -282,7 +306,11 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 		case ErrEmployerNotVerified:
 			response.Forbidden(w, "Employer account is pending verification")
 		default:
-			response.InternalError(w)
+			errorhandler.HandleError(r.Context(), w,
+				http.StatusInternalServerError,
+				"INTERNAL_ERROR",
+				"Failed to send message",
+				err)
 		}
 		return
 	}
@@ -314,7 +342,11 @@ func (h *Handler) MarkAsRead(w http.ResponseWriter, r *http.Request) {
 		case ErrNotRoomMember:
 			response.Forbidden(w, "You are not a member of this chat")
 		default:
-			response.InternalError(w)
+			errorhandler.HandleError(r.Context(), w,
+				http.StatusInternalServerError,
+				"INTERNAL_ERROR",
+				"Failed to mark as read",
+				err)
 		}
 		return
 	}
@@ -453,4 +485,218 @@ func (h *Handler) wsWriter(client *Connection) {
 			}
 		}
 	}
+}
+
+func (h *Handler) getRoomResponse(ctx context.Context, room *Room, currentUserID uuid.UUID, unreadCount int) *RoomResponse {
+	// Get members
+	members, err := h.service.GetMembers(ctx, currentUserID, room.ID)
+	if err != nil {
+		// Fallback
+		members = []*RoomMember{}
+	}
+
+	// Convert to ParticipantInfo
+	participantInfos := make([]ParticipantInfo, len(members))
+	var isAdmin bool
+	for i, m := range members {
+		info, err := h.profileFetcher.GetParticipantInfo(ctx, m.UserID)
+		if err == nil {
+			participantInfos[i] = *info
+		} else {
+			participantInfos[i] = ParticipantInfo{ID: m.UserID, FirstName: "Unknown"}
+		}
+
+		if m.UserID == currentUserID && m.IsAdmin() {
+			isAdmin = true
+		}
+	}
+
+	return RoomResponseFromEntity(room, participantInfos, isAdmin, unreadCount)
+}
+
+// GetMembers handles GET /chat/rooms/{id}/members
+// @Summary Получить список участников комнаты
+// @Description Возвращает список участников с их профилями (имя, аватар).
+// @Tags Chat
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID комнаты"
+// @Success 200 {object} response.Response{data=[]ParticipantInfo}
+// @Failure 400,403,404,500 {object} response.Response
+// @Router /chat/rooms/{id}/members [get]
+func (h *Handler) GetMembers(w http.ResponseWriter, r *http.Request) {
+	roomID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		response.BadRequest(w, "Invalid room ID")
+		return
+	}
+
+	userID := middleware.GetUserID(r.Context())
+	members, err := h.service.GetMembers(r.Context(), userID, roomID)
+	if err != nil {
+		switch err {
+		case ErrRoomNotFound:
+			response.NotFound(w, "Room not found")
+		case ErrNotRoomMember:
+			response.Forbidden(w, "You are not a member of this chat")
+		default:
+			errorhandler.HandleError(r.Context(), w,
+				http.StatusInternalServerError,
+				"INTERNAL_ERROR",
+				"Failed to get members",
+				err)
+		}
+		return
+	}
+
+	// Enrich with profile data
+	items := make([]ParticipantInfo, len(members))
+	for i, m := range members {
+		info, err := h.profileFetcher.GetParticipantInfo(r.Context(), m.UserID)
+		if err == nil {
+			items[i] = *info
+		} else {
+			items[i] = ParticipantInfo{ID: m.UserID, FirstName: "Unknown"}
+		}
+	}
+
+	response.OK(w, items)
+}
+
+// AddMember handles POST /chat/rooms/{id}/members
+// @Summary Добавить участника в комнату
+// @Description Добавить пользователя в групповую или кастинг-комнату. Только администратор может добавлять участников.
+// @Tags Chat
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID комнаты"
+// @Param request body AddMemberRequest true "ID пользователя для добавления"
+// @Success 200 {object} response.Response
+// @Failure 400,403,404,422,500 {object} response.Response
+// @Router /chat/rooms/{id}/members [post]
+func (h *Handler) AddMember(w http.ResponseWriter, r *http.Request) {
+	roomID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		response.BadRequest(w, "Invalid room ID")
+		return
+	}
+
+	var req AddMemberRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.BadRequest(w, "Invalid JSON body")
+		return
+	}
+
+	if errors := validator.Validate(&req); errors != nil {
+		response.ValidationError(w, errors)
+		return
+	}
+
+	userID := middleware.GetUserID(r.Context())
+	if err := h.service.AddMember(r.Context(), userID, roomID, req.UserID); err != nil {
+		switch err {
+		case ErrRoomNotFound:
+			response.NotFound(w, "Room not found")
+		case ErrNotRoomMember:
+			response.Forbidden(w, "You are not a member of this chat")
+		case ErrNotRoomAdmin:
+			response.Forbidden(w, "Only room admin can add members")
+		case ErrAlreadyMember:
+			response.Error(w, http.StatusConflict, "already_member", "User is already a member")
+		default:
+			errorhandler.HandleError(r.Context(), w,
+				http.StatusInternalServerError,
+				"INTERNAL_ERROR",
+				"Failed to add member",
+				err)
+		}
+		return
+	}
+
+	response.OK(w, map[string]string{"status": "ok"})
+}
+
+// RemoveMember handles DELETE /chat/rooms/{id}/members/{userId}
+// @Summary Удалить участника из комнаты
+// @Description Удалить пользователя из групповой или кастинг-комнаты. Только администратор может удалять участников.
+// @Tags Chat
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID комнаты"
+// @Param userId path string true "ID пользователя для удаления"
+// @Success 200 {object} response.Response
+// @Failure 400,403,404,500 {object} response.Response
+// @Router /chat/rooms/{id}/members/{userId} [delete]
+func (h *Handler) RemoveMember(w http.ResponseWriter, r *http.Request) {
+	roomID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		response.BadRequest(w, "Invalid room ID")
+		return
+	}
+
+	targetUserID, err := uuid.Parse(chi.URLParam(r, "userId"))
+	if err != nil {
+		response.BadRequest(w, "Invalid user ID")
+		return
+	}
+
+	userID := middleware.GetUserID(r.Context())
+	if err := h.service.RemoveMember(r.Context(), userID, roomID, targetUserID); err != nil {
+		switch err {
+		case ErrRoomNotFound:
+			response.NotFound(w, "Room not found")
+		case ErrNotRoomMember:
+			response.Forbidden(w, "You are not a member of this chat")
+		case ErrNotRoomAdmin:
+			response.Forbidden(w, "Only room admin can remove members")
+		default:
+			errorhandler.HandleError(r.Context(), w,
+				http.StatusInternalServerError,
+				"INTERNAL_ERROR",
+				"Failed to remove member",
+				err)
+		}
+		return
+	}
+
+	response.OK(w, map[string]string{"status": "ok"})
+}
+
+// LeaveRoom handles POST /chat/rooms/{id}/leave
+// @Summary Покинуть комнату
+// @Description Покинуть групповую или кастинг-комнату.
+// @Tags Chat
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID комнаты"
+// @Success 200 {object} response.Response
+// @Failure 400,403,404,500 {object} response.Response
+// @Router /chat/rooms/{id}/leave [post]
+func (h *Handler) LeaveRoom(w http.ResponseWriter, r *http.Request) {
+	roomID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		response.BadRequest(w, "Invalid room ID")
+		return
+	}
+
+	userID := middleware.GetUserID(r.Context())
+	// Self-leave is handled by RemoveMember when userID == targetUserID
+	if err := h.service.RemoveMember(r.Context(), userID, roomID, userID); err != nil {
+		switch err {
+		case ErrRoomNotFound:
+			response.NotFound(w, "Room not found")
+		case ErrNotRoomMember:
+			response.Forbidden(w, "You are not a member of this chat")
+		default:
+			errorhandler.HandleError(r.Context(), w,
+				http.StatusInternalServerError,
+				"INTERNAL_ERROR",
+				"Failed to leave room",
+				err)
+		}
+		return
+	}
+
+	response.OK(w, map[string]string{"status": "ok"})
 }

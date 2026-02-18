@@ -16,6 +16,7 @@ import (
 	"github.com/lib/pq"
 
 	"github.com/mwork/mwork-api/internal/middleware"
+	"github.com/mwork/mwork-api/internal/pkg/errorhandler"
 	"github.com/mwork/mwork-api/internal/pkg/response"
 	"github.com/mwork/mwork-api/internal/pkg/storage"
 	"github.com/mwork/mwork-api/internal/pkg/validator"
@@ -30,7 +31,8 @@ const (
 type InitRequest struct {
 	FileName    string `json:"file_name" validate:"required"`
 	ContentType string `json:"content_type" validate:"required"`
-	FileSize    int64  `json:"file_size" validate:"max=10485760"`
+	FileSize    int64  `json:"file_size" validate:"max=52428800"` // 50MB
+	Purpose     string `json:"purpose" validate:"omitempty,oneof=avatar photo document casting_cover portfolio chat_file gallery video audio"`
 
 	// Legacy aliases used by older clients.
 	LegacyFileName string `json:"filename"`
@@ -84,7 +86,9 @@ func NewHandler(service *Service, stagingBaseURL string, st UploadStorage, repo 
 
 // Init handles POST /files/init
 // @Summary Инициализировать загрузку файла
-// @Description Purpose enum: avatar, portfolio, casting_cover, chat_file (and legacy photo/document where applicable).
+// @Description Initializes a new upload. Supports resumable uploads.
+// @Description Purpose enum: avatar, photo, document, casting_cover, portfolio, chat_file, gallery, video, audio.
+// @Description Legacy parameters 'filename' and 'size' are supported but deprecated.
 // @Tags Upload
 // @Accept json
 // @Produce json
@@ -135,7 +139,7 @@ func (h *Handler) Init(w http.ResponseWriter, r *http.Request) {
 		var err error
 		uploadURL, err = h.storage.GeneratePresignedPutURL(r.Context(), stagingKey, PresignExpiry, req.ContentType)
 		if err != nil {
-			response.Error(w, http.StatusBadGateway, "STORAGE_ERROR", "storage error")
+			errorhandler.HandleError(r.Context(), w, http.StatusBadGateway, "STORAGE_ERROR", "storage error", err)
 			return
 		}
 	}
@@ -143,10 +147,17 @@ func (h *Handler) Init(w http.ResponseWriter, r *http.Request) {
 	now := time.Now().UTC()
 	expiresAt := now.Add(PresignExpiry)
 
+	// Determine purpose (default to photo for backward compatibility)
+	purpose := req.Purpose
+	if purpose == "" {
+		purpose = "photo"
+	}
+
 	up := &Upload{
 		ID:           uploadID,
 		UserID:       userID,
-		Category:     CategoryPhoto,
+		Category:     Category(purpose),
+		Purpose:      purpose,
 		Status:       StatusStaged,
 		OriginalName: fileName,
 		MimeType:     req.ContentType,
@@ -166,6 +177,9 @@ func (h *Handler) Init(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		response.Error(w, http.StatusInternalServerError, "DB_ERROR", "failed to save upload")
+		if err != nil {
+			errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "DB_ERROR", "failed to save upload", err)
+		}
 		return
 	}
 
@@ -179,6 +193,7 @@ func (h *Handler) Init(w http.ResponseWriter, r *http.Request) {
 
 // Confirm handles POST /files/confirm
 // @Summary Подтвердить загрузку файла
+// @Description Finalizes the upload process. Moves file from staging to permanent storage.
 // @Description Confirm is idempotent: committed uploads return 200 with current fields.
 // @Description Possible error codes: UPLOAD_NOT_FOUND, UPLOAD_FORBIDDEN, UPLOAD_EXPIRED, UPLOAD_INVALID_STATUS, INVALID_CONTENT_TYPE, FILE_TOO_LARGE, STORAGE_ERROR
 // @Tags Upload
@@ -234,7 +249,7 @@ func (h *Handler) Confirm(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, ErrInvalidUploadSize):
 			response.Error(w, http.StatusUnprocessableEntity, "INVALID_FILE_SIZE", "invalid file size")
 		default:
-			response.Error(w, http.StatusBadGateway, "STORAGE_ERROR", "storage error")
+			errorhandler.HandleError(r.Context(), w, http.StatusBadGateway, "STORAGE_ERROR", "storage error", err)
 		}
 		return
 	}
@@ -246,13 +261,16 @@ func (h *Handler) Confirm(w http.ResponseWriter, r *http.Request) {
 }
 
 // Stage handles POST /files/stage
-// Multipart form: file + category
-// @Summary Загрузить файл во временное хранилище
+// Multipart form: file + purpose
+// @Summary Загрузить файл во временное хранилище (Direct Upload)
+// @Description Uploads a file directly to staging storage.
+// @Description Supported purposes: avatar, photo, document, casting_cover, portfolio, chat_file, gallery, video, audio.
 // @Tags Upload
 // @Accept multipart/form-data
 // @Produce json
 // @Security BearerAuth
-// @Param category formData string false "Категория (avatar|photo|document)"
+// @Param purpose formData string false "Назначение файла (purpose)"
+// @Param category formData string false "Категория (deprecated, use purpose)"
 // @Param file formData file true "Файл"
 // @Success 201 {object} response.Response{data=UploadResponse}
 // @Failure 400,500 {object} response.Response
@@ -265,12 +283,30 @@ func (h *Handler) Stage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	category := r.FormValue("category")
-	if category == "" {
-		category = "photo"
+	// Support both category (legacy) and purpose (new)
+	purpose := r.FormValue("purpose")
+	if purpose == "" {
+		purpose = r.FormValue("category") // Fallback to legacy parameter
 	}
-	if category != "avatar" && category != "photo" && category != "document" {
-		response.BadRequest(w, "Invalid category. Must be: avatar, photo, or document")
+	if purpose == "" {
+		purpose = "photo" // Default
+	}
+
+	// Validate purpose
+	validPurposes := []string{
+		"avatar", "photo", "document",
+		"casting_cover", "portfolio", "chat_file",
+		"gallery", "video", "audio",
+	}
+	isValid := false
+	for _, vp := range validPurposes {
+		if purpose == vp {
+			isValid = true
+			break
+		}
+	}
+	if !isValid {
+		response.BadRequest(w, "Invalid purpose. Must be one of: "+strings.Join(validPurposes, ", "))
 		return
 	}
 
@@ -296,9 +332,9 @@ func (h *Handler) Stage(w http.ResponseWriter, r *http.Request) {
 			response.BadRequest(w, "Invalid upload ID")
 			return
 		}
-		upload, err = h.service.StageExisting(r.Context(), uploadID, userID, Category(category), header.Filename, file)
+		upload, err = h.service.StageExisting(r.Context(), uploadID, userID, Category(purpose), header.Filename, file)
 	} else {
-		upload, err = h.service.Stage(r.Context(), userID, Category(category), header.Filename, file)
+		upload, err = h.service.Stage(r.Context(), userID, Category(purpose), header.Filename, file)
 	}
 
 	if err != nil {
@@ -318,7 +354,7 @@ func (h *Handler) Stage(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, ErrNotUploadOwner):
 			response.Forbidden(w, "Not upload owner")
 		default:
-			response.InternalError(w)
+			errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		}
 		return
 	}
@@ -327,7 +363,8 @@ func (h *Handler) Stage(w http.ResponseWriter, r *http.Request) {
 }
 
 // Commit handles POST /files/{id}/commit
-// @Summary Закоммитить загруженный файл
+// @Summary Закоммитить загруженный файл (Alias for Confirm)
+// @Description Manually commit an upload by ID. Similar to /files/confirm but via path parameter.
 // @Tags Upload
 // @Produce json
 // @Security BearerAuth
@@ -362,7 +399,7 @@ func (h *Handler) Commit(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, ErrUploadExpired):
 			response.BadRequest(w, "Upload has expired, please upload again")
 		default:
-			response.InternalError(w)
+			errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		}
 		return
 	}
@@ -393,7 +430,7 @@ func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, ErrUploadNotFound):
 			response.NotFound(w, "Upload not found")
 		default:
-			response.InternalError(w)
+			errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		}
 		return
 	}
@@ -441,7 +478,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, ErrNotUploadOwner):
 			response.Forbidden(w, "Not upload owner")
 		default:
-			response.InternalError(w)
+			errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		}
 		return
 	}
@@ -451,10 +488,11 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 
 // ListMy handles GET /files
 // @Summary Список моих загрузок
+// @Description Get list of uploads for the current user.
 // @Tags Upload
 // @Produce json
 // @Security BearerAuth
-// @Param category query string false "Категория"
+// @Param category query string false "Фильтр по категории/назначению (purpose)"
 // @Success 200 {object} response.Response{data=[]UploadResponse}
 // @Failure 500 {object} response.Response
 // @Router /files [get]
@@ -468,7 +506,7 @@ func (h *Handler) ListMy(w http.ResponseWriter, r *http.Request) {
 
 	uploads, err := h.service.ListByUser(r.Context(), userID, category)
 	if err != nil {
-		response.InternalError(w)
+		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		return
 	}
 
