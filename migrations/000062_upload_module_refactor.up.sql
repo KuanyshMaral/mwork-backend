@@ -10,6 +10,8 @@ CREATE INDEX IF NOT EXISTS idx_uploads_batch_id ON uploads(batch_id) WHERE batch
 CREATE INDEX IF NOT EXISTS idx_uploads_metadata ON uploads USING GIN (metadata);
 
 -- Add check constraint for purpose validation (nullable for backward compat)
+-- Drop first to allow re-run
+ALTER TABLE uploads DROP CONSTRAINT IF EXISTS uploads_purpose_check;
 ALTER TABLE uploads ADD CONSTRAINT uploads_purpose_check 
   CHECK (purpose IS NULL OR purpose IN (
     'avatar', 'photo', 'document', 
@@ -18,6 +20,7 @@ ALTER TABLE uploads ADD CONSTRAINT uploads_purpose_check
   ));
 
 -- Update existing records: map category -> purpose
+-- Idempotent because of WHERE clause
 UPDATE uploads SET purpose = category WHERE purpose IS NULL;
 
 -- Add comment for documentation
