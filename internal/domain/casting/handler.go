@@ -48,7 +48,7 @@ func NewHandler(service *Service, profileService ProfileService) *Handler {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param request body CreateCastingRequest true "Данные кастинга"
+// @Param request body CreateCastingRequest true "Данные кастинга (включая детальные требования к модели)"
 // @Success 201 {object} response.Response{data=CastingResponse}
 // @Failure 400,403,422,500 {object} response.Response
 // @Router /castings [post]
@@ -178,7 +178,7 @@ func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Security BearerAuth
 // @Param id path string true "ID кастинга"
-// @Param request body UpdateCastingRequest true "Поля для обновления"
+// @Param request body UpdateCastingRequest true "Поля для обновления (включая детальные требования)"
 // @Success 200 {object} response.Response{data=CastingResponse}
 // @Failure 400,403,404,422,500 {object} response.Response
 // @Router /castings/{id} [put]

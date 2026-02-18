@@ -23,6 +23,8 @@ type Filter struct {
 	PayMax    *float64
 	Status    *Status
 	CreatorID *uuid.UUID
+	IsUrgent  *bool
+	WorkType  *string
 }
 
 // SortBy represents sort options
@@ -64,9 +66,14 @@ type repository struct {
 const castingSelectColumns = `
 	id, creator_id, title, description, city, address,
 	pay_min, pay_max, pay_type, date_from, date_to,
-	requirements, status, is_promoted, view_count, response_count,
+	cover_image_url,
+	required_gender, min_age, max_age, min_height, max_height,
+	min_weight, max_weight, required_experience, required_languages,
+	clothing_sizes, shoe_sizes,
+	work_type, event_datetime, event_location, deadline_at, is_urgent,
+	status, is_promoted, view_count, response_count,
 	created_at, updated_at, moderation_status, required_models_count,
-	accepted_models_count, cover_image_url
+	accepted_models_count
 `
 
 // NewRepository creates new casting repository
@@ -80,12 +87,20 @@ func (r *repository) Create(ctx context.Context, casting *Casting) error {
 			id, creator_id, title, description, city, address,
 			pay_min, pay_max, pay_type, date_from, date_to,
 			cover_image_url,
-			requirements, status, is_promoted, view_count, response_count
+			required_gender, min_age, max_age, min_height, max_height,
+			min_weight, max_weight, required_experience, required_languages,
+			clothing_sizes, shoe_sizes,
+			work_type, event_datetime, event_location, deadline_at, is_urgent,
+			status, is_promoted, view_count, response_count
 		) VALUES (
 			$1, $2, $3, $4, $5, $6,
 			$7, $8, $9, $10, $11,
 			$12,
-			$13, $14, $15, $16, $17
+			$13, $14, $15, $16, $17,
+			$18, $19, $20, $21,
+			$22, $23,
+			$24, $25, $26, $27, $28,
+			$29, $30, $31, $32
 		)
 	`
 
@@ -93,7 +108,11 @@ func (r *repository) Create(ctx context.Context, casting *Casting) error {
 		casting.ID, casting.CreatorID, casting.Title, casting.Description, casting.City, casting.Address,
 		casting.PayMin, casting.PayMax, casting.PayType, casting.DateFrom, casting.DateTo,
 		casting.CoverImageURL,
-		casting.Requirements, casting.Status, casting.IsPromoted, casting.ViewCount, casting.ResponseCount,
+		casting.RequiredGender, casting.AgeMin, casting.AgeMax, casting.HeightMin, casting.HeightMax,
+		casting.WeightMin, casting.WeightMax, casting.RequiredExperience, casting.RequiredLanguages,
+		casting.ClothingSizes, casting.ShoeSizes,
+		casting.WorkType, casting.EventDatetime, casting.EventLocation, casting.DeadlineAt, casting.IsUrgent,
+		casting.Status, casting.IsPromoted, casting.ViewCount, casting.ResponseCount,
 	)
 	if err != nil {
 		evt := log.Error().
@@ -105,7 +124,6 @@ func (r *repository) Create(ctx context.Context, casting *Casting) error {
 			Str("pay_type", casting.PayType).
 			Interface("date_from", casting.DateFrom).
 			Interface("date_to", casting.DateTo).
-			Bytes("requirements", casting.Requirements).
 			Err(err)
 
 		var pqErr *pq.Error
@@ -173,7 +191,14 @@ func (r *repository) Update(ctx context.Context, casting *Casting) error {
 			pay_min = $6, pay_max = $7, pay_type = $8,
 			date_from = $9, date_to = $10,
 			cover_image_url = $11,
-			requirements = $12, status = $13,
+			required_gender = $12, min_age = $13, max_age = $14,
+			min_height = $15, max_height = $16,
+			min_weight = $17, max_weight = $18,
+			required_experience = $19, required_languages = $20,
+			clothing_sizes = $21, shoe_sizes = $22,
+			work_type = $23, event_datetime = $24, event_location = $25,
+			deadline_at = $26, is_urgent = $27,
+			status = $28,
 			updated_at = NOW()
 		WHERE id = $1
 	`
@@ -184,7 +209,14 @@ func (r *repository) Update(ctx context.Context, casting *Casting) error {
 		casting.PayMin, casting.PayMax, casting.PayType,
 		casting.DateFrom, casting.DateTo,
 		casting.CoverImageURL,
-		casting.Requirements, casting.Status,
+		casting.RequiredGender, casting.AgeMin, casting.AgeMax,
+		casting.HeightMin, casting.HeightMax,
+		casting.WeightMin, casting.WeightMax,
+		casting.RequiredExperience, casting.RequiredLanguages,
+		casting.ClothingSizes, casting.ShoeSizes,
+		casting.WorkType, casting.EventDatetime, casting.EventLocation,
+		casting.DeadlineAt, casting.IsUrgent,
+		casting.Status,
 	)
 	if err != nil {
 		return mapCreateDBError(err)
@@ -246,6 +278,18 @@ func (r *repository) List(ctx context.Context, filter *Filter, sortBy SortBy, pa
 		argIndex++
 	}
 
+	if filter.IsUrgent != nil {
+		conditions = append(conditions, fmt.Sprintf("c.is_urgent = $%d", argIndex))
+		args = append(args, *filter.IsUrgent)
+		argIndex++
+	}
+
+	if filter.WorkType != nil && *filter.WorkType != "" {
+		conditions = append(conditions, fmt.Sprintf("c.work_type = $%d", argIndex))
+		args = append(args, *filter.WorkType)
+		argIndex++
+	}
+
 	if filter.Query != nil && *filter.Query != "" {
 		conditions = append(conditions, fmt.Sprintf(
 			"(c.title ILIKE $%d OR c.description ILIKE $%d)",
@@ -272,7 +316,7 @@ func (r *repository) List(ctx context.Context, filter *Filter, sortBy SortBy, pa
 	case SortByPopular:
 		orderBy = "ORDER BY c.view_count DESC, c.response_count DESC"
 	default:
-		orderBy = "ORDER BY c.created_at DESC"
+		orderBy = "ORDER BY c.is_urgent DESC, c.created_at DESC"
 	}
 
 	// Get castings with pagination

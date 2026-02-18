@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -11,10 +12,11 @@ import (
 
 // Config holds RoboKassa configuration
 type Config struct {
-	MerchantLogin string // Merchant login (MrchLogin)
-	Password1     string // Password #1 for payment initialization
-	Password2     string // Password #2 for webhook verification (ResultURL)
-	TestMode      bool   // Test mode flag
+	MerchantLogin string        // Merchant login (MrchLogin)
+	Password1     string        // Password #1 for payment initialization
+	Password2     string        // Password #2 for webhook verification (ResultURL)
+	TestMode      bool          // Test mode flag
+	HashAlgo      HashAlgorithm // Hash algorithm: MD5 or SHA256 (default: SHA256)
 	Timeout       time.Duration
 }
 
@@ -72,28 +74,37 @@ func (c *Client) CreatePayment(ctx context.Context, req CreatePaymentRequest) (*
 		outSum = req.OutSum
 	}
 
-	// Build signature: MD5(MerchantLogin:OutSum:InvId:Password1[:Shp_params])
-	signatureStr := fmt.Sprintf("%s:%s:%d:%s",
-		c.config.MerchantLogin,
-		outSum,
-		req.InvID,
-		c.config.Password1,
-	)
-
-	// Add custom parameters in alphabetical order
-	if len(req.Shp) > 0 {
-		var keys []string
-		for k := range req.Shp {
-			keys = append(keys, k)
-		}
-		// Sort keys alphabetically (RoboKassa requirement)
-		sortStrings(keys)
-		for _, k := range keys {
-			signatureStr += fmt.Sprintf(":%s=%s", k, req.Shp[k])
-		}
+	// Determine hash algorithm (default to SHA256 if not set)
+	algo := c.config.HashAlgo
+	if algo == "" {
+		algo = HashSHA256
 	}
 
-	signature := c.generateMD5(signatureStr)
+	// Build shp map with "Shp_" prefixed keys for signature
+	shpForSig := make(map[string]string)
+	for k, v := range req.Shp {
+		shpKey := k
+		if !strings.HasPrefix(strings.ToLower(k), "shp_") {
+			shpKey = "Shp_" + k
+		}
+		shpForSig[shpKey] = v
+	}
+
+	// Build signature: Hash(MerchantLogin:OutSum:InvId:Password1[:Shp_params])
+	// Uses BuildStartSignatureBase to correctly handle SHP params
+	signatureBase := BuildStartSignatureBase(
+		c.config.MerchantLogin,
+		outSum,
+		strconv.FormatInt(req.InvID, 10),
+		c.config.Password1,
+		nil,
+		shpForSig,
+	)
+	signature, err := Sign(signatureBase, algo)
+	if err != nil {
+		return nil, fmt.Errorf("robokassa: failed to sign payment request: %w", err)
+	}
+	_ = sort.Search // ensure sort import is used
 
 	// Build payment URL
 	baseURL := "https://auth.robokassa.ru/Merchant/Index.aspx"
@@ -138,10 +149,3 @@ func (c *Client) CreatePayment(ctx context.Context, req CreatePaymentRequest) (*
 		InvID:      req.InvID,
 	}, nil
 }
-
-// generateMD5 creates MD5 hash
-func (c *Client) generateMD5(text string) string {
-	return generateMD5(text)
-}
-
-// sortStrings is delegated to utils.go function

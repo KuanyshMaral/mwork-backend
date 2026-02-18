@@ -6,6 +6,10 @@ import (
 	"strings"
 )
 
+// defaultAlgo is the algorithm used when none is specified.
+// Robokassa recommends SHA256 for all new integrations.
+const defaultAlgo = HashSHA256
+
 // WebhookPayload represents RoboKassa webhook (ResultURL) data
 // RoboKassa sends data as form parameters, not JSON
 type WebhookPayload struct {
@@ -16,57 +20,54 @@ type WebhookPayload struct {
 }
 
 // VerifyResultSignature validates webhook signature from RoboKassa ResultURL
-// Signature format: MD5(OutSum:InvId:Password2[:Shp_params])
+// Signature format: SHA256(OutSum:InvId:Password2[:Shp_params])
+// Uses SHA256 as required by Robokassa for new integrations.
 func VerifyResultSignature(outSum string, invID int64, signature string, password2 string, shpParams map[string]string) bool {
+	return VerifyResultSignatureWithAlgo(outSum, invID, signature, password2, shpParams, defaultAlgo)
+}
+
+// VerifyResultSignatureWithAlgo validates webhook signature with a specific hash algorithm.
+// Use this when the algorithm is configurable (e.g., from config.HashAlgo).
+func VerifyResultSignatureWithAlgo(outSum string, invID int64, signature string, password2 string, shpParams map[string]string, algo HashAlgorithm) bool {
 	if password2 == "" || signature == "" {
 		return false
 	}
 
-	// Build signature string
-	signatureStr := fmt.Sprintf("%s:%d:%s", outSum, invID, password2)
+	// Build signature base: OutSum:InvId:Password2[:Shp_params]
+	base := BuildResultSignatureBase(outSum, strconv.FormatInt(invID, 10), password2, shpParams)
 
-	// Add custom parameters in alphabetical order
-	if len(shpParams) > 0 {
-		var keys []string
-		for k := range shpParams {
-			keys = append(keys, k)
-		}
-		sortStrings(keys)
-		for _, k := range keys {
-			signatureStr += fmt.Sprintf(":%s=%s", k, shpParams[k])
-		}
+	expected, err := Sign(base, algo)
+	if err != nil {
+		return false
 	}
 
-	expected := generateMD5(signatureStr)
-	given := strings.ToUpper(signature)
-
-	return expected == given
+	// Case-insensitive comparison
+	return strings.EqualFold(expected, strings.TrimSpace(signature))
 }
 
 // VerifySuccessSignature validates signature for SuccessURL
-// Same as ResultURL but different purpose (user redirect vs server notification)
+// Same as ResultURL but different purpose (user redirect vs server notification).
+// Uses SHA256 as required by Robokassa for new integrations.
 func VerifySuccessSignature(outSum string, invID int64, signature string, password1 string, shpParams map[string]string) bool {
+	return VerifySuccessSignatureWithAlgo(outSum, invID, signature, password1, shpParams, defaultAlgo)
+}
+
+// VerifySuccessSignatureWithAlgo validates SuccessURL signature with a specific hash algorithm.
+func VerifySuccessSignatureWithAlgo(outSum string, invID int64, signature string, password1 string, shpParams map[string]string, algo HashAlgorithm) bool {
 	if password1 == "" || signature == "" {
 		return false
 	}
 
-	signatureStr := fmt.Sprintf("%s:%d:%s", outSum, invID, password1)
+	// Build signature base: OutSum:InvId:Password1[:Shp_params]
+	base := BuildSuccessSignatureBase(outSum, strconv.FormatInt(invID, 10), password1, shpParams)
 
-	if len(shpParams) > 0 {
-		var keys []string
-		for k := range shpParams {
-			keys = append(keys, k)
-		}
-		sortStrings(keys)
-		for _, k := range keys {
-			signatureStr += fmt.Sprintf(":%s=%s", k, shpParams[k])
-		}
+	expected, err := Sign(base, algo)
+	if err != nil {
+		return false
 	}
 
-	expected := generateMD5(signatureStr)
-	given := strings.ToUpper(signature)
-
-	return expected == given
+	// Case-insensitive comparison
+	return strings.EqualFold(expected, strings.TrimSpace(signature))
 }
 
 // ParseWebhookForm parses form-encoded webhook data into structured payload

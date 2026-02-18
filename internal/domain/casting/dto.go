@@ -19,21 +19,27 @@ type CreateCastingRequest struct {
 	DateTo        *string  `json:"date_to" validate:"omitempty"`
 	CoverImageURL string   `json:"cover_image_url" validate:"omitempty,url,startswith=https://"`
 
-	// Requirements (stored as JSONB)
-	Requirements *RequirementsRequest `json:"requirements"`
+	// Model requirements
+	RequiredGender     string   `json:"required_gender" validate:"omitempty,oneof=male female other"`
+	AgeMin             *int     `json:"age_min" validate:"omitempty,gte=0,lte=100"`
+	AgeMax             *int     `json:"age_max" validate:"omitempty,gte=0,lte=100"`
+	HeightMin          *int     `json:"height_min" validate:"omitempty,gte=0"`
+	HeightMax          *int     `json:"height_max" validate:"omitempty,gte=0"`
+	WeightMin          *int     `json:"weight_min" validate:"omitempty,gte=0"`
+	WeightMax          *int     `json:"weight_max" validate:"omitempty,gte=0"`
+	RequiredExperience string   `json:"required_experience" validate:"omitempty,oneof=none beginner medium professional"`
+	RequiredLanguages  []string `json:"required_languages" validate:"omitempty"`
+	ClothingSizes      []string `json:"clothing_sizes" validate:"omitempty"`
+	ShoeSizes          []string `json:"shoe_sizes" validate:"omitempty"`
+
+	// Work details
+	WorkType      string  `json:"work_type" validate:"omitempty,oneof=one_time contract permanent"`
+	EventDatetime *string `json:"event_datetime" validate:"omitempty"`
+	EventLocation string  `json:"event_location" validate:"omitempty,max=500"`
+	DeadlineAt    *string `json:"deadline_at" validate:"omitempty"`
+	IsUrgent      bool    `json:"is_urgent"`
 
 	Status string `json:"status" validate:"omitempty,oneof=draft active"`
-}
-
-// RequirementsRequest for nested requirements in create/update
-type RequirementsRequest struct {
-	Gender             string   `json:"gender,omitempty" validate:"omitempty,oneof=male female other"`
-	AgeMin             *int     `json:"age_min,omitempty" validate:"omitempty,gte=0"`
-	AgeMax             *int     `json:"age_max,omitempty" validate:"omitempty,gte=0"`
-	HeightMin          *float64 `json:"height_min,omitempty" validate:"omitempty,gte=0"`
-	HeightMax          *float64 `json:"height_max,omitempty" validate:"omitempty,gte=0"`
-	ExperienceRequired bool     `json:"experience_required,omitempty"`
-	Languages          []string `json:"languages,omitempty"`
 }
 
 // UpdateCastingRequest for PUT /castings/{id}
@@ -49,12 +55,45 @@ type UpdateCastingRequest struct {
 	DateTo        *string  `json:"date_to"`
 	CoverImageURL string   `json:"cover_image_url" validate:"omitempty,url,startswith=https://"`
 
-	Requirements *RequirementsRequest `json:"requirements"`
+	// Model requirements
+	RequiredGender     string   `json:"required_gender" validate:"omitempty,oneof=male female other"`
+	AgeMin             *int     `json:"age_min" validate:"omitempty,gte=0,lte=100"`
+	AgeMax             *int     `json:"age_max" validate:"omitempty,gte=0,lte=100"`
+	HeightMin          *int     `json:"height_min" validate:"omitempty,gte=0"`
+	HeightMax          *int     `json:"height_max" validate:"omitempty,gte=0"`
+	WeightMin          *int     `json:"weight_min" validate:"omitempty,gte=0"`
+	WeightMax          *int     `json:"weight_max" validate:"omitempty,gte=0"`
+	RequiredExperience string   `json:"required_experience" validate:"omitempty,oneof=none beginner medium professional"`
+	RequiredLanguages  []string `json:"required_languages"`
+	ClothingSizes      []string `json:"clothing_sizes"`
+	ShoeSizes          []string `json:"shoe_sizes"`
+
+	// Work details
+	WorkType      string  `json:"work_type" validate:"omitempty,oneof=one_time contract permanent"`
+	EventDatetime *string `json:"event_datetime"`
+	EventLocation string  `json:"event_location" validate:"omitempty,max=500"`
+	DeadlineAt    *string `json:"deadline_at"`
+	IsUrgent      *bool   `json:"is_urgent"`
 }
 
 // UpdateStatusRequest for PATCH /castings/{id}/status
 type UpdateStatusRequest struct {
 	Status string `json:"status" validate:"required,oneof=draft active closed"`
+}
+
+// RequirementsResponse represents model requirements in API response
+type RequirementsResponse struct {
+	Gender     string   `json:"gender,omitempty"`
+	AgeMin     *int32   `json:"age_min,omitempty"`
+	AgeMax     *int32   `json:"age_max,omitempty"`
+	HeightMin  *int32   `json:"height_min,omitempty"`
+	HeightMax  *int32   `json:"height_max,omitempty"`
+	WeightMin  *int32   `json:"weight_min,omitempty"`
+	WeightMax  *int32   `json:"weight_max,omitempty"`
+	Experience string   `json:"experience,omitempty"`
+	Languages  []string `json:"languages,omitempty"`
+	Clothing   []string `json:"clothing_sizes,omitempty"`
+	Shoes      []string `json:"shoe_sizes,omitempty"`
 }
 
 // CastingResponse represents casting in API response
@@ -78,12 +117,19 @@ type CastingResponse struct {
 
 	CoverImageURL *string `json:"cover_image_url,omitempty"`
 
-	// Requirements (from JSONB)
-	Requirements *Requirements `json:"requirements,omitempty"`
+	// Model requirements
+	Requirements *RequirementsResponse `json:"requirements,omitempty"`
+
+	// Work details
+	WorkType      *string `json:"work_type,omitempty"`
+	EventDatetime *string `json:"event_datetime,omitempty"`
+	EventLocation *string `json:"event_location,omitempty"`
+	DeadlineAt    *string `json:"deadline_at,omitempty"`
+	IsUrgent      bool    `json:"is_urgent"`
 
 	Status           string `json:"status"`
 	IsPromoted       bool   `json:"is_promoted"`
-	ModerationStatus string `json:"moderation_status"` // Task 3: Added moderation status
+	ModerationStatus string `json:"moderation_status"`
 	ViewCount        int    `json:"view_count"`
 	ResponseCount    int    `json:"response_count"`
 	CreatedAt        string `json:"created_at"`
@@ -103,9 +149,10 @@ func CastingResponseFromEntity(c *Casting) *CastingResponse {
 		PayRange:         c.GetPayRange(),
 		Status:           string(c.Status),
 		IsPromoted:       c.IsPromoted,
-		ModerationStatus: string(c.ModerationStatus), // Task 3: Include moderation status
+		ModerationStatus: string(c.ModerationStatus),
 		ViewCount:        c.ViewCount,
 		ResponseCount:    c.ResponseCount,
+		IsUrgent:         c.IsUrgent,
 		CreatedAt:        c.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:        c.UpdatedAt.Format(time.RFC3339),
 	}
@@ -130,11 +177,65 @@ func CastingResponseFromEntity(c *Casting) *CastingResponse {
 	if c.CoverImageURL.Valid {
 		resp.CoverImageURL = &c.CoverImageURL.String
 	}
+	if c.WorkType.Valid {
+		resp.WorkType = &c.WorkType.String
+	}
+	if c.EventDatetime.Valid {
+		s := c.EventDatetime.Time.Format(time.RFC3339)
+		resp.EventDatetime = &s
+	}
+	if c.EventLocation.Valid {
+		resp.EventLocation = &c.EventLocation.String
+	}
+	if c.DeadlineAt.Valid {
+		s := c.DeadlineAt.Time.Format(time.RFC3339)
+		resp.DeadlineAt = &s
+	}
 
-	// Parse requirements from JSONB
-	if c.Requirements != nil && len(c.Requirements) > 0 {
-		req := c.GetRequirements()
-		resp.Requirements = &req
+	// Build requirements response from dedicated columns
+	req := &RequirementsResponse{
+		Languages: []string(c.RequiredLanguages),
+		Clothing:  []string(c.ClothingSizes),
+		Shoes:     []string(c.ShoeSizes),
+	}
+	if c.RequiredGender.Valid {
+		req.Gender = c.RequiredGender.String
+	}
+	if c.AgeMin.Valid {
+		v := c.AgeMin.Int32
+		req.AgeMin = &v
+	}
+	if c.AgeMax.Valid {
+		v := c.AgeMax.Int32
+		req.AgeMax = &v
+	}
+	if c.HeightMin.Valid {
+		v := c.HeightMin.Int32
+		req.HeightMin = &v
+	}
+	if c.HeightMax.Valid {
+		v := c.HeightMax.Int32
+		req.HeightMax = &v
+	}
+	if c.WeightMin.Valid {
+		v := c.WeightMin.Int32
+		req.WeightMin = &v
+	}
+	if c.WeightMax.Valid {
+		v := c.WeightMax.Int32
+		req.WeightMax = &v
+	}
+	if c.RequiredExperience.Valid {
+		req.Experience = c.RequiredExperience.String
+	}
+
+	// Only include requirements if at least one field is set
+	if req.Gender != "" || req.AgeMin != nil || req.AgeMax != nil ||
+		req.HeightMin != nil || req.HeightMax != nil ||
+		req.WeightMin != nil || req.WeightMax != nil ||
+		req.Experience != "" || len(req.Languages) > 0 ||
+		len(req.Clothing) > 0 || len(req.Shoes) > 0 {
+		resp.Requirements = req
 	}
 
 	return resp
