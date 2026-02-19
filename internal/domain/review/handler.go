@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/mwork/mwork-api/internal/middleware"
+	"github.com/mwork/mwork-api/internal/pkg/errorhandler"
 	"github.com/mwork/mwork-api/internal/pkg/response"
 )
 
@@ -75,9 +76,10 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	targetType := TargetType(req.TargetType)
 	exists, err := h.repo.HasReviewed(r.Context(), userID, targetType, targetID, contextID)
 	if err != nil {
-		response.InternalError(w)
+		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "REVIEW_CHECK_FAILED", "Failed to check existing review", err)
 		return
 	}
+
 	if exists {
 		response.Conflict(w, "You have already reviewed this entity")
 		return
@@ -104,7 +106,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.repo.Create(r.Context(), rev); err != nil {
-		response.InternalError(w)
+		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "REVIEW_CREATION_FAILED", "Failed to create review", err)
 		return
 	}
 
@@ -161,12 +163,13 @@ func (h *Handler) ListByTarget(w http.ResponseWriter, r *http.Request) {
 
 	reviews, err := h.repo.GetByTarget(r.Context(), targetType, targetID, limit, offset)
 	if err != nil {
-		response.InternalError(w)
+		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "REVIEW_LIST_FAILED", "Failed to list reviews", err)
 		return
 	}
+
 	total, err := h.repo.CountByTarget(r.Context(), targetType, targetID)
 	if err != nil {
-		response.InternalError(w)
+		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "REVIEW_COUNT_FAILED", "Failed to count reviews", err)
 		return
 	}
 
