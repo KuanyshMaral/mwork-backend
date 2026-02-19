@@ -325,6 +325,17 @@ func (h *Handler) Cancel(w http.ResponseWriter, r *http.Request) {
 	response.OK(w, map[string]string{"status": "cancelled"})
 }
 
+// GetModelCastingLimits handles GET /subscriptions/models/me/castings/limits
+// @Summary Лимит откликов на кастинги для модели
+// @Description Возвращает текущий лимит, использование и время сброса лимита откликов на кастинги для авторизованной модели
+// @Tags Subscription
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} response.Response{data=LimitStatus}
+// @Failure 401 {object} response.Response
+// @Failure 403 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /subscriptions/models/me/castings/limits [get]
 func (h *Handler) GetModelCastingLimits(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 	if userID == uuid.Nil {
