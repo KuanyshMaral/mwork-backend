@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -188,6 +189,14 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func parseRobokassaTestFlag(raw string) bool {
+	trimmed := strings.TrimSpace(strings.ToLower(raw))
+	if trimmed == "1" {
+		return true
+	}
+	return parseBool(trimmed, false)
 }
 
 // IsDevelopment returns true if running in development mode
