@@ -348,7 +348,7 @@ func main() {
 	adminHandler := admin.NewHandler(adminService, adminJWTService, photoStudioAdminHandler, creditHandler)
 	adminModerationHandler := admin.NewModerationHandler(db, adminService)
 	leadHandler := lead.NewHandler(leadService)
-	userAdminHandler := admin.NewUserHandler(db, adminService, creditHandler)
+	userAdminHandler := admin.NewUserHandler(db, adminService, creditHandler, subscriptionService)
 
 	// PhotoStudio booking integration
 	photoStudioBookingService := photostudio_booking.NewService(photoStudioConcreteClient, photoStudioSyncEnabled)

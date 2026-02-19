@@ -31,6 +31,7 @@ type PlanResponse struct {
 	CanSeeViewers  bool     `json:"can_see_viewers"`
 	PrioritySearch bool     `json:"priority_search"`
 	MaxTeamMembers int      `json:"max_team_members"`
+	Audience       string   `json:"audience"`
 	Features       []string `json:"features"` // Human-readable feature list
 }
 
@@ -47,6 +48,7 @@ func PlanResponseFromEntity(p *Plan) *PlanResponse {
 		CanSeeViewers:  p.CanSeeViewers,
 		PrioritySearch: p.PrioritySearch,
 		MaxTeamMembers: p.MaxTeamMembers,
+		Audience:       string(p.Audience),
 		Features:       buildFeatureList(p),
 	}
 
