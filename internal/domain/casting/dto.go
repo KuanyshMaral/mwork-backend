@@ -39,7 +39,8 @@ type CreateCastingRequest struct {
 	DeadlineAt    *string `json:"deadline_at" validate:"omitempty"`
 	IsUrgent      bool    `json:"is_urgent"`
 
-	Status string `json:"status" validate:"omitempty,oneof=draft active"`
+	Status string   `json:"status" validate:"omitempty,oneof=draft active"`
+	Tags   []string `json:"tags" validate:"omitempty,max=10,dive,max=50"`
 }
 
 // UpdateCastingRequest for PUT /castings/{id}
@@ -69,11 +70,12 @@ type UpdateCastingRequest struct {
 	ShoeSizes          []string `json:"shoe_sizes"`
 
 	// Work details
-	WorkType      string  `json:"work_type" validate:"omitempty,oneof=one_time contract permanent"`
-	EventDatetime *string `json:"event_datetime"`
-	EventLocation string  `json:"event_location" validate:"omitempty,max=500"`
-	DeadlineAt    *string `json:"deadline_at"`
-	IsUrgent      *bool   `json:"is_urgent"`
+	WorkType      string   `json:"work_type" validate:"omitempty,oneof=one_time contract permanent"`
+	EventDatetime *string  `json:"event_datetime"`
+	EventLocation string   `json:"event_location" validate:"omitempty,max=500"`
+	DeadlineAt    *string  `json:"deadline_at"`
+	IsUrgent      *bool    `json:"is_urgent"`
+	Tags          []string `json:"tags" validate:"omitempty,max=10,dive,max=50"`
 }
 
 // UpdateStatusRequest for PATCH /castings/{id}/status
@@ -127,13 +129,14 @@ type CastingResponse struct {
 	DeadlineAt    *string `json:"deadline_at,omitempty"`
 	IsUrgent      bool    `json:"is_urgent"`
 
-	Status           string `json:"status"`
-	IsPromoted       bool   `json:"is_promoted"`
-	ModerationStatus string `json:"moderation_status"`
-	ViewCount        int    `json:"view_count"`
-	ResponseCount    int    `json:"response_count"`
-	CreatedAt        string `json:"created_at"`
-	UpdatedAt        string `json:"updated_at"`
+	Status           string   `json:"status"`
+	IsPromoted       bool     `json:"is_promoted"`
+	ModerationStatus string   `json:"moderation_status"`
+	Tags             []string `json:"tags"`
+	ViewCount        int      `json:"view_count"`
+	ResponseCount    int      `json:"response_count"`
+	CreatedAt        string   `json:"created_at"`
+	UpdatedAt        string   `json:"updated_at"`
 }
 
 // CastingResponseFromEntity converts entity to response DTO
@@ -150,6 +153,7 @@ func CastingResponseFromEntity(c *Casting) *CastingResponse {
 		Status:           string(c.Status),
 		IsPromoted:       c.IsPromoted,
 		ModerationStatus: string(c.ModerationStatus),
+		Tags:             []string(c.Tags),
 		ViewCount:        c.ViewCount,
 		ResponseCount:    c.ResponseCount,
 		IsUrgent:         c.IsUrgent,

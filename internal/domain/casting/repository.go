@@ -25,6 +25,7 @@ type Filter struct {
 	CreatorID *uuid.UUID
 	IsUrgent  *bool
 	WorkType  *string
+	Tags      []string
 }
 
 // SortBy represents sort options
@@ -73,7 +74,7 @@ const castingSelectColumns = `
 	work_type, event_datetime, event_location, deadline_at, is_urgent,
 	status, is_promoted, view_count, response_count,
 	created_at, updated_at, moderation_status, required_models_count,
-	accepted_models_count
+	accepted_models_count, tags
 `
 
 // NewRepository creates new casting repository
@@ -91,7 +92,8 @@ func (r *repository) Create(ctx context.Context, casting *Casting) error {
 			min_weight, max_weight, required_experience, required_languages,
 			clothing_sizes, shoe_sizes,
 			work_type, event_datetime, event_location, deadline_at, is_urgent,
-			status, is_promoted, view_count, response_count
+			status, is_promoted, view_count, response_count,
+			tags
 		) VALUES (
 			$1, $2, $3, $4, $5, $6,
 			$7, $8, $9, $10, $11,
@@ -100,7 +102,8 @@ func (r *repository) Create(ctx context.Context, casting *Casting) error {
 			$18, $19, $20, $21,
 			$22, $23,
 			$24, $25, $26, $27, $28,
-			$29, $30, $31, $32
+			$29, $30, $31, $32,
+			$33
 		)
 	`
 
@@ -113,6 +116,7 @@ func (r *repository) Create(ctx context.Context, casting *Casting) error {
 		casting.ClothingSizes, casting.ShoeSizes,
 		casting.WorkType, casting.EventDatetime, casting.EventLocation, casting.DeadlineAt, casting.IsUrgent,
 		casting.Status, casting.IsPromoted, casting.ViewCount, casting.ResponseCount,
+		casting.Tags,
 	)
 	if err != nil {
 		evt := log.Error().
@@ -199,6 +203,7 @@ func (r *repository) Update(ctx context.Context, casting *Casting) error {
 			work_type = $23, event_datetime = $24, event_location = $25,
 			deadline_at = $26, is_urgent = $27,
 			status = $28,
+			tags = $29,
 			updated_at = NOW()
 		WHERE id = $1
 	`
@@ -217,6 +222,7 @@ func (r *repository) Update(ctx context.Context, casting *Casting) error {
 		casting.WorkType, casting.EventDatetime, casting.EventLocation,
 		casting.DeadlineAt, casting.IsUrgent,
 		casting.Status,
+		casting.Tags,
 	)
 	if err != nil {
 		return mapCreateDBError(err)
@@ -296,6 +302,18 @@ func (r *repository) List(ctx context.Context, filter *Filter, sortBy SortBy, pa
 			argIndex, argIndex,
 		))
 		args = append(args, "%"+*filter.Query+"%")
+		argIndex++
+	}
+
+	if len(filter.Tags) > 0 {
+		conditions = append(conditions, fmt.Sprintf("c.tags @> $%d", argIndex))
+		args = append(args, pq.StringArray(filter.Tags))
+		argIndex++
+	}
+
+	if len(filter.Tags) > 0 {
+		conditions = append(conditions, fmt.Sprintf("c.tags @> $%d", argIndex))
+		args = append(args, pq.StringArray(filter.Tags))
 		argIndex++
 	}
 
