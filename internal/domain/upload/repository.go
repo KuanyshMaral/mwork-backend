@@ -4,258 +4,63 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 )
 
-// Repository defines upload data access interface
+// Repository defines data access for uploads.
 type Repository interface {
 	Create(ctx context.Context, upload *Upload) error
 	GetByID(ctx context.Context, id uuid.UUID) (*Upload, error)
-	Update(ctx context.Context, upload *Upload) error
-	UpdateStaged(ctx context.Context, upload *Upload) error
-	MarkCommitted(ctx context.Context, id uuid.UUID, size int64, permanentKey, permanentURL string, committedAt time.Time) error
 	Delete(ctx context.Context, id uuid.UUID) error
-	ListByUser(ctx context.Context, userID uuid.UUID, category Category) ([]*Upload, error)
-	ListExpired(ctx context.Context, before time.Time) ([]*Upload, error)
-	DeleteExpired(ctx context.Context, before time.Time) (int, error)
-
-	// Batch operations
-	CreateBatch(ctx context.Context, uploads []*Upload) error
-	GetByBatchID(ctx context.Context, batchID uuid.UUID) ([]*Upload, error)
+	ListByAuthor(ctx context.Context, authorID uuid.UUID) ([]*Upload, error)
 }
 
 type repository struct {
 	db *sqlx.DB
 }
 
-const uploadSelectColumns = `
-	id, user_id, category, status,
-	original_name, mime_type, size,
-	staging_key, permanent_key, permanent_url,
-	width, height, error_message,
-	purpose, batch_id, metadata,
-	created_at, committed_at, expires_at
-`
-
-// NewRepository creates upload repository
+// NewRepository creates upload repository.
 func NewRepository(db *sqlx.DB) Repository {
 	return &repository{db: db}
 }
 
-func (r *repository) Create(ctx context.Context, upload *Upload) error {
+const selectColumns = `id, author_id, file_path, original_name, mime_type, size_bytes, created_at`
+
+func (r *repository) Create(ctx context.Context, u *Upload) error {
 	query := `
-		INSERT INTO uploads (
-			id, user_id, category, status,
-			original_name, mime_type, size,
-			staging_key, permanent_key, permanent_url,
-			width, height, error_message,
-			purpose, batch_id, metadata,
-			created_at, committed_at, expires_at
-		) VALUES (
-			$1, $2, $3, $4,
-			$5, $6, $7,
-			$8, $9, $10,
-			$11, $12, $13,
-			$14, $15, $16,
-			$17, $18, $19
-		)
+		INSERT INTO uploads (id, author_id, file_path, original_name, mime_type, size_bytes, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`
 	_, err := r.db.ExecContext(ctx, query,
-		upload.ID, upload.UserID, upload.Category, upload.Status,
-		upload.OriginalName, upload.MimeType, upload.Size,
-		upload.StagingKey, upload.PermanentKey, upload.PermanentURL,
-		upload.Width, upload.Height, upload.ErrorMessage,
-		upload.Purpose, upload.BatchID, upload.Metadata,
-		upload.CreatedAt, upload.CommittedAt, upload.ExpiresAt,
+		u.ID, u.AuthorID, u.FilePath, u.OriginalName, u.MimeType, u.SizeBytes, u.CreatedAt,
 	)
 	return err
 }
 
 func (r *repository) GetByID(ctx context.Context, id uuid.UUID) (*Upload, error) {
-	query := `SELECT ` + uploadSelectColumns + ` FROM uploads WHERE id = $1 AND status != 'deleted'`
-	var upload Upload
-	err := r.db.GetContext(ctx, &upload, query, id)
-	if err != nil {
+	query := `SELECT ` + selectColumns + ` FROM uploads WHERE id = $1`
+	var u Upload
+	if err := r.db.GetContext(ctx, &u, query, id); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
 		return nil, err
 	}
-	return &upload, nil
-}
-
-func (r *repository) Update(ctx context.Context, upload *Upload) error {
-	query := `
-		UPDATE uploads SET
-			status = $2,
-			permanent_key = $3,
-			permanent_url = $4,
-			width = $5,
-			height = $6,
-			error_message = $7,
-			committed_at = $8
-		WHERE id = $1
-	`
-	_, err := r.db.ExecContext(ctx, query,
-		upload.ID,
-		upload.Status,
-		upload.PermanentKey,
-		upload.PermanentURL,
-		upload.Width,
-		upload.Height,
-		upload.ErrorMessage,
-		upload.CommittedAt,
-	)
-	return err
-}
-
-func (r *repository) UpdateStaged(ctx context.Context, upload *Upload) error {
-	query := `
-		UPDATE uploads SET
-			category = $2,
-			status = $3,
-			original_name = $4,
-			mime_type = $5,
-			size = $6,
-			staging_key = $7,
-			expires_at = $8,
-			permanent_key = NULL,
-			permanent_url = NULL,
-			committed_at = NULL,
-			error_message = NULL
-		WHERE id = $1
-	`
-	_, err := r.db.ExecContext(ctx, query,
-		upload.ID,
-		upload.Category,
-		upload.Status,
-		upload.OriginalName,
-		upload.MimeType,
-		upload.Size,
-		upload.StagingKey,
-		upload.ExpiresAt,
-	)
-	return err
-}
-
-func (r *repository) MarkCommitted(ctx context.Context, id uuid.UUID, size int64, permanentKey, permanentURL string, committedAt time.Time) error {
-	query := `
-		UPDATE uploads SET
-			status = 'committed',
-			size = $2,
-			permanent_key = $3,
-			permanent_url = $4,
-			committed_at = $5
-		WHERE id = $1
-	`
-	_, err := r.db.ExecContext(ctx, query, id, size, permanentKey, permanentURL, committedAt)
-	return err
+	return &u, nil
 }
 
 func (r *repository) Delete(ctx context.Context, id uuid.UUID) error {
-	query := `UPDATE uploads SET status = 'deleted' WHERE id = $1`
-	_, err := r.db.ExecContext(ctx, query, id)
+	_, err := r.db.ExecContext(ctx, `DELETE FROM uploads WHERE id = $1`, id)
 	return err
 }
 
-func (r *repository) ListByUser(ctx context.Context, userID uuid.UUID, category Category) ([]*Upload, error) {
-	query := `
-		SELECT ` + uploadSelectColumns + ` FROM uploads 
-		WHERE user_id = $1 
-		AND ($2 = '' OR category = $2)
-		AND status IN ('staged', 'committed')
-		ORDER BY created_at DESC
-	`
+func (r *repository) ListByAuthor(ctx context.Context, authorID uuid.UUID) ([]*Upload, error) {
+	query := `SELECT ` + selectColumns + ` FROM uploads WHERE author_id = $1 ORDER BY created_at DESC`
 	var uploads []*Upload
-	err := r.db.SelectContext(ctx, &uploads, query, userID, category)
-	return uploads, err
-}
-
-func (r *repository) ListExpired(ctx context.Context, before time.Time) ([]*Upload, error) {
-	query := `
-		SELECT ` + uploadSelectColumns + ` FROM uploads 
-		WHERE status = 'staged' 
-		AND expires_at < $1
-	`
-	var uploads []*Upload
-	err := r.db.SelectContext(ctx, &uploads, query, before)
-	return uploads, err
-}
-
-func (r *repository) DeleteExpired(ctx context.Context, before time.Time) (int, error) {
-	query := `
-		DELETE FROM uploads 
-		WHERE status = 'staged' 
-		AND expires_at < $1
-		RETURNING id
-	`
-	result, err := r.db.ExecContext(ctx, query, before)
-	if err != nil {
-		return 0, err
+	if err := r.db.SelectContext(ctx, &uploads, query, authorID); err != nil {
+		return nil, err
 	}
-	count, _ := result.RowsAffected()
-	return int(count), nil
-}
-
-// CreateBatch inserts multiple uploads in a single transaction
-func (r *repository) CreateBatch(ctx context.Context, uploads []*Upload) error {
-	if len(uploads) == 0 {
-		return nil
-	}
-
-	tx, err := r.db.BeginTxx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	query := `
-		INSERT INTO uploads (
-			id, user_id, category, status,
-			original_name, mime_type, size,
-			staging_key, permanent_key, permanent_url,
-			width, height, error_message,
-			purpose, batch_id, metadata,
-			created_at, committed_at, expires_at
-		) VALUES (
-			$1, $2, $3, $4,
-			$5, $6, $7,
-			$8, $9, $10,
-			$11, $12, $13,
-			$14, $15, $16,
-			$17, $18, $19
-		)
-	`
-
-	for _, upload := range uploads {
-		_, err := tx.ExecContext(ctx, query,
-			upload.ID, upload.UserID, upload.Category, upload.Status,
-			upload.OriginalName, upload.MimeType, upload.Size,
-			upload.StagingKey, upload.PermanentKey, upload.PermanentURL,
-			upload.Width, upload.Height, upload.ErrorMessage,
-			upload.Purpose, upload.BatchID, upload.Metadata,
-			upload.CreatedAt, upload.CommittedAt, upload.ExpiresAt,
-		)
-		if err != nil {
-			return err
-		}
-	}
-
-	return tx.Commit()
-}
-
-// GetByBatchID returns all uploads belonging to a batch
-func (r *repository) GetByBatchID(ctx context.Context, batchID uuid.UUID) ([]*Upload, error) {
-	query := `
-		SELECT ` + uploadSelectColumns + ` FROM uploads 
-		WHERE batch_id = $1 
-		AND status != 'deleted'
-		ORDER BY created_at ASC
-	`
-	var uploads []*Upload
-	err := r.db.SelectContext(ctx, &uploads, query, batchID)
-	return uploads, err
+	return uploads, nil
 }
