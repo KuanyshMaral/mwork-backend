@@ -10,4 +10,7 @@ var (
 	ErrInvalidBillingPeriod = errors.New("invalid billing period")
 	ErrPaymentRequired      = errors.New("payment required for this plan")
 	ErrPaymentFailed        = errors.New("payment failed")
+	ErrPlanAudienceMismatch = errors.New("plan audience does not match user role")
+	ErrInvalidLimitKey      = errors.New("invalid limit key")
+	ErrLimitWouldBeNegative = errors.New("limit would become negative")
 )

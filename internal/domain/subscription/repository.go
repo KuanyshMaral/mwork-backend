@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
@@ -22,6 +23,11 @@ type Repository interface {
 	Update(ctx context.Context, sub *Subscription) error
 	Cancel(ctx context.Context, id uuid.UUID, reason string) error
 	ExpireOldSubscriptions(ctx context.Context) (int, error)
+
+	GetUserRole(ctx context.Context, userID uuid.UUID) (Audience, error)
+	GetLimitOverrideTotal(ctx context.Context, userID uuid.UUID, limitKey string) (int, error)
+	CreateLimitOverride(ctx context.Context, override *LimitOverride) error
+	GetAllLimitOverrides(ctx context.Context, userID uuid.UUID) (map[string]int, error)
 }
 
 type repository struct {
@@ -40,7 +46,7 @@ func (r *repository) GetPlanByID(ctx context.Context, id PlanID) (*Plan, error) 
 		SELECT
 			id, name, description, price_monthly, price_yearly,
 			max_photos, max_responses_month, can_chat, can_see_viewers,
-			priority_search, max_team_members, is_active, created_at
+			priority_search, max_team_members, audience, is_active, created_at
 		FROM plans
 		WHERE id = $1 AND is_active = true
 	`
@@ -60,7 +66,7 @@ func (r *repository) ListPlans(ctx context.Context) ([]*Plan, error) {
 		SELECT
 			id, name, description, price_monthly, price_yearly,
 			max_photos, max_responses_month, can_chat, can_see_viewers,
-			priority_search, max_team_members, is_active, created_at
+			priority_search, max_team_members, audience, is_active, created_at
 		FROM plans
 		WHERE is_active = true
 		ORDER BY price_monthly
@@ -169,4 +175,62 @@ func (r *repository) ExpireOldSubscriptions(ctx context.Context) (int, error) {
 	}
 	affected, _ := result.RowsAffected()
 	return int(affected), nil
+}
+
+func (r *repository) GetUserRole(ctx context.Context, userID uuid.UUID) (Audience, error) {
+	var role string
+	if err := r.db.GetContext(ctx, &role, `SELECT role FROM users WHERE id = $1`, userID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", ErrSubscriptionNotFound
+		}
+		return "", err
+	}
+	switch role {
+	case "model":
+		return AudienceModel, nil
+	case "employer", "agency":
+		return AudienceEmployer, nil
+	default:
+		return "", fmt.Errorf("unsupported role for subscriptions: %s", role)
+	}
+}
+
+func (r *repository) GetLimitOverrideTotal(ctx context.Context, userID uuid.UUID, limitKey string) (int, error) {
+	var total int
+	err := r.db.GetContext(ctx, &total, `
+		SELECT COALESCE(SUM(delta), 0)
+		FROM limit_overrides
+		WHERE user_id = $1 AND limit_key = $2
+	`, userID, limitKey)
+	return total, err
+}
+
+func (r *repository) CreateLimitOverride(ctx context.Context, override *LimitOverride) error {
+	_, err := r.db.ExecContext(ctx, `
+		INSERT INTO limit_overrides (id, user_id, limit_key, delta, reason, created_by, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+	`, override.ID, override.UserID, override.LimitKey, override.Delta, override.Reason, override.CreatedBy, override.CreatedAt)
+	return err
+}
+
+func (r *repository) GetAllLimitOverrides(ctx context.Context, userID uuid.UUID) (map[string]int, error) {
+	type row struct {
+		LimitKey string `db:"limit_key"`
+		Total    int    `db:"total"`
+	}
+	items := []row{}
+	err := r.db.SelectContext(ctx, &items, `
+		SELECT limit_key, COALESCE(SUM(delta), 0) AS total
+		FROM limit_overrides
+		WHERE user_id = $1
+		GROUP BY limit_key
+	`, userID)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[string]int, len(items))
+	for _, item := range items {
+		result[item.LimitKey] = item.Total
+	}
+	return result, nil
 }
