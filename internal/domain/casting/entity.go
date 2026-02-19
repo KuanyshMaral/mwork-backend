@@ -99,6 +99,9 @@ type Casting struct {
 	Status     Status `db:"status"`
 	IsPromoted bool   `db:"is_promoted"`
 
+	// Tags (user-defined, migration 000064)
+	Tags pq.StringArray `db:"tags"`
+
 	// Moderation fields
 	ModerationStatus ModerationStatus `db:"moderation_status"`
 

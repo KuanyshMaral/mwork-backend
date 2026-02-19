@@ -3,7 +3,7 @@
 
 CREATE TABLE IF NOT EXISTS reviews (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    profile_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    profile_id UUID NOT NULL REFERENCES model_profiles(id) ON DELETE CASCADE,
     reviewer_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     casting_id UUID REFERENCES castings(id) ON DELETE SET NULL,
     
@@ -28,7 +28,7 @@ CREATE INDEX IF NOT EXISTS idx_reviews_created ON reviews(created_at DESC);
 CREATE OR REPLACE FUNCTION update_profile_rating()
 RETURNS TRIGGER AS $$
 BEGIN
-    UPDATE profiles 
+    UPDATE model_profiles 
     SET rating = (
         SELECT COALESCE(AVG(rating)::numeric(3,2), 0) 
         FROM reviews 

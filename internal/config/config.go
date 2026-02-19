@@ -51,8 +51,6 @@ type Config struct {
 	// Robokassa Payment
 	PaymentMode                 string
 	RobokassaMerchantLogin      string
-	RobokassaPassword1          string
-	RobokassaPassword2          string
 	RobokassaTestPassword1      string
 	RobokassaTestPassword2      string
 	RobokassaIsTest             bool
@@ -117,11 +115,9 @@ func Load() *Config {
 		// Robokassa Payment
 		PaymentMode:                 getEnv("PAYMENT_MODE", "real"),
 		RobokassaMerchantLogin:      getEnv("ROBOKASSA_MERCHANT_LOGIN", ""),
-		RobokassaPassword1:          getEnv("ROBOKASSA_PASSWORD_1", ""),
-		RobokassaPassword2:          getEnv("ROBOKASSA_PASSWORD_2", ""),
 		RobokassaTestPassword1:      getEnv("ROBOKASSA_TEST_PASSWORD_1", ""),
 		RobokassaTestPassword2:      getEnv("ROBOKASSA_TEST_PASSWORD_2", ""),
-		RobokassaIsTest:             parseRobokassaTestFlag(getEnv("ROBOKASSA_IS_TEST", "false")),
+		RobokassaIsTest:             getEnv("ROBOKASSA_IS_TEST", "0") == "1",
 		RobokassaBaseURL:            getEnv("ROBOKASSA_BASE_URL", "https://auth.robokassa.kz/Merchant/Index.aspx"),
 		RobokassaFrontendSuccessURL: getEnv("ROBOKASSA_FRONTEND_SUCCESS_URL", "http://89.35.125.136/profile?payment=success"),
 		RobokassaFrontendFailURL:    getEnv("ROBOKASSA_FRONTEND_FAIL_URL", "http://89.35.125.136/payment-error"),

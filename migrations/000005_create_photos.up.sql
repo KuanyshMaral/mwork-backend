@@ -3,7 +3,7 @@
 
 CREATE TABLE photos (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    profile_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    profile_id UUID NOT NULL REFERENCES model_profiles(id) ON DELETE CASCADE,
     
     -- R2 Object info
     key VARCHAR(255) NOT NULL UNIQUE, -- R2 object key
