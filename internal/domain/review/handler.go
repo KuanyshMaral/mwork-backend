@@ -10,48 +10,23 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
-	"github.com/mwork/mwork-api/internal/domain/profile"
 
 	"github.com/mwork/mwork-api/internal/middleware"
-	"github.com/mwork/mwork-api/internal/pkg/errorhandler"
 	"github.com/mwork/mwork-api/internal/pkg/response"
 )
 
-// Handler handles review HTTP requests
+// Handler handles review HTTP requests.
 type Handler struct {
-	repo        *Repository
-	profileRepo profile.ModelRepository
-	validator   *validator.Validate
+	repo      *Repository
+	validator *validator.Validate
 }
 
-// NewHandler creates new review handler
-func NewHandler(repo *Repository, profileRepo profile.ModelRepository) *Handler {
+// NewHandler creates a new review handler.
+func NewHandler(repo *Repository) *Handler {
 	return &Handler{
-		repo:        repo,
-		profileRepo: profileRepo,
-		validator:   validator.New(),
+		repo:      repo,
+		validator: validator.New(),
 	}
-}
-
-func (h *Handler) resolveProfileID(ctx *http.Request, rawID string) (uuid.UUID, error) {
-	id, err := uuid.Parse(rawID)
-	if err != nil {
-		return uuid.Nil, err
-	}
-
-	if p, err := h.profileRepo.GetByID(ctx.Context(), id); err != nil {
-		return uuid.Nil, err
-	} else if p != nil {
-		return p.ID, nil
-	}
-
-	if p, err := h.profileRepo.GetByUserID(ctx.Context(), id); err != nil {
-		return uuid.Nil, err
-	} else if p != nil {
-		return p.ID, nil
-	}
-
-	return uuid.Nil, nil
 }
 
 // Create handles POST /reviews
@@ -76,111 +51,122 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		response.BadRequest(w, "Invalid JSON body")
 		return
 	}
-
 	if err := h.validator.Struct(req); err != nil {
 		response.BadRequest(w, err.Error())
 		return
 	}
 
-	profileID, err := h.resolveProfileID(r, req.ProfileID)
+	targetID, err := uuid.Parse(req.TargetID)
 	if err != nil {
-		response.BadRequest(w, "Invalid profile ID")
-		return
-	}
-	if profileID == uuid.Nil {
-		response.NotFound(w, "Profile not found")
+		response.BadRequest(w, "Invalid target_id")
 		return
 	}
 
-	// Check if already reviewed
-	var castingID uuid.NullUUID
-	if req.CastingID != "" {
-		cid, err := uuid.Parse(req.CastingID)
+	var contextID uuid.NullUUID
+	if req.ContextID != "" {
+		cid, err := uuid.Parse(req.ContextID)
 		if err != nil {
-			response.BadRequest(w, "Invalid casting ID")
+			response.BadRequest(w, "Invalid context_id")
 			return
 		}
-		castingID = uuid.NullUUID{UUID: cid, Valid: true}
+		contextID = uuid.NullUUID{UUID: cid, Valid: true}
 	}
 
-	exists, err := h.repo.HasReviewed(r.Context(), profileID, userID, castingID)
+	targetType := TargetType(req.TargetType)
+	exists, err := h.repo.HasReviewed(r.Context(), userID, targetType, targetID, contextID)
 	if err != nil {
-		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
+		response.InternalError(w)
 		return
 	}
 	if exists {
-		response.Conflict(w, "You have already reviewed this profile")
+		response.Conflict(w, "You have already reviewed this entity")
 		return
+	}
+
+	var contextType sql.NullString
+	if req.ContextType != "" {
+		contextType = sql.NullString{String: req.ContextType, Valid: true}
 	}
 
 	now := time.Now()
-	review := &Review{
-		ID:         uuid.New(),
-		ProfileID:  profileID,
-		ReviewerID: userID,
-		CastingID:  castingID,
-		Rating:     req.Rating,
-		Comment:    sql.NullString{String: req.Comment, Valid: req.Comment != ""},
-		IsPublic:   true,
-		CreatedAt:  now,
-		UpdatedAt:  now,
+	rev := &Review{
+		ID:          uuid.New(),
+		AuthorID:    userID,
+		TargetType:  targetType,
+		TargetID:    targetID,
+		ContextType: contextType,
+		ContextID:   contextID,
+		Rating:      req.Rating,
+		Comment:     sql.NullString{String: req.Comment, Valid: req.Comment != ""},
+		IsPublic:    true,
+		CreatedAt:   now,
+		UpdatedAt:   now,
 	}
 
-	if err := h.repo.Create(r.Context(), review); err != nil {
-		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
+	if err := h.repo.Create(r.Context(), rev); err != nil {
+		response.InternalError(w)
 		return
 	}
 
-	response.Created(w, review.ToResponse())
+	response.Created(w, rev.ToResponse())
 }
 
-// ListByProfile handles GET /profiles/{id}/reviews
-// @Summary Список отзывов профиля
+// ListByTarget handles GET /reviews?target_type=X&target_id=Y
+// @Summary Список отзывов
 // @Tags Review
 // @Produce json
-// @Param id path string true "ID профиля"
+// @Param target_type query string true "Тип сущности (model_profile|employer_profile|casting)"
+// @Param target_id query string true "ID сущности"
 // @Param page query int false "Страница"
-// @Param limit query int false "Лимит"
+// @Param limit query int false "Лимит (max 50)"
 // @Success 200 {object} response.Response{data=[]ReviewResponse}
 // @Failure 400,500 {object} response.Response
-// @Router /profiles/{id}/reviews [get]
-func (h *Handler) ListByProfile(w http.ResponseWriter, r *http.Request) {
-	profileID, err := h.resolveProfileID(r, chi.URLParam(r, "id"))
-	if err != nil {
-		response.BadRequest(w, "Invalid profile ID")
-		return
-	}
-	if profileID == uuid.Nil {
-		response.NotFound(w, "Profile not found")
+// @Router /reviews [get]
+func (h *Handler) ListByTarget(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	rawType := q.Get("target_type")
+	rawID := q.Get("target_id")
+
+	if rawType == "" || rawID == "" {
+		response.BadRequest(w, "target_type and target_id are required")
 		return
 	}
 
-	// Pagination
-	query := r.URL.Query()
-	page := 1
-	limit := 10
-	if p := query.Get("page"); p != "" {
+	targetID, err := uuid.Parse(rawID)
+	if err != nil {
+		response.BadRequest(w, "invalid target_id")
+		return
+	}
+
+	targetType := TargetType(rawType)
+	switch targetType {
+	case TargetTypeModelProfile, TargetTypeEmployerProfile, TargetTypeCasting:
+	default:
+		response.BadRequest(w, "invalid target_type")
+		return
+	}
+
+	page, limit := 1, 10
+	if p := q.Get("page"); p != "" {
 		if v, err := strconv.Atoi(p); err == nil && v > 0 {
 			page = v
 		}
 	}
-	if l := query.Get("limit"); l != "" {
+	if l := q.Get("limit"); l != "" {
 		if v, err := strconv.Atoi(l); err == nil && v > 0 && v <= 50 {
 			limit = v
 		}
 	}
-
 	offset := (page - 1) * limit
 
-	reviews, err := h.repo.GetByProfileID(r.Context(), profileID, limit, offset)
+	reviews, err := h.repo.GetByTarget(r.Context(), targetType, targetID, limit, offset)
 	if err != nil {
-		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
+		response.InternalError(w)
 		return
 	}
-
-	total, err := h.repo.CountByProfileID(r.Context(), profileID)
+	total, err := h.repo.CountByTarget(r.Context(), targetType, targetID)
 	if err != nil {
-		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
+		response.InternalError(w)
 		return
 	}
 
@@ -199,45 +185,42 @@ func (h *Handler) ListByProfile(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// GetSummary handles GET /profiles/{id}/reviews/summary
-// @Summary Сводка рейтинга профиля
+// GetSummary handles GET /reviews/summary?target_type=X&target_id=Y
+// @Summary Сводка рейтинга
 // @Tags Review
 // @Produce json
-// @Param id path string true "ID профиля"
-// @Success 200 {object} response.Response{data=ProfileRatingSummary}
+// @Param target_type query string true "Тип сущности"
+// @Param target_id query string true "ID сущности"
+// @Success 200 {object} response.Response{data=TargetRatingSummary}
 // @Failure 400,500 {object} response.Response
-// @Router /profiles/{id}/reviews/summary [get]
+// @Router /reviews/summary [get]
 func (h *Handler) GetSummary(w http.ResponseWriter, r *http.Request) {
-	profileID, err := h.resolveProfileID(r, chi.URLParam(r, "id"))
+	q := r.URL.Query()
+	targetType := TargetType(q.Get("target_type"))
+	targetID, err := uuid.Parse(q.Get("target_id"))
 	if err != nil {
-		response.BadRequest(w, "Invalid profile ID")
-		return
-	}
-	if profileID == uuid.Nil {
-		response.NotFound(w, "Profile not found")
-		return
-	}
-
-	avg, err := h.repo.GetAverageRating(r.Context(), profileID)
-	if err != nil {
-		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
-		return
-	}
-	total, err := h.repo.CountByProfileID(r.Context(), profileID)
-	if err != nil {
-		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
-		return
-	}
-	dist, err := h.repo.GetRatingDistribution(r.Context(), profileID)
-	if err != nil {
-		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
+		response.BadRequest(w, "invalid target_id")
 		return
 	}
 
-	// Get recent reviews
-	recent, err := h.repo.GetByProfileID(r.Context(), profileID, 3, 0)
+	avg, err := h.repo.GetAverageRating(r.Context(), targetType, targetID)
 	if err != nil {
-		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
+		response.InternalError(w)
+		return
+	}
+	total, err := h.repo.CountByTarget(r.Context(), targetType, targetID)
+	if err != nil {
+		response.InternalError(w)
+		return
+	}
+	dist, err := h.repo.GetRatingDistribution(r.Context(), targetType, targetID)
+	if err != nil {
+		response.InternalError(w)
+		return
+	}
+	recent, err := h.repo.GetByTarget(r.Context(), targetType, targetID, 3, 0)
+	if err != nil {
+		response.InternalError(w)
 		return
 	}
 	recentResp := make([]*ReviewResponse, len(recent))
@@ -245,17 +228,15 @@ func (h *Handler) GetSummary(w http.ResponseWriter, r *http.Request) {
 		recentResp[i] = rev.ToResponse()
 	}
 
-	summary := &ProfileRatingSummary{
+	response.OK(w, &TargetRatingSummary{
 		AverageRating: avg,
 		TotalReviews:  total,
 		Distribution:  dist,
 		RecentReviews: recentResp,
-	}
-
-	response.OK(w, summary)
+	})
 }
 
-// Delete handles DELETE /reviews/{id}
+// Delete handles DELETE /reviews/:id
 // @Summary Удалить отзыв
 // @Tags Review
 // @Produce json
@@ -270,36 +251,35 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		response.BadRequest(w, "Invalid review ID")
 		return
 	}
-
 	userID := middleware.GetUserID(r.Context())
 	if userID == uuid.Nil {
 		response.Unauthorized(w, "Unauthorized")
 		return
 	}
 
-	review, err := h.repo.GetByID(r.Context(), reviewID)
-	if err != nil || review == nil {
+	rev, err := h.repo.GetByID(r.Context(), reviewID)
+	if err != nil || rev == nil {
 		response.NotFound(w, "Review not found")
 		return
 	}
-
-	// Only reviewer can delete their own review
-	if review.ReviewerID != userID {
+	if rev.AuthorID != userID {
 		response.Forbidden(w, "Can only delete your own reviews")
 		return
 	}
 
 	if err := h.repo.Delete(r.Context(), reviewID); err != nil {
-		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
+		response.InternalError(w)
 		return
 	}
-
 	response.NoContent(w)
 }
 
-// Routes returns review routes
+// Routes returns review routes.
 func Routes(h *Handler, authMiddleware func(http.Handler) http.Handler) chi.Router {
 	r := chi.NewRouter()
+
+	r.Get("/", h.ListByTarget)
+	r.Get("/summary", h.GetSummary)
 
 	r.Group(func(r chi.Router) {
 		r.Use(authMiddleware)

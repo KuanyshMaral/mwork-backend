@@ -1,0 +1,2 @@
+DROP INDEX IF EXISTS idx_castings_tags;
+ALTER TABLE castings DROP COLUMN IF EXISTS tags;
