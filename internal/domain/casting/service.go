@@ -127,6 +127,9 @@ func applyRequirementsToCreate(casting *Casting, req *CreateCastingRequest) {
 	if len(req.ShoeSizes) > 0 {
 		casting.ShoeSizes = pq.StringArray(req.ShoeSizes)
 	}
+	if len(req.Tags) > 0 {
+		casting.Tags = pq.StringArray(req.Tags)
+	}
 	if req.WorkType != "" {
 		casting.WorkType = sql.NullString{String: req.WorkType, Valid: true}
 	}
@@ -170,6 +173,9 @@ func applyRequirementsToUpdate(casting *Casting, req *UpdateCastingRequest) {
 	}
 	if req.ShoeSizes != nil {
 		casting.ShoeSizes = pq.StringArray(req.ShoeSizes)
+	}
+	if req.Tags != nil {
+		casting.Tags = pq.StringArray(req.Tags)
 	}
 	if req.WorkType != "" {
 		casting.WorkType = sql.NullString{String: req.WorkType, Valid: true}

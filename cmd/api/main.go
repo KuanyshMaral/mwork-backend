@@ -326,10 +326,9 @@ func main() {
 	favoriteHandler := favorite.NewHandler(favoriteRepo)
 	walletHandler := wallet.NewHandler(walletService)
 
-	savedCastingsHandler := casting.NewSavedCastingsHandler(db)
 	socialLinksHandler := profile.NewSocialLinksHandler(db, modelRepo)
 	reviewRepo := review.NewRepository(db)
-	reviewHandler := review.NewHandler(reviewRepo, modelRepo)
+	reviewHandler := review.NewHandler(reviewRepo)
 	faqHandler := content.NewFAQHandler(db)
 
 	creditHandler := admin.NewCreditHandler(creditService, adminService)
@@ -337,7 +336,7 @@ func main() {
 	adminHandler := admin.NewHandler(adminService, adminJWTService, photoStudioAdminHandler, creditHandler)
 	adminModerationHandler := admin.NewModerationHandler(db, adminService)
 	leadHandler := lead.NewHandler(leadService)
-	userAdminHandler := admin.NewUserHandler(db, adminService, creditHandler)
+	userAdminHandler := admin.NewUserHandler(db, adminService, creditHandler, subscriptionService)
 
 	// PhotoStudio booking integration
 	photoStudioBookingService := photostudio_booking.NewService(photoStudioConcreteClient, photoStudioSyncEnabled)
@@ -416,17 +415,6 @@ func main() {
 		)
 		r.Mount("/castings", castingHandler.Routes(authWithVerifiedEmailMiddleware))
 
-		r.Route("/castings/saved", func(r chi.Router) {
-			r.Use(authWithVerifiedEmailMiddleware)
-			r.Get("/", savedCastingsHandler.ListSaved)
-		})
-		r.Route("/castings/{id}/save", func(r chi.Router) {
-			r.Use(authWithVerifiedEmailMiddleware)
-			r.Post("/", savedCastingsHandler.Save)
-			r.Delete("/", savedCastingsHandler.Unsave)
-			r.Get("/", savedCastingsHandler.CheckSaved)
-		})
-
 		r.Route("/castings/{id}/responses", func(r chi.Router) {
 			r.Use(authWithVerifiedEmailMiddleware)
 			r.With(responseLimitMiddleware).Post("/", responseHandler.Apply)
@@ -477,8 +465,8 @@ func main() {
 
 		r.Get("/profiles/{id}/completeness", socialLinksHandler.GetCompleteness)
 
-		r.Get("/profiles/{id}/reviews", reviewHandler.ListByProfile)
-		r.Get("/profiles/{id}/reviews/summary", reviewHandler.GetSummary)
+		r.Get("/reviews", reviewHandler.ListByTarget)
+		r.Get("/reviews/summary", reviewHandler.GetSummary)
 
 		r.Route("/chat", func(r chi.Router) {
 			r.Use(authWithVerifiedEmailMiddleware)
