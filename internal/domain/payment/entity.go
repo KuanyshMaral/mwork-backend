@@ -13,6 +13,7 @@ type Status string
 
 const (
 	StatusPending   Status = "pending"
+	StatusPaid      Status = "paid"
 	StatusCompleted Status = "completed"
 	StatusFailed    Status = "failed"
 	StatusRefunded  Status = "refunded"
@@ -33,6 +34,10 @@ type Payment struct {
 	UserID             uuid.UUID       `db:"user_id" json:"user_id"`
 	PlanID             uuid.UUID       `db:"plan_id" json:"plan_id"`
 	SubscriptionID     uuid.NullUUID   `db:"subscription_id" json:"subscription_id,omitempty"`
+	Type               string          `db:"type" json:"type,omitempty"`
+	Plan               sql.NullString  `db:"plan" json:"plan,omitempty"`
+	InvID              sql.NullString  `db:"inv_id" json:"inv_id,omitempty"`
+	ResponsePackage    sql.NullInt64   `db:"response_package" json:"response_package,omitempty"`
 	Amount             float64         `db:"amount" json:"amount"`
 	RobokassaInvID     sql.NullInt64   `db:"robokassa_inv_id" json:"robokassa_inv_id,omitempty"`
 	Currency           string          `db:"currency" json:"currency"`
@@ -53,5 +58,5 @@ type Payment struct {
 
 // IsPaid checks if payment is completed
 func (p *Payment) IsPaid() bool {
-	return p.Status == StatusCompleted
+	return p.Status == StatusCompleted || p.Status == StatusPaid
 }

@@ -49,7 +49,6 @@ import (
 	"github.com/mwork/mwork-api/internal/pkg/logger"
 	"github.com/mwork/mwork-api/internal/pkg/photostudio"
 	pkgresponse "github.com/mwork/mwork-api/internal/pkg/response"
-	"github.com/mwork/mwork-api/internal/pkg/robokassa"
 	"github.com/mwork/mwork-api/internal/pkg/storage"
 
 	_ "github.com/mwork/mwork-api/docs"
@@ -249,10 +248,6 @@ func main() {
 	// Update services with proper dependencies
 	subscriptionService = subscription.NewService(subscriptionRepo, subscriptionPhotoRepo, subscriptionResponseRepo, subscriptionCastingRepo, subscriptionProfileRepo)
 	paymentService = payment.NewService(paymentRepo, subscriptionService)
-	hashAlgo, err := robokassa.NormalizeHashAlgorithm(cfg.RobokassaHashAlgo)
-	if err != nil {
-		log.Fatal().Err(err).Msg("invalid ROBOKASSA_HASH_ALGO")
-	}
 	paymentService.SetRobokassaConfig(payment.RobokassaConfig{
 		MerchantLogin: cfg.RobokassaMerchantLogin,
 		Password1:     cfg.RobokassaPassword1,
@@ -260,11 +255,7 @@ func main() {
 		TestPassword1: cfg.RobokassaTestPassword1,
 		TestPassword2: cfg.RobokassaTestPassword2,
 		IsTest:        cfg.RobokassaIsTest,
-		HashAlgo:      hashAlgo,
-		PaymentURL:    cfg.RobokassaPaymentURL,
-		ResultURL:     cfg.RobokassaResultURL,
-		SuccessURL:    cfg.RobokassaSuccessURL,
-		FailURL:       cfg.RobokassaFailURL,
+		BaseURL:       cfg.RobokassaBaseURL,
 	})
 
 	// Adapter for subscription payment service (must use configured paymentService instance)
