@@ -11,9 +11,18 @@ import (
 type PlanID string
 
 const (
-	PlanFree   PlanID = "free"
-	PlanPro    PlanID = "pro"
-	PlanAgency PlanID = "agency"
+	PlanFree         PlanID = "free"
+	PlanFreeModel    PlanID = "free_model"
+	PlanFreeEmployer PlanID = "free_employer"
+	PlanPro          PlanID = "pro"
+	PlanAgency       PlanID = "agency"
+)
+
+type Audience string
+
+const (
+	AudienceModel    Audience = "model"
+	AudienceEmployer Audience = "employer"
 )
 
 // Status represents subscription status
@@ -43,12 +52,13 @@ type Plan struct {
 	PriceYearly  sql.NullFloat64 `db:"price_yearly" json:"price_yearly,omitempty"`
 
 	// Limits
-	MaxPhotos         int  `db:"max_photos" json:"max_photos"`
-	MaxResponsesMonth int  `db:"max_responses_month" json:"max_responses_month"` // -1 = unlimited
-	CanChat           bool `db:"can_chat" json:"can_chat"`
-	CanSeeViewers     bool `db:"can_see_viewers" json:"can_see_viewers"`
-	PrioritySearch    bool `db:"priority_search" json:"priority_search"`
-	MaxTeamMembers    int  `db:"max_team_members" json:"max_team_members"`
+	MaxPhotos         int      `db:"max_photos" json:"max_photos"`
+	MaxResponsesMonth int      `db:"max_responses_month" json:"max_responses_month"` // -1 = unlimited
+	CanChat           bool     `db:"can_chat" json:"can_chat"`
+	CanSeeViewers     bool     `db:"can_see_viewers" json:"can_see_viewers"`
+	PrioritySearch    bool     `db:"priority_search" json:"priority_search"`
+	MaxTeamMembers    int      `db:"max_team_members" json:"max_team_members"`
+	Audience          Audience `db:"audience" json:"audience"`
 
 	IsActive  bool      `db:"is_active" json:"is_active"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`

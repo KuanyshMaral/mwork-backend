@@ -245,6 +245,8 @@ func (h *Handler) Subscribe(w http.ResponseWriter, r *http.Request) {
 			response.Conflict(w, "already subscribed")
 		case ErrInvalidBillingPeriod:
 			response.BadRequest(w, "invalid billing period")
+		case ErrPlanAudienceMismatch:
+			response.Forbidden(w, "plan is not available for your profile type")
 		default:
 			response.InternalError(w)
 		}
@@ -323,6 +325,24 @@ func (h *Handler) Cancel(w http.ResponseWriter, r *http.Request) {
 	response.OK(w, map[string]string{"status": "cancelled"})
 }
 
+func (h *Handler) GetModelCastingLimits(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+	if userID == uuid.Nil {
+		response.Unauthorized(w, "unauthorized")
+		return
+	}
+	if middleware.GetRole(r.Context()) != "model" {
+		response.Forbidden(w, "Only models can access this endpoint")
+		return
+	}
+	limits, err := h.service.GetLimitStatus(r.Context(), userID, LimitKeyCastingResponses)
+	if err != nil {
+		response.InternalError(w)
+		return
+	}
+	response.OK(w, limits)
+}
+
 // Routes returns subscription router
 func (h *Handler) Routes(authMiddleware func(http.Handler) http.Handler) chi.Router {
 	r := chi.NewRouter()
@@ -335,6 +355,7 @@ func (h *Handler) Routes(authMiddleware func(http.Handler) http.Handler) chi.Rou
 		r.Use(authMiddleware)
 		r.Get("/current", h.GetCurrent)
 		r.Get("/limits", h.GetLimits)
+		r.Get("/models/me/castings/limits", h.GetModelCastingLimits)
 		r.Post("/", h.Subscribe)
 		r.Post("/cancel", h.Cancel)
 	})
