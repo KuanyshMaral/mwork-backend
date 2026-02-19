@@ -63,6 +63,21 @@ type setLimitRequest struct {
 	Reason string `json:"reason"`
 }
 
+// AdjustUserLimit handles POST /admin/users/{id}/limits/{limitKey}/adjust
+// @Summary Изменить лимит пользователя (дельта)
+// @Description Увеличивает или уменьшает выбранный лимит пользователя на указанную величину
+// @Tags Admin Users
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID пользователя"
+// @Param limitKey path string true "Ключ лимита (например casting_responses, profile_photos, direct_chats)"
+// @Param request body adjustLimitRequest true "Дельта лимита"
+// @Success 200 {object} response.Response{data=subscription.LimitStatus}
+// @Failure 400 {object} response.Response
+// @Failure 401 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /admin/users/{id}/limits/{limitKey}/adjust [post]
 func (h *UserHandler) AdjustUserLimit(w http.ResponseWriter, r *http.Request) {
 	if h.limits == nil {
 		response.InternalError(w)
@@ -95,6 +110,21 @@ func (h *UserHandler) AdjustUserLimit(w http.ResponseWriter, r *http.Request) {
 	response.OK(w, status)
 }
 
+// SetUserLimit handles POST /admin/users/{id}/limits/{limitKey}/set
+// @Summary Установить лимит пользователя
+// @Description Устанавливает абсолютное значение выбранного лимита пользователя
+// @Tags Admin Users
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID пользователя"
+// @Param limitKey path string true "Ключ лимита (например casting_responses, profile_photos, direct_chats)"
+// @Param request body setLimitRequest true "Новое значение лимита"
+// @Success 200 {object} response.Response{data=subscription.LimitStatus}
+// @Failure 400 {object} response.Response
+// @Failure 401 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /admin/users/{id}/limits/{limitKey}/set [post]
 func (h *UserHandler) SetUserLimit(w http.ResponseWriter, r *http.Request) {
 	if h.limits == nil {
 		response.InternalError(w)
@@ -127,6 +157,18 @@ func (h *UserHandler) SetUserLimit(w http.ResponseWriter, r *http.Request) {
 	response.OK(w, status)
 }
 
+// GetUserLimits handles GET /admin/users/{id}/limits
+// @Summary Список лимитов пользователя
+// @Description Возвращает текущие значения лимитов пользователя с учетом оверрайдов и использованных значений
+// @Tags Admin Users
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID пользователя"
+// @Success 200 {object} response.Response{data=[]subscription.LimitStatus}
+// @Failure 400 {object} response.Response
+// @Failure 401 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /admin/users/{id}/limits [get]
 func (h *UserHandler) GetUserLimits(w http.ResponseWriter, r *http.Request) {
 	if h.limits == nil {
 		response.InternalError(w)
