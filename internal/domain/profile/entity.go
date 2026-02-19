@@ -50,6 +50,13 @@ type ModelProfile struct {
 	TotalReviews int            `db:"total_reviews"`
 	IsPublic     bool           `db:"is_public"`
 	Visibility   sql.NullString `db:"visibility"`
+
+	// Avatar (Phase 4: direct FK to uploads, replaces photos.is_avatar pattern)
+	// NULL means no avatar is set. When set, the upload provides the file URL.
+	AvatarUploadID uuid.NullUUID `db:"avatar_upload_id"`
+
+	// AvatarURL is NOT a DB column — populated by service layer from upload.GetURL().
+	AvatarURL string `db:"-" json:"avatar_url,omitempty"`
 }
 
 // EmployerProfile represents an employer's profile (matches employer_profiles table)
@@ -80,7 +87,6 @@ type EmployerProfile struct {
 	IsVerified     bool         `db:"is_verified"`
 	VerifiedAt     sql.NullTime `db:"verified_at"`
 }
-
 
 // AdminProfile represents an admin profile (matches admin_profiles table)
 type AdminProfile struct {

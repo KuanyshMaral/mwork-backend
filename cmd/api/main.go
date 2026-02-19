@@ -17,6 +17,7 @@ import (
 
 	"github.com/mwork/mwork-api/internal/config"
 	"github.com/mwork/mwork-api/internal/domain/admin"
+	attachmentDomain "github.com/mwork/mwork-api/internal/domain/attachment"
 	"github.com/mwork/mwork-api/internal/domain/auth"
 	"github.com/mwork/mwork-api/internal/domain/casting"
 	"github.com/mwork/mwork-api/internal/domain/chat"
@@ -30,7 +31,6 @@ import (
 	"github.com/mwork/mwork-api/internal/domain/notification"
 	"github.com/mwork/mwork-api/internal/domain/organization"
 	"github.com/mwork/mwork-api/internal/domain/payment"
-	"github.com/mwork/mwork-api/internal/domain/photo"
 	"github.com/mwork/mwork-api/internal/domain/photostudio_booking"
 	"github.com/mwork/mwork-api/internal/domain/profile"
 	"github.com/mwork/mwork-api/internal/domain/promotion"
@@ -108,7 +108,7 @@ func main() {
 	adminProfRepo := profile.NewAdminRepository(db)
 	castingRepo := casting.NewRepository(db)
 	responseRepo := response.NewRepository(db)
-	photoRepo := photo.NewRepository(db)
+	attachmentRepo := attachmentDomain.NewRepository(db)
 	chatRepo := chat.NewRepository(db)
 	moderationRepo := moderation.NewRepository(db)
 	notificationRepo := notification.NewRepository(db)
@@ -120,51 +120,30 @@ func main() {
 	favoriteRepo := favorite.NewRepository(db)
 	walletRepo := wallet.NewRepository(db)
 
-	// ---------- Upload domain (2-phase) ----------
-	const filesBaseURL = "/api/v1/media"
-
-	var (
-		uploadStorage      uploadDomain.UploadStorage
-		uploadFileStorage  storage.Storage
-		uploadCloudStorage storage.Storage
-		servingLocalFiles  bool
-		proxyUploadMode    bool
+	// ---------- Upload domain (Local-First, Simple CRUD) ----------
+	// Files are stored on local disk at cfg.UploadLocalPath.
+	// Served via static file handler at /static/*.
+	const (
+		filesBaseURL   = "/static"
+		filesStaticDir = "/uploads" // fallback if cfg.UploadLocalPath is empty
 	)
 
-	if cfg.R2AccountID != "" && cfg.R2AccessKeyID != "" && cfg.R2AccessKeySecret != "" && cfg.R2BucketName != "" {
-		r2Storage, r2Err := storage.NewR2Storage(storage.R2Config{
-			AccountID:       cfg.R2AccountID,
-			AccessKeyID:     cfg.R2AccessKeyID,
-			AccessKeySecret: cfg.R2AccessKeySecret,
-			BucketName:      cfg.R2BucketName,
-			PublicURL:       cfg.R2PublicURL,
-		})
-		if r2Err != nil {
-			log.Fatal().Err(r2Err).Msg("Failed to create R2 storage")
-		}
-		uploadStorage = r2Storage
-		uploadFileStorage = r2Storage
-		uploadCloudStorage = r2Storage
-		log.Info().Msg("Upload storage: R2")
-	} else {
-		localStorage, localErr := storage.NewLocalStorage(cfg.UploadLocalPath, filesBaseURL)
-		if localErr != nil {
-			log.Fatal().Err(localErr).Msg("Failed to create local upload storage")
-		}
-		uploadStorage = storage.NewUploadStorageAdapter(localStorage)
-		uploadFileStorage = localStorage
-		proxyUploadMode = true
-		servingLocalFiles = true
-		log.Warn().Str("path", cfg.UploadLocalPath).Msg("R2 is not configured, using local upload storage")
+	uploadLocalPath := cfg.UploadLocalPath
+	if uploadLocalPath == "" {
+		uploadLocalPath = filesStaticDir
 	}
 
+	// Use cfg.UploadPublicURL for generating links (e.g. "http://localhost:8080/static"),
+	// but mount the handler at filesBaseURL ("/static").
+	localStorage, localStorageErr := storage.NewLocalStorage(uploadLocalPath, cfg.UploadPublicURL)
+	if localStorageErr != nil {
+		log.Fatal().Err(localStorageErr).Msg("Failed to initialize local upload storage")
+	}
+	log.Info().Str("path", uploadLocalPath).Str("public_url", cfg.UploadPublicURL).Msg("Upload storage: Local")
+
 	uploadRepo := uploadDomain.NewRepository(db)
-	uploadService := uploadDomain.NewServiceWithConfig(uploadRepo, uploadFileStorage, uploadCloudStorage, filesBaseURL, uploadDomain.Config{
-		MaxUploadSize: int64(cfg.UploadMaxMB) * 1024 * 1024,
-		StagingTTL:    time.Duration(cfg.UploadStagingHours) * time.Hour,
-		PresignExpiry: time.Duration(cfg.UploadPresignMin) * time.Minute,
-	})
-	uploadHandler := uploadDomain.NewHandler(uploadService, filesBaseURL, uploadStorage, uploadRepo, proxyUploadMode)
+	uploadService := uploadDomain.NewService(uploadRepo, localStorage, cfg.UploadPublicURL)
+	uploadHandler := uploadDomain.NewHandler(uploadService)
 
 	// ---------- WebSocket hub ----------
 	chatHub := chat.NewHub(redis)
@@ -188,7 +167,7 @@ func main() {
 	profileService := profile.NewService(modelRepo, employerRepo, adminProfRepo, userRepo)
 	castingService := casting.NewService(castingRepo, userRepo)
 	responseService := response.NewService(responseRepo, castingRepo, modelRepo, employerRepo)
-	photoService := photo.NewService(photoRepo, modelRepo, uploadService)
+	attachmentService := attachmentDomain.NewService(attachmentRepo, uploadService)
 	moderationService := moderation.NewService(moderationRepo, userRepo)
 	relationshipsRepo := relationships.NewRepository(db)
 	relationshipsService := relationships.NewService(relationshipsRepo)
@@ -205,10 +184,9 @@ func main() {
 		relationshipsService: relationshipsService,
 	}
 
-	// UploadResolver: adapter for resolving upload details
+	// UploadResolver: adapter for resolving upload details from chat
 	uploadResolver := &chatUploadResolver{
 		uploadService: uploadService,
-		baseURL:       filesBaseURL,
 	}
 
 	// Adapter for auth model profile repository
@@ -218,7 +196,8 @@ func main() {
 	authEmployerRepo := &authEmployerProfileAdapter{repo: employerRepo}
 
 	// Stub adapters for subscription service
-	subscriptionPhotoRepo := &subscriptionPhotoAdapter{repo: photoRepo}
+	// Stub for subscription: count portfolio photos via attachment domain
+	subscriptionPhotoRepo := &subscriptionPhotoAdapter{repo: attachmentRepo}
 	subscriptionResponseRepo := &subscriptionResponseAdapter{repo: responseRepo}
 	subscriptionCastingRepo := &subscriptionCastingAdapter{repo: castingRepo}
 	subscriptionProfileRepo := &subscriptionProfileAdapter{repo: modelRepo}
@@ -308,7 +287,7 @@ func main() {
 	castingHandler := casting.NewHandler(castingService, castingProfileService)
 	experienceHandler := experience.NewHandler(experienceRepo, modelRepo)
 	responseHandler := response.NewHandler(responseService, limitChecker)
-	photoHandler := photo.NewHandler(photoService)
+	attachmentHandler := attachmentDomain.NewHandler(attachmentService)
 	chatProfileFetcher := &chatProfileFetcher{
 		userRepo:       userRepo,
 		profileService: profileService,
@@ -374,7 +353,6 @@ func main() {
 	}
 	responseLimitMiddleware := middleware.RequireResponseLimit(limitChecker, &responseLimitCounter{repo: responseRepo})
 	chatLimitMiddleware := middleware.RequireChatLimit(limitChecker)
-	photoLimitMiddleware := middleware.RequirePhotoLimit(limitChecker, &photoLimitCounter{repo: photoRepo}, &modelProfileIDProvider{repo: modelRepo})
 
 	// ---------- Router ----------
 	r := chi.NewRouter()
@@ -406,9 +384,8 @@ func main() {
 		})
 	})
 
-	if servingLocalFiles {
-		r.Handle(filesBaseURL+"/*", http.StripPrefix(filesBaseURL+"/", http.FileServer(http.Dir(cfg.UploadLocalPath))))
-	}
+	// Serve uploaded files from local disk
+	r.Handle(filesBaseURL+"/*", http.StripPrefix(filesBaseURL+"/", http.FileServer(http.Dir(uploadLocalPath))))
 
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Get("/ping", func(w http.ResponseWriter, r *http.Request) {
@@ -433,37 +410,15 @@ func main() {
 		})
 		r.Mount("/responses", responseHandler.Routes(authWithVerifiedEmailMiddleware))
 
-		// legacy uploads/photos
-		r.Mount("/uploads", photoHandler.UploadRoutes(authWithVerifiedEmailMiddleware))
-		r.Route("/photos", func(r chi.Router) {
-			r.Use(authWithVerifiedEmailMiddleware)
-			r.With(photoLimitMiddleware).Post("/", photoHandler.ConfirmUpload)
-			r.Delete("/{id}", photoHandler.Delete)
-			r.Patch("/{id}/avatar", photoHandler.SetAvatar)
-			r.Patch("/reorder", photoHandler.Reorder)
-		})
+		// Phase 3+: attachments = polymorphic 1:N upload→entity links
+		// Replaces legacy /uploads/presign and /photos endpoints.
+		r.Route("/attachments", attachmentHandler.Routes(authWithVerifiedEmailMiddleware))
 
-		// NEW: 2-phase file uploads
-		r.Route("/files", func(r chi.Router) {
-			// Public read for committed uploads; handler enforces access rules for non-committed files.
-			r.Get("/{id}", uploadHandler.GetByID)
+		// File uploads — simple one-shot POST
+		r.Route("/files", uploadHandler.Routes(authWithVerifiedEmailMiddleware))
 
-			r.Group(func(r chi.Router) {
-				r.Use(authWithVerifiedEmailMiddleware)
-
-				// New 2-phase endpoints
-				r.Post("/init", uploadHandler.Init)
-				r.Post("/confirm", uploadHandler.Confirm)
-
-				// Existing staging system endpoints
-				r.Post("/stage", uploadHandler.Stage)
-				r.Post("/{id}/commit", uploadHandler.Commit)
-				r.Delete("/{id}", uploadHandler.Delete)
-				r.Get("/", uploadHandler.ListMy)
-			})
-		})
-
-		r.Get("/profiles/{id}/photos", photoHandler.ListByProfile)
+		// Backward-compat: serve portfolio photos for a profile via attachments domain
+		r.Get("/profiles/{id}/photos", attachmentHandler.List)
 
 		r.Route("/profiles/{id}/social-links", func(r chi.Router) {
 			r.Get("/", socialLinksHandler.List)
@@ -788,12 +743,13 @@ func (a *subscriptionPaymentAdapter) InitRobokassaPayment(ctx context.Context, r
 
 // Subscription adapters
 
+// subscriptionPhotoAdapter counts model portfolio attachments for subscription limit checks.
 type subscriptionPhotoAdapter struct {
-	repo photo.Repository
+	repo attachmentDomain.Repository
 }
 
 func (a *subscriptionPhotoAdapter) CountByProfileID(ctx context.Context, profileID uuid.UUID) (int, error) {
-	return a.repo.CountByProfile(ctx, profileID)
+	return a.repo.CountByTarget(ctx, attachmentDomain.TargetModelPortfolio, profileID)
 }
 
 type subscriptionResponseAdapter struct {
@@ -836,12 +792,13 @@ func (a *responseLimitCounter) CountMonthlyByUserID(ctx context.Context, userID 
 	return a.repo.CountMonthlyByUserID(ctx, userID)
 }
 
+// photoLimitCounter counts model portfolio attachments for the photo-limit middleware.
 type photoLimitCounter struct {
-	repo photo.Repository
+	repo attachmentDomain.Repository
 }
 
 func (a *photoLimitCounter) CountByProfileID(ctx context.Context, profileID uuid.UUID) (int, error) {
-	return a.repo.CountByProfile(ctx, profileID)
+	return a.repo.CountByTarget(ctx, attachmentDomain.TargetModelPortfolio, profileID)
 }
 
 type modelProfileIDProvider struct {
@@ -900,36 +857,24 @@ func (c *chatAccessChecker) CanCommunicate(ctx context.Context, user1, user2 uui
 
 type chatUploadResolver struct {
 	uploadService *uploadDomain.Service
-	baseURL       string
 }
 
-func (c *chatUploadResolver) IsCommitted(ctx context.Context, uploadID uuid.UUID) (bool, error) {
-	upload, err := c.uploadService.GetByID(ctx, uploadID)
-	if err != nil {
-		return false, err
-	}
-	return upload.IsCommitted(), nil
-}
-
-func (c *chatUploadResolver) GetUploadURL(ctx context.Context, uploadID uuid.UUID) (string, error) {
-	upload, err := c.uploadService.GetByID(ctx, uploadID)
-	if err != nil {
-		return "", err
-	}
-	return upload.GetURL(c.baseURL), nil
-}
-
-func (c *chatUploadResolver) CommitUpload(ctx context.Context, uploadID, userID uuid.UUID) (*chat.AttachmentInfo, error) {
-	up, err := c.uploadService.Confirm(ctx, uploadID, userID)
+// GetAttachmentInfo resolves upload details and verifies ownership.
+func (c *chatUploadResolver) GetAttachmentInfo(ctx context.Context, uploadID, userID uuid.UUID) (*chat.AttachmentInfo, error) {
+	up, err := c.uploadService.GetByID(ctx, uploadID)
 	if err != nil {
 		return nil, err
 	}
+	if up.AuthorID != userID {
+		return nil, uploadDomain.ErrNotOwner
+	}
+
 	return &chat.AttachmentInfo{
 		UploadID: up.ID,
-		URL:      up.PermanentURL,
+		URL:      c.uploadService.GetURL(up),
 		FileName: up.OriginalName,
 		MimeType: up.MimeType,
-		Size:     up.Size.Int64,
+		Size:     up.SizeBytes,
 	}, nil
 }
 

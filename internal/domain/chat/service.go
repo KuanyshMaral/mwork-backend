@@ -22,9 +22,7 @@ type LimitChecker interface {
 
 // UploadResolver defines interface for resolving upload details
 type UploadResolver interface {
-	IsCommitted(ctx context.Context, uploadID uuid.UUID) (bool, error)
-	GetUploadURL(ctx context.Context, uploadID uuid.UUID) (string, error)
-	CommitUpload(ctx context.Context, uploadID, userID uuid.UUID) (*AttachmentInfo, error)
+	GetAttachmentInfo(ctx context.Context, uploadID, userID uuid.UUID) (*AttachmentInfo, error)
 }
 
 // Service handles chat business logic
@@ -186,7 +184,7 @@ func (s *Service) SendMessage(ctx context.Context, userID, roomID uuid.UUID, req
 	var attachmentInfo *AttachmentInfo
 	if req.AttachmentUploadID != nil {
 		var err error
-		attachmentInfo, err = s.uploadResolver.CommitUpload(ctx, *req.AttachmentUploadID, userID)
+		attachmentInfo, err = s.uploadResolver.GetAttachmentInfo(ctx, *req.AttachmentUploadID, userID)
 		if err != nil {
 			return nil, err
 		}
