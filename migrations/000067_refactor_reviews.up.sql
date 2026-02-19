@@ -58,7 +58,7 @@ CREATE INDEX IF NOT EXISTS idx_reviews_author ON reviews(author_id);
 
 -- model_profiles: rename total_reviews -> reviews_count, add rating_score
 ALTER TABLE model_profiles
-    RENAME COLUMN IF EXISTS total_reviews TO reviews_count;
+    RENAME COLUMN total_reviews TO reviews_count;
 ALTER TABLE model_profiles
     ADD COLUMN IF NOT EXISTS rating_score FLOAT NOT NULL DEFAULT 0;
 
