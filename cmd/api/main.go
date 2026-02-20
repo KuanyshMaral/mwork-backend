@@ -420,10 +420,10 @@ func main() {
 
 		// Phase 3+: attachments = polymorphic 1:N upload→entity links
 		// Replaces legacy /uploads/presign and /photos endpoints.
-		r.Route("/attachments", attachmentHandler.Routes(authWithVerifiedEmailMiddleware))
+		r.Mount("/attachments", attachmentHandler.Routes(authWithVerifiedEmailMiddleware))
 
 		// File uploads — simple one-shot POST
-		r.Route("/files", uploadHandler.Routes(authWithVerifiedEmailMiddleware))
+		r.Mount("/files", uploadHandler.Routes(authWithVerifiedEmailMiddleware))
 
 		// Backward-compat: serve portfolio photos for a profile via attachments domain
 		r.Get("/profiles/{id}/photos", attachmentHandler.List)

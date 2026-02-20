@@ -1940,7 +1940,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Attachments"
+                    "Entity Attachments"
                 ],
                 "summary": "Получить список вложений сущности",
                 "parameters": [
@@ -1963,10 +1963,22 @@ const docTemplate = `{
                     "200": {
                         "description": "Список вложений",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/internal_domain_attachment.AttachmentWithURL"
-                            }
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/internal_domain_attachment.AttachmentWithURL"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     "400": {
@@ -1997,7 +2009,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Attachments"
+                    "Entity Attachments"
                 ],
                 "summary": "Привязать один или несколько файлов к сущности",
                 "parameters": [
@@ -2007,7 +2019,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_domain_attachment.attachRequest"
+                            "$ref": "#/definitions/internal_domain_attachment.AttachRequest"
                         }
                     }
                 ],
@@ -2015,10 +2027,22 @@ const docTemplate = `{
                     "201": {
                         "description": "Успешная привязка",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/internal_domain_attachment.AttachmentWithURL"
-                            }
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/internal_domain_attachment.AttachmentWithURL"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     "400": {
@@ -2063,7 +2087,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Attachments"
+                    "Entity Attachments"
                 ],
                 "summary": "Изменить порядок вложений",
                 "parameters": [
@@ -2073,7 +2097,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_domain_attachment.reorderRequest"
+                            "$ref": "#/definitions/internal_domain_attachment.ReorderRequest"
                         }
                     }
                 ],
@@ -2081,10 +2105,19 @@ const docTemplate = `{
                     "200": {
                         "description": "Успешное обновление",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     "400": {
@@ -2111,7 +2144,7 @@ const docTemplate = `{
                 ],
                 "description": "Удаляет связь между файлом и сущностью. Сам файл НЕ удаляется.",
                 "tags": [
-                    "Attachments"
+                    "Entity Attachments"
                 ],
                 "summary": "Удалить вложение",
                 "parameters": [
@@ -2125,7 +2158,10 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "204": {
-                        "description": "Успешное удаление"
+                        "description": "Успешное удаление",
+                        "schema": {
+                            "type": "string"
+                        }
                     },
                     "400": {
                         "description": "Неверный ID",
@@ -4343,7 +4379,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Files"
+                    "Uploads"
                 ],
                 "summary": "Загрузка одного или нескольких файлов",
                 "parameters": [
@@ -4359,10 +4395,22 @@ const docTemplate = `{
                     "201": {
                         "description": "Успешная загрузка",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/internal_domain_upload.uploadResponse"
-                            }
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/internal_domain_upload.UploadResponse"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     "400": {
@@ -4405,7 +4453,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Files"
+                    "Uploads"
                 ],
                 "summary": "Получить метаданные файла",
                 "parameters": [
@@ -4421,7 +4469,19 @@ const docTemplate = `{
                     "200": {
                         "description": "Успешное получение",
                         "schema": {
-                            "$ref": "#/definitions/internal_domain_upload.uploadResponse"
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_domain_upload.UploadResponse"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     "400": {
@@ -4452,7 +4512,7 @@ const docTemplate = `{
                 ],
                 "description": "Удаляет файл с диска и его метаданные из базы данных. Только для владельца файла.",
                 "tags": [
-                    "Files"
+                    "Uploads"
                 ],
                 "summary": "Удалить файл",
                 "parameters": [
@@ -4466,7 +4526,10 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "204": {
-                        "description": "Успешное удаление"
+                        "description": "Успешное удаление",
+                        "schema": {
+                            "type": "string"
+                        }
                     },
                     "400": {
                         "description": "Неверный ID",
@@ -9027,6 +9090,33 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_domain_attachment.AttachRequest": {
+            "description": "Параметры для привязки файлов к сущности",
+            "type": "object",
+            "properties": {
+                "metadata": {
+                    "$ref": "#/definitions/internal_domain_attachment.Metadata"
+                },
+                "target_id": {
+                    "type": "string",
+                    "example": "uuid"
+                },
+                "target_type": {
+                    "type": "string",
+                    "example": "model_portfolio"
+                },
+                "upload_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "[\"uuid1\"",
+                        " \"uuid2\"]"
+                    ]
+                }
+            }
+        },
         "internal_domain_attachment.AttachmentWithURL": {
             "type": "object",
             "properties": {
@@ -9090,6 +9180,17 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_domain_attachment.ReorderRequest": {
+            "type": "object",
+            "properties": {
+                "ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "internal_domain_attachment.TargetType": {
             "type": "string",
             "enum": [
@@ -9104,44 +9205,6 @@ const docTemplate = `{
                 "TargetOrgDocument",
                 "TargetChatAttachment"
             ]
-        },
-        "internal_domain_attachment.attachRequest": {
-            "description": "Параметры для привязки файлов к сущности",
-            "type": "object",
-            "properties": {
-                "metadata": {
-                    "$ref": "#/definitions/internal_domain_attachment.Metadata"
-                },
-                "target_id": {
-                    "type": "string",
-                    "example": "uuid"
-                },
-                "target_type": {
-                    "type": "string",
-                    "example": "model_portfolio"
-                },
-                "upload_ids": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
-                    "example": [
-                        "[\"uuid1\"",
-                        " \"uuid2\"]"
-                    ]
-                }
-            }
-        },
-        "internal_domain_attachment.reorderRequest": {
-            "type": "object",
-            "properties": {
-                "ids": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                }
-            }
         },
         "internal_domain_auth.AuthResponse": {
             "type": "object",
@@ -11619,7 +11682,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_domain_upload.uploadResponse": {
+        "internal_domain_upload.UploadResponse": {
             "description": "Данные о загруженном файле",
             "type": "object",
             "properties": {
