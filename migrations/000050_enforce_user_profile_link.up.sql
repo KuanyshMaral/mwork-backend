@@ -1,26 +1,6 @@
--- Ensure strict one-to-one relation between users and profiles.
-
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1
-        FROM pg_constraint
-        WHERE conname = 'profiles_user_id_fkey'
-    ) THEN
-        ALTER TABLE profiles
-            ADD CONSTRAINT profiles_user_id_fkey
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
-    END IF;
-END $$;
-
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1
-        FROM pg_constraint
-        WHERE conname = 'profiles_user_id_key'
-    ) THEN
-        ALTER TABLE profiles
-            ADD CONSTRAINT profiles_user_id_key UNIQUE (user_id);
-    END IF;
-END $$;
+-- 000050_enforce_user_profile_link.up.sql
+-- This migration is a no-op: model_profiles and employer_profiles already enforce
+-- a strict one-to-one relation with users via UNIQUE REFERENCES users(id) ON DELETE CASCADE
+-- defined in 000002_split_profiles_tables.up.sql.
+-- The legacy profiles table no longer exists.
+SELECT 1;

@@ -77,72 +77,66 @@ ON CONFLICT (email) DO UPDATE SET
     is_banned = EXCLUDED.is_banned;
 
 -- ============================================
--- 2. PROFILES (single table with type)
+-- 2. PROFILES (split into model_profiles and employer_profiles)
 -- ============================================
 
 -- Model Profile 1 (Anna)
-INSERT INTO profiles (id, user_id, type, first_name, last_name, bio, age, height_cm, weight_kg, gender, 
-                      experience_years, hourly_rate, city, languages, is_public) 
+INSERT INTO model_profiles (id, user_id, name, bio, age, height, weight, gender,
+                             experience, hourly_rate, city, languages, is_public)
 VALUES
 ('aaaa1111-1111-1111-1111-111111111111',
  '11111111-1111-1111-1111-111111111111',
- 'model',
- 'Anna', 'Ivanova',
+ 'Anna Ivanova',
  'Professional model with 3 years experience. Worked with Vogue, ELLE.',
  23, 175, 55, 'female',
  3, 25000.00, 'Almaty',
  '["russian", "english"]'::jsonb,
  true)
-ON CONFLICT (user_id) DO UPDATE SET 
-    first_name = EXCLUDED.first_name,
+ON CONFLICT (user_id) DO UPDATE SET
+    name = EXCLUDED.name,
     bio = EXCLUDED.bio,
     is_public = EXCLUDED.is_public;
 
 -- Model Profile 2 (Marat)
-INSERT INTO profiles (id, user_id, type, first_name, last_name, bio, age, height_cm, weight_kg, gender,
-                      experience_years, hourly_rate, city, languages, is_public)
+INSERT INTO model_profiles (id, user_id, name, bio, age, height, weight, gender,
+                             experience, hourly_rate, city, languages, is_public)
 VALUES
 ('aaaa2222-2222-2222-2222-222222222222',
  '22222222-2222-2222-2222-222222222222',
- 'model',
- 'Marat', 'Nurlanov',
+ 'Marat Nurlanov',
  'Male model. Experience in fashion shows and commercial shoots.',
  27, 185, 78, 'male',
  2, 30000.00, 'Astana',
  '["russian", "kazakh", "english"]'::jsonb,
  true)
-ON CONFLICT (user_id) DO UPDATE SET 
-    first_name = EXCLUDED.first_name,
+ON CONFLICT (user_id) DO UPDATE SET
+    name = EXCLUDED.name,
     bio = EXCLUDED.bio,
     is_public = EXCLUDED.is_public;
 
 -- Employer Profile 1
-INSERT INTO profiles (id, user_id, type, first_name, company_name, bio, city, is_public)
+INSERT INTO employer_profiles (id, user_id, company_name, description, city)
 VALUES
 ('bbbb3333-3333-3333-3333-333333333333',
  '33333333-3333-3333-3333-333333333333',
- 'employer',
- 'Alexey', 'Fashion Elite Studio',
+ 'Fashion Elite Studio',
  'Professional photo studio for fashion and commercial photography.',
- 'Almaty',
- true)
-ON CONFLICT (user_id) DO UPDATE SET 
+ 'Almaty')
+ON CONFLICT (user_id) DO UPDATE SET
     company_name = EXCLUDED.company_name,
-    bio = EXCLUDED.bio;
+    description = EXCLUDED.description;
 
 -- Employer Profile 2
-INSERT INTO profiles (id, user_id, type, first_name, company_name, bio, city, is_public)
+INSERT INTO employer_profiles (id, user_id, company_name, description, city)
 VALUES
 ('bbbb4444-4444-4444-4444-444444444444',
  '44444444-4444-4444-4444-444444444444',
- 'employer',
- 'Dinara', 'ELITE Models Kazakhstan',
+ 'ELITE Models Kazakhstan',
  'Leading modeling agency in Kazakhstan.',
- 'Almaty',
- true)
-ON CONFLICT (user_id) DO UPDATE SET 
+ 'Almaty')
+ON CONFLICT (user_id) DO UPDATE SET
     company_name = EXCLUDED.company_name,
-    bio = EXCLUDED.bio;
+    description = EXCLUDED.description;
 
 -- ============================================
 -- 3. CASTINGS (uses creator_id, not employer_id!)

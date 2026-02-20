@@ -29,7 +29,15 @@ const (
 	roomChannelPrefix = "chat:room:"
 	presenceKey       = "chat:presence:online"
 	presenceChannel   = "chat:presence"
+	userEventsChannel = "ws:user_events"
 )
+
+type userEventMessage struct {
+	EventType        string          `json:"event_type"`
+	UserID           string          `json:"user_id"`
+	Payload          json.RawMessage `json:"payload"`
+	SenderInstanceID string          `json:"sender_instance_id"`
+}
 
 // WSEvent represents a WebSocket event
 type WSEvent struct {
@@ -50,7 +58,7 @@ type Connection struct {
 // Hub manages WebSocket connections with Redis Pub/Sub for scalability
 type Hub struct {
 	// Local connections (this server instance only)
-	connections map[uuid.UUID]*Connection
+	connections map[uuid.UUID]map[*Connection]bool
 
 	// Local room subscriptions: roomID -> set of userIDs on this server
 	localRooms map[uuid.UUID]map[uuid.UUID]bool
@@ -70,25 +78,37 @@ type Hub struct {
 	// Context for graceful shutdown
 	ctx    context.Context
 	cancel context.CancelFunc
+
+	instanceID         string
+	publishUserEventFn func(ctx context.Context, channel string, payload []byte) error
 }
 
 // NewHub creates a new WebSocket hub with Redis Pub/Sub
 func NewHub(redisClient *redis.Client) *Hub {
+	return NewHubWithInstanceID(redisClient, uuid.NewString())
+}
+
+// NewHubWithInstanceID creates a new WebSocket hub with explicit instance identifier.
+func NewHubWithInstanceID(redisClient *redis.Client, instanceID string) *Hub {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	h := &Hub{
-		connections: make(map[uuid.UUID]*Connection),
+		connections: make(map[uuid.UUID]map[*Connection]bool),
 		localRooms:  make(map[uuid.UUID]map[uuid.UUID]bool),
 		redis:       redisClient,
 		register:    make(chan *Connection),
 		unregister:  make(chan *Connection),
 		ctx:         ctx,
 		cancel:      cancel,
+		instanceID:  instanceID,
 	}
 
 	// Subscribe to presence channel and room pattern
 	if redisClient != nil {
-		h.pubsub = redisClient.PSubscribe(ctx, roomChannelPrefix+"*", presenceChannel)
+		h.pubsub = redisClient.PSubscribe(ctx, roomChannelPrefix+"*", presenceChannel, userEventsChannel)
+		h.publishUserEventFn = func(ctx context.Context, channel string, payload []byte) error {
+			return redisClient.Publish(ctx, channel, payload).Err()
+		}
 	}
 
 	return h
@@ -108,7 +128,10 @@ func (h *Hub) Run() {
 
 		case conn := <-h.register:
 			h.mu.Lock()
-			h.connections[conn.UserID] = conn
+			if h.connections[conn.UserID] == nil {
+				h.connections[conn.UserID] = make(map[*Connection]bool)
+			}
+			h.connections[conn.UserID][conn] = true
 			h.mu.Unlock()
 
 			// Publish online status to all servers
@@ -116,10 +139,17 @@ func (h *Hub) Run() {
 			log.Debug().Str("user_id", conn.UserID.String()).Msg("User connected to WebSocket")
 
 		case conn := <-h.unregister:
+			shouldPublishOffline := false
 			h.mu.Lock()
-			if _, ok := h.connections[conn.UserID]; ok {
-				delete(h.connections, conn.UserID)
-				close(conn.Send)
+			if conns, ok := h.connections[conn.UserID]; ok {
+				if _, exists := conns[conn]; exists {
+					delete(conns, conn)
+					close(conn.Send)
+				}
+				if len(conns) == 0 {
+					delete(h.connections, conn.UserID)
+					shouldPublishOffline = true
+				}
 
 				// Remove from all local rooms
 				for roomID, users := range h.localRooms {
@@ -132,7 +162,9 @@ func (h *Hub) Run() {
 			h.mu.Unlock()
 
 			// Publish offline status to all servers
-			h.publishPresence(conn.UserID, false)
+			if shouldPublishOffline {
+				h.publishPresence(conn.UserID, false)
+			}
 			log.Debug().Str("user_id", conn.UserID.String()).Msg("User disconnected from WebSocket")
 		}
 	}
@@ -176,8 +208,27 @@ func (h *Hub) runRedisSubscriber() {
 				// Just log for now, can be extended for presence UI
 				log.Debug().Str("presence", msg.Payload).Msg("Presence update received")
 			}
+
+			if msg.Channel == userEventsChannel {
+				h.handleUserEventPayload(msg.Payload)
+			}
 		}
 	}
+}
+
+func (h *Hub) handleUserEventPayload(payload string) {
+	var event userEventMessage
+	if err := json.Unmarshal([]byte(payload), &event); err != nil {
+		return
+	}
+	if event.SenderInstanceID == h.instanceID {
+		return
+	}
+	userID, err := uuid.Parse(event.UserID)
+	if err != nil {
+		return
+	}
+	h.sendLocalToUserJSON(userID, []byte(event.Payload))
 }
 
 // broadcastLocal sends event to clients connected to THIS server
@@ -196,12 +247,14 @@ func (h *Hub) broadcastLocal(roomID uuid.UUID, event *WSEvent) {
 	}
 
 	for userID := range users {
-		if conn, ok := h.connections[userID]; ok {
-			select {
-			case conn.Send <- data:
-			default:
-				// Buffer full, skip this message
-				log.Warn().Str("user_id", userID.String()).Msg("WebSocket send buffer full")
+		if conns, ok := h.connections[userID]; ok {
+			for conn := range conns {
+				select {
+				case conn.Send <- data:
+				default:
+					// Buffer full, skip this message
+					log.Warn().Str("user_id", userID.String()).Msg("WebSocket send buffer full")
+				}
 			}
 		}
 	}
@@ -267,24 +320,60 @@ func (h *Hub) BroadcastToRoom(roomID uuid.UUID, event *WSEvent) {
 
 // SendToUser sends event to specific user (on any server)
 func (h *Hub) SendToUser(userID uuid.UUID, event *WSEvent) {
+	_ = h.SendToUserJSON(userID, event)
+}
+
+// SendToUserJSON sends JSON payload to all active connections for user.
+func (h *Hub) SendToUserJSON(userID uuid.UUID, payload any) error {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+
+	h.sendLocalToUserJSON(userID, data)
+	if err := h.publishUserEvent(userID, data); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (h *Hub) sendLocalToUserJSON(userID uuid.UUID, data []byte) {
 	h.mu.RLock()
-	conn, ok := h.connections[userID]
+	conns, ok := h.connections[userID]
 	h.mu.RUnlock()
 
 	if !ok {
 		return
 	}
 
-	data, err := json.Marshal(event)
-	if err != nil {
-		return
+	for conn := range conns {
+		select {
+		case conn.Send <- data:
+		default:
+			// Buffer full
+		}
 	}
 
-	select {
-	case conn.Send <- data:
-	default:
-		// Buffer full
+	return
+}
+
+func (h *Hub) publishUserEvent(userID uuid.UUID, data []byte) error {
+	if h.publishUserEventFn == nil {
+		return nil
 	}
+
+	event := userEventMessage{
+		EventType:        "notification:new",
+		UserID:           userID.String(),
+		Payload:          data,
+		SenderInstanceID: h.instanceID,
+	}
+	payload, err := json.Marshal(event)
+	if err != nil {
+		return err
+	}
+	return h.publishUserEventFn(h.ctx, userEventsChannel, payload)
 }
 
 // publishPresence publishes user online/offline status to Redis
@@ -315,9 +404,9 @@ func (h *Hub) IsOnline(userID uuid.UUID) bool {
 	if h.redis == nil {
 		// Check local only
 		h.mu.RLock()
-		_, ok := h.connections[userID]
+		conns, ok := h.connections[userID]
 		h.mu.RUnlock()
-		return ok
+		return ok && len(conns) > 0
 	}
 
 	return h.redis.SIsMember(context.Background(), presenceKey, userID.String()).Val()
@@ -332,7 +421,7 @@ func (h *Hub) GetOnlineUsers(userIDs []uuid.UUID) []uuid.UUID {
 
 		online := make([]uuid.UUID, 0)
 		for _, id := range userIDs {
-			if _, ok := h.connections[id]; ok {
+			if conns, ok := h.connections[id]; ok && len(conns) > 0 {
 				online = append(online, id)
 			}
 		}

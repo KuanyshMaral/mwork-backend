@@ -369,6 +369,9 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 			filter.PayMax = &v
 		}
 	}
+	if tags, ok := q["tags"]; ok && len(tags) > 0 {
+		filter.Tags = tags
+	}
 
 	sortBy := SortBy(q.Get("sort_by"))
 	if sortBy == "" {

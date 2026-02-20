@@ -29,16 +29,10 @@ type Config struct {
 	// CORS
 	AllowedOrigins []string
 
-	// Storage (R2/local)
-	R2AccountID        string
-	R2AccessKeyID      string
-	R2AccessKeySecret  string
-	R2BucketName       string
-	R2PublicURL        string
-	UploadLocalPath    string
-	UploadMaxMB        int
-	UploadStagingHours int
-	UploadPresignMin   int
+	// Storage (Local)
+	UploadPublicURL string
+	UploadLocalPath string
+	UploadMaxMB     int
 
 	// Email
 	ResendAPIKey           string
@@ -51,8 +45,6 @@ type Config struct {
 	// Robokassa Payment
 	PaymentMode                 string
 	RobokassaMerchantLogin      string
-	RobokassaPassword1          string
-	RobokassaPassword2          string
 	RobokassaTestPassword1      string
 	RobokassaTestPassword2      string
 	RobokassaIsTest             bool
@@ -95,16 +87,10 @@ func Load() *Config {
 		// CORS
 		AllowedOrigins: parseStringSlice(getEnv("ALLOWED_ORIGINS", "http://localhost:3000")),
 
-		// Storage
-		R2AccountID:        getEnv("R2_ACCOUNT_ID", ""),
-		R2AccessKeyID:      getEnv("R2_ACCESS_KEY_ID", ""),
-		R2AccessKeySecret:  getEnv("R2_ACCESS_KEY_SECRET", ""),
-		R2BucketName:       getEnv("R2_BUCKET_NAME", "mwork-uploads"),
-		R2PublicURL:        getEnv("R2_PUBLIC_URL", ""),
-		UploadLocalPath:    getEnv("UPLOAD_LOCAL_PATH", "./uploads"),
-		UploadMaxMB:        parseInt(getEnv("UPLOAD_MAX_MB", "50"), 50),
-		UploadStagingHours: parseInt(getEnv("UPLOAD_STAGING_HOURS", "1"), 1),
-		UploadPresignMin:   parseInt(getEnv("UPLOAD_PRESIGN_MIN", "15"), 15),
+		// Storage (Local)
+		UploadPublicURL: getEnv("UPLOAD_PUBLIC_URL", "http://localhost:8080/static"),
+		UploadLocalPath: getEnv("UPLOAD_LOCAL_PATH", "./uploads"),
+		UploadMaxMB:     parseInt(getEnv("UPLOAD_MAX_MB", "50"), 50),
 
 		// Email
 		ResendAPIKey:           getEnv("RESEND_API_KEY", ""),
@@ -117,11 +103,9 @@ func Load() *Config {
 		// Robokassa Payment
 		PaymentMode:                 getEnv("PAYMENT_MODE", "real"),
 		RobokassaMerchantLogin:      getEnv("ROBOKASSA_MERCHANT_LOGIN", ""),
-		RobokassaPassword1:          getEnv("ROBOKASSA_PASSWORD_1", ""),
-		RobokassaPassword2:          getEnv("ROBOKASSA_PASSWORD_2", ""),
 		RobokassaTestPassword1:      getEnv("ROBOKASSA_TEST_PASSWORD_1", ""),
 		RobokassaTestPassword2:      getEnv("ROBOKASSA_TEST_PASSWORD_2", ""),
-		RobokassaIsTest:             parseRobokassaTestFlag(getEnv("ROBOKASSA_IS_TEST", "false")),
+		RobokassaIsTest:             getEnv("ROBOKASSA_IS_TEST", "0") == "1",
 		RobokassaBaseURL:            getEnv("ROBOKASSA_BASE_URL", "https://auth.robokassa.kz/Merchant/Index.aspx"),
 		RobokassaFrontendSuccessURL: getEnv("ROBOKASSA_FRONTEND_SUCCESS_URL", "http://89.35.125.136/profile?payment=success"),
 		RobokassaFrontendFailURL:    getEnv("ROBOKASSA_FRONTEND_FAIL_URL", "http://89.35.125.136/payment-error"),

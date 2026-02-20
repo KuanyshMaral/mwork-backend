@@ -5,7 +5,7 @@ CREATE TYPE promotion_status AS ENUM ('draft', 'pending_payment', 'active', 'pau
 
 CREATE TABLE profile_promotions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    profile_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    profile_id UUID NOT NULL REFERENCES model_profiles(id) ON DELETE CASCADE,
     
     -- Content
     title VARCHAR(255) NOT NULL,

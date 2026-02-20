@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/mwork/mwork-api/internal/middleware"
+	"github.com/mwork/mwork-api/internal/pkg/errorhandler"
 	"github.com/mwork/mwork-api/internal/pkg/response"
 )
 
@@ -64,7 +65,7 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request) {
 
 	fav, err := h.repo.Add(r.Context(), userID, entityType, entityID)
 	if err != nil {
-		response.InternalError(w)
+		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "FAVORITE_ADD_FAILED", "Failed to add favorite", err)
 		return
 	}
 
@@ -98,7 +99,7 @@ func (h *Handler) Remove(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.repo.Remove(r.Context(), userID, entityType, entityID); err != nil {
-		response.InternalError(w)
+		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "FAVORITE_REMOVE_FAILED", "Failed to remove favorite", err)
 		return
 	}
 
@@ -131,7 +132,11 @@ func (h *Handler) Check(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	isFavorited, _ := h.repo.IsFavorited(r.Context(), userID, entityType, entityID)
+	isFavorited, err := h.repo.IsFavorited(r.Context(), userID, entityType, entityID)
+	if err != nil {
+		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "FAVORITE_CHECK_FAILED", "Failed to check favorite", err)
+		return
+	}
 
 	response.OK(w, map[string]bool{"is_favorited": isFavorited})
 }
@@ -168,7 +173,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 
 	favorites, total, err := h.repo.ListByUser(r.Context(), userID, entityType, limit, offset)
 	if err != nil {
-		response.InternalError(w)
+		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "FAVORITE_LIST_FAILED", "Failed to list favorites", err)
 		return
 	}
 

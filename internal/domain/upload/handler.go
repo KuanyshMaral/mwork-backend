@@ -1,562 +1,147 @@
 package upload
 
 import (
-	"context"
-	"database/sql"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
-	"path"
-	"strings"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/lib/pq"
 
 	"github.com/mwork/mwork-api/internal/middleware"
-	"github.com/mwork/mwork-api/internal/pkg/errorhandler"
 	"github.com/mwork/mwork-api/internal/pkg/response"
-	"github.com/mwork/mwork-api/internal/pkg/storage"
-	"github.com/mwork/mwork-api/internal/pkg/validator"
 )
 
-const (
-	MaxUploadSize     = 20 * 1024 * 1024 // multipart: 20 MB
-	MaxInitUploadSize = 10 * 1024 * 1024 // init flow: 10 MB
-	PresignExpiry     = 15 * time.Minute
-)
+const maxMultipartMemory = 32 * 1024 * 1024 // 32 MB in-memory before spilling to temp files
 
-type InitRequest struct {
-	FileName    string `json:"file_name" validate:"required"`
-	ContentType string `json:"content_type" validate:"required"`
-	FileSize    int64  `json:"file_size" validate:"max=52428800"` // 50MB
-	Purpose     string `json:"purpose" validate:"omitempty,oneof=avatar photo document casting_cover portfolio chat_file gallery video audio"`
-
-	// Legacy aliases used by older clients.
-	LegacyFileName string `json:"filename"`
-	LegacyFileSize int64  `json:"size"`
-}
-type InitResponse struct {
-	UploadID   string `json:"upload_id"`
-	UploadURL  string `json:"upload_url,omitempty"`
-	UploadMode string `json:"upload_mode"`
-	ExpiresAt  string `json:"expires_at"`
-}
-
-type ConfirmRequest struct {
-	UploadID string `json:"upload_id" validate:"required,uuid"`
-	FileID   string `json:"file_id"`
-}
-
-type ConfirmResponse struct {
-	FileURL   string `json:"file_url"`
-	FinalPath string `json:"final_path"`
-}
-
-type UploadStorage interface {
-	GeneratePresignedPutURL(ctx context.Context, key string, expires time.Duration, contentType string) (string, error)
-	Exists(ctx context.Context, key string) (bool, error)
-	Move(ctx context.Context, srcKey, dstKey string) error
-	GetURL(key string) string
-}
-
-// Handler handles upload HTTP requests
-
+// Handler handles file upload HTTP requests.
 type Handler struct {
-	service        *Service
-	stagingBaseURL string
-	proxyUpload    bool
-
-	storage UploadStorage
-	repo    Repository
+	service *Service
 }
 
-// NewHandler creates upload handler
-func NewHandler(service *Service, stagingBaseURL string, st UploadStorage, repo Repository, proxyUpload bool) *Handler {
-	return &Handler{
-		service:        service,
-		stagingBaseURL: stagingBaseURL,
-		proxyUpload:    proxyUpload,
-		storage:        st,
-		repo:           repo,
+// NewHandler creates upload handler.
+func NewHandler(service *Service) *Handler {
+	return &Handler{service: service}
+}
+
+// uploadResponse is the API response shape for an upload.
+type uploadResponse struct {
+	ID           uuid.UUID `json:"id"`
+	URL          string    `json:"url"`
+	OriginalName string    `json:"original_name"`
+	MimeType     string    `json:"mime_type"`
+	SizeBytes    int64     `json:"size_bytes"`
+	CreatedAt    string    `json:"created_at"`
+}
+
+func (h *Handler) toResponse(u *Upload) *uploadResponse {
+	return &uploadResponse{
+		ID:           u.ID,
+		URL:          h.service.GetURL(u),
+		OriginalName: u.OriginalName,
+		MimeType:     u.MimeType,
+		SizeBytes:    u.SizeBytes,
+		CreatedAt:    u.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
 }
 
-// Init handles POST /files/init
-// @Summary Инициализировать загрузку файла
-// @Description Initializes a new upload. Supports resumable uploads.
-// @Description Purpose enum: avatar, photo, document, casting_cover, portfolio, chat_file, gallery, video, audio.
-// @Description Legacy parameters 'filename' and 'size' are supported but deprecated.
-// @Tags Upload
-// @Accept json
-// @Produce json
-// @Security BearerAuth
-// @Param request body InitRequestDoc true "Метаданные файла"
-// @Success 200 {object} response.Response{data=InitResponseDoc}
-// @Failure 400,401,413,422,502,500 {object} response.ErrorResponse
-// @Router /files/init [post]
-func (h *Handler) Init(w http.ResponseWriter, r *http.Request) {
-	var req InitRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.BadRequest(w, "Invalid JSON body")
-		return
+// Routes mounts the upload routes onto a chi router.
+// All routes require authentication via the provided middleware.
+func (h *Handler) Routes(authMiddleware func(http.Handler) http.Handler) func(chi.Router) {
+	return func(r chi.Router) {
+		r.Use(authMiddleware)
+
+		r.Post("/", h.Upload)       // POST /files
+		r.Get("/{id}", h.Get)       // GET  /files/{id}
+		r.Delete("/{id}", h.Delete) // DELETE /files/{id}
 	}
-	if req.FileName == "" {
-		req.FileName = req.LegacyFileName
-	}
-	if req.FileSize == 0 {
-		req.FileSize = req.LegacyFileSize
-	}
-
-	if errs := validator.Validate(&req); errs != nil {
-		response.ValidationError(w, errs)
-		return
-	}
-
-	if req.FileSize > MaxInitUploadSize {
-		response.Error(w, http.StatusRequestEntityTooLarge, "FILE_TOO_LARGE", "file too large")
-		return
-	}
-
-	userID := middleware.GetUserID(r.Context())
-	if userID == uuid.Nil {
-		response.Unauthorized(w, "Unauthorized")
-		return
-	}
-
-	uploadID := uuid.New()
-	fileName := sanitizeFileName(req.FileName)
-
-	stagingKey := fmt.Sprintf("uploads/staging/%s/%s/%s", userID.String(), uploadID.String(), fileName)
-
-	uploadMode := "direct"
-	uploadURL := ""
-	if h.proxyUpload {
-		uploadMode = "proxy"
-	} else {
-		var err error
-		uploadURL, err = h.storage.GeneratePresignedPutURL(r.Context(), stagingKey, PresignExpiry, req.ContentType)
-		if err != nil {
-			errorhandler.HandleError(r.Context(), w, http.StatusBadGateway, "STORAGE_ERROR", "storage error", err)
-			return
-		}
-	}
-
-	now := time.Now().UTC()
-	expiresAt := now.Add(PresignExpiry)
-
-	// Determine purpose (default to photo for backward compatibility)
-	purpose := req.Purpose
-	if purpose == "" {
-		purpose = "photo"
-	}
-
-	up := &Upload{
-		ID:           uploadID,
-		UserID:       userID,
-		Category:     Category(purpose),
-		Purpose:      purpose,
-		Status:       StatusStaged,
-		OriginalName: fileName,
-		MimeType:     req.ContentType,
-		Size:         sql.NullInt64{Int64: req.FileSize, Valid: req.FileSize > 0},
-		StagingKey:   stagingKey,
-		CreatedAt:    now,
-		ExpiresAt:    expiresAt,
-	}
-
-	if err := h.repo.Create(r.Context(), up); err != nil {
-		if isUploadUserReferenceError(err) {
-			response.Unauthorized(w, "Unauthorized")
-			return
-		}
-		if isUploadSizeConstraintError(err) {
-			response.Error(w, http.StatusUnprocessableEntity, "INVALID_FILE_SIZE", "invalid file size")
-			return
-		}
-		response.Error(w, http.StatusInternalServerError, "DB_ERROR", "failed to save upload")
-		if err != nil {
-			errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "DB_ERROR", "failed to save upload", err)
-		}
-		return
-	}
-
-	response.OK(w, InitResponse{
-		UploadID:   uploadID.String(),
-		UploadURL:  uploadURL,
-		UploadMode: uploadMode,
-		ExpiresAt:  expiresAt.Format(time.RFC3339),
-	})
 }
 
-// Confirm handles POST /files/confirm
-// @Summary Подтвердить загрузку файла
-// @Description Finalizes the upload process. Moves file from staging to permanent storage.
-// @Description Confirm is idempotent: committed uploads return 200 with current fields.
-// @Description Possible error codes: UPLOAD_NOT_FOUND, UPLOAD_FORBIDDEN, UPLOAD_EXPIRED, UPLOAD_INVALID_STATUS, INVALID_CONTENT_TYPE, FILE_TOO_LARGE, STORAGE_ERROR
-// @Tags Upload
-// @Accept json
-// @Produce json
-// @Security BearerAuth
-// @Param request body ConfirmRequestDoc true "ID загрузки"
-// @Success 200 {object} response.Response{data=ConfirmResponseDoc}
-// @Failure 400,401,403,404,422,502,500 {object} response.ErrorResponse
-// @Router /files/confirm [post]
-func (h *Handler) Confirm(w http.ResponseWriter, r *http.Request) {
-	var req ConfirmRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.BadRequest(w, "Invalid JSON body")
-		return
-	}
-	if req.UploadID == "" {
-		req.UploadID = req.FileID
-	}
-
-	if errs := validator.Validate(&req); errs != nil {
-		response.ValidationError(w, errs)
+// Upload handles POST /files
+// Accepts multipart/form-data with a "file" field.
+// Saves file to disk, writes metadata to DB, returns id + url.
+func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
+	authorID := middleware.GetUserID(r.Context())
+	if authorID == uuid.Nil {
+		response.Unauthorized(w, "Authentication required")
 		return
 	}
 
-	userID := middleware.GetUserID(r.Context())
-	if userID == uuid.Nil {
-		response.Unauthorized(w, "Unauthorized")
-		return
-	}
-
-	uploadID, err := uuid.Parse(req.UploadID)
-	if err != nil {
-		response.BadRequest(w, "Invalid upload ID")
-		return
-	}
-
-	up, err := h.service.Confirm(r.Context(), uploadID, userID)
-	if err != nil {
-		switch {
-		case errors.Is(err, ErrUploadNotFound):
-			response.NotFound(w, "Upload not found")
-		case errors.Is(err, ErrNotUploadOwner):
-			response.Forbidden(w, "Not upload owner")
-		case errors.Is(err, ErrInvalidStatus):
-			response.Error(w, http.StatusBadRequest, "INVALID_UPLOAD_STATUS", "invalid upload status")
-		case errors.Is(err, ErrUploadExpired):
-			response.Error(w, http.StatusGone, "UPLOAD_EXPIRED", "upload has expired")
-		case errors.Is(err, ErrMetadataMismatch):
-			response.Error(w, http.StatusBadRequest, "UPLOAD_METADATA_MISMATCH", "uploaded file metadata mismatch")
-		case errors.Is(err, ErrStagingFileNotFound):
-			response.Error(w, http.StatusBadRequest, "FILE_NOT_FOUND", "file not found in staging")
-		case errors.Is(err, ErrInvalidUploadSize):
-			response.Error(w, http.StatusUnprocessableEntity, "INVALID_FILE_SIZE", "invalid file size")
-		default:
-			errorhandler.HandleError(r.Context(), w, http.StatusBadGateway, "STORAGE_ERROR", "storage error", err)
-		}
-		return
-	}
-
-	response.OK(w, ConfirmResponse{
-		FileURL:   up.PermanentURL,
-		FinalPath: up.PermanentKey,
-	})
-}
-
-// Stage handles POST /files/stage
-// Multipart form: file + purpose
-// @Summary Загрузить файл во временное хранилище (Direct Upload)
-// @Description Uploads a file directly to staging storage.
-// @Description Supported purposes: avatar, photo, document, casting_cover, portfolio, chat_file, gallery, video, audio.
-// @Tags Upload
-// @Accept multipart/form-data
-// @Produce json
-// @Security BearerAuth
-// @Param purpose formData string false "Назначение файла (purpose)"
-// @Param category formData string false "Категория (deprecated, use purpose)"
-// @Param file formData file true "Файл"
-// @Success 201 {object} response.Response{data=UploadResponse}
-// @Failure 400,500 {object} response.Response
-// @Router /files/stage [post]
-func (h *Handler) Stage(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, MaxUploadSize)
-
-	if err := r.ParseMultipartForm(MaxUploadSize); err != nil {
-		response.BadRequest(w, "File too large or invalid form")
-		return
-	}
-
-	// Support both category (legacy) and purpose (new)
-	purpose := r.FormValue("purpose")
-	if purpose == "" {
-		purpose = r.FormValue("category") // Fallback to legacy parameter
-	}
-	if purpose == "" {
-		purpose = "photo" // Default
-	}
-
-	// Validate purpose
-	validPurposes := []string{
-		"avatar", "photo", "document",
-		"casting_cover", "portfolio", "chat_file",
-		"gallery", "video", "audio",
-	}
-	isValid := false
-	for _, vp := range validPurposes {
-		if purpose == vp {
-			isValid = true
-			break
-		}
-	}
-	if !isValid {
-		response.BadRequest(w, "Invalid purpose. Must be one of: "+strings.Join(validPurposes, ", "))
+	if err := r.ParseMultipartForm(maxMultipartMemory); err != nil {
+		response.BadRequest(w, "Failed to parse multipart form: "+err.Error())
 		return
 	}
 
 	file, header, err := r.FormFile("file")
 	if err != nil {
-		response.BadRequest(w, "No file provided")
+		response.BadRequest(w, "Missing 'file' field in form data")
 		return
 	}
 	defer file.Close()
 
-	userID := middleware.GetUserID(r.Context())
-	if userID == uuid.Nil {
-		response.Unauthorized(w, "Unauthorized")
-		return
-	}
-
-	uploadIDRaw := strings.TrimSpace(r.FormValue("upload_id"))
-
-	var upload *Upload
-	if uploadIDRaw != "" {
-		uploadID, parseErr := uuid.Parse(uploadIDRaw)
-		if parseErr != nil {
-			response.BadRequest(w, "Invalid upload ID")
-			return
-		}
-		upload, err = h.service.StageExisting(r.Context(), uploadID, userID, Category(purpose), header.Filename, file)
-	} else {
-		upload, err = h.service.Stage(r.Context(), userID, Category(purpose), header.Filename, file)
-	}
-
+	upload, err := h.service.Upload(r.Context(), authorID, header.Filename, file)
 	if err != nil {
 		switch {
-		case errors.Is(err, storage.ErrFileTooLarge):
-			response.BadRequest(w, "File exceeds maximum size")
-		case errors.Is(err, storage.ErrInvalidMimeType):
-			response.BadRequest(w, "File type not allowed")
-		case errors.Is(err, storage.ErrEmptyFile):
-			response.BadRequest(w, "File is empty")
-		case isUploadUserReferenceError(err):
-			response.Unauthorized(w, "Unauthorized")
-		case isUploadSizeConstraintError(err):
-			response.Error(w, http.StatusUnprocessableEntity, "INVALID_FILE_SIZE", "invalid file size")
-		case errors.Is(err, ErrUploadNotFound):
-			response.NotFound(w, "Upload not found")
-		case errors.Is(err, ErrNotUploadOwner):
-			response.Forbidden(w, "Not upload owner")
+		case errors.Is(err, ErrFileTooLarge):
+			response.Error(w, http.StatusRequestEntityTooLarge, "FILE_TOO_LARGE", "File exceeds the maximum allowed size (50 MB)")
+		case errors.Is(err, ErrInvalidMime):
+			response.Error(w, http.StatusUnprocessableEntity, "INVALID_FILE_TYPE", "File type is not allowed")
 		default:
-			errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
+			response.InternalError(w)
 		}
 		return
 	}
 
-	response.Created(w, UploadResponseFromEntity(upload, h.stagingBaseURL))
+	response.Created(w, h.toResponse(upload))
 }
 
-// Commit handles POST /files/{id}/commit
-// @Summary Закоммитить загруженный файл (Alias for Confirm)
-// @Description Manually commit an upload by ID. Similar to /files/confirm but via path parameter.
-// @Tags Upload
-// @Produce json
-// @Security BearerAuth
-// @Param id path string true "ID загрузки"
-// @Success 200 {object} response.Response{data=UploadResponse}
-// @Failure 400,403,404,500 {object} response.Response
-// @Router /files/{id}/commit [post]
-func (h *Handler) Commit(w http.ResponseWriter, r *http.Request) {
+// Get handles GET /files/{id}
+// Returns file metadata from DB. Does not stream the file — use the static URL.
+func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
 		response.BadRequest(w, "Invalid upload ID")
 		return
 	}
 
-	userID := middleware.GetUserID(r.Context())
-	if userID == uuid.Nil {
-		response.Unauthorized(w, "Unauthorized")
-		return
-	}
-
-	upload, err := h.service.Commit(r.Context(), id, userID)
-	if err != nil {
-		switch {
-		case errors.Is(err, ErrUploadNotFound):
-			response.NotFound(w, "Upload not found")
-		case errors.Is(err, ErrNotUploadOwner):
-			response.Forbidden(w, "Not upload owner")
-		case errors.Is(err, ErrAlreadyCommitted):
-			response.BadRequest(w, "Upload already committed")
-		case errors.Is(err, ErrInvalidUploadSize):
-			response.Error(w, http.StatusUnprocessableEntity, "INVALID_FILE_SIZE", "invalid file size")
-		case errors.Is(err, ErrUploadExpired):
-			response.BadRequest(w, "Upload has expired, please upload again")
-		default:
-			errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
-		}
-		return
-	}
-
-	response.OK(w, UploadResponseFromEntity(upload, h.stagingBaseURL))
-}
-
-// GetByID handles GET /files/{id}
-// @Summary Получить загрузку по ID
-// @Tags Upload
-// @Produce json
-// @Security BearerAuth
-// @Param id path string true "ID загрузки"
-// @Success 200 {object} response.Response{data=UploadResponse}
-// @Failure 400,404 {object} response.Response
-// @Router /files/{id} [get]
-func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
-	id, err := uuid.Parse(chi.URLParam(r, "id"))
-	if err != nil {
-		response.BadRequest(w, "Invalid upload ID")
-		return
-	}
-
-	userID := middleware.GetUserID(r.Context())
 	upload, err := h.service.GetByID(r.Context(), id)
 	if err != nil {
-		switch {
-		case errors.Is(err, ErrUploadNotFound):
+		if errors.Is(err, ErrUploadNotFound) {
 			response.NotFound(w, "Upload not found")
-		default:
-			errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
+			return
 		}
+		response.InternalError(w)
 		return
 	}
 
-	if !upload.IsCommitted() {
-		if userID == uuid.Nil {
-			response.NotFound(w, "Upload not found")
-			return
-		}
-		if upload.UserID != userID {
-			response.Forbidden(w, "Not upload owner")
-			return
-		}
-	}
-
-	response.OK(w, UploadResponseFromEntity(upload, h.stagingBaseURL))
+	response.OK(w, h.toResponse(upload))
 }
 
 // Delete handles DELETE /files/{id}
-// @Summary Удалить загрузку
-// @Tags Upload
-// @Produce json
-// @Security BearerAuth
-// @Param id path string true "ID загрузки"
-// @Success 204 {string} string "No Content"
-// @Failure 400,403,404,500 {object} response.Response
-// @Router /files/{id} [delete]
+// Only the file's author can delete it.
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
+	callerID := middleware.GetUserID(r.Context())
+	if callerID == uuid.Nil {
+		response.Unauthorized(w, "Authentication required")
+		return
+	}
+
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
 		response.BadRequest(w, "Invalid upload ID")
 		return
 	}
 
-	userID := middleware.GetUserID(r.Context())
-	if userID == uuid.Nil {
-		response.Unauthorized(w, "Unauthorized")
-		return
-	}
-
-	if err := h.service.Delete(r.Context(), id, userID); err != nil {
+	if err := h.service.Delete(r.Context(), id, callerID); err != nil {
 		switch {
 		case errors.Is(err, ErrUploadNotFound):
 			response.NotFound(w, "Upload not found")
-		case errors.Is(err, ErrNotUploadOwner):
-			response.Forbidden(w, "Not upload owner")
+		case errors.Is(err, ErrNotOwner):
+			response.Forbidden(w, "You do not own this file")
 		default:
-			errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
+			response.InternalError(w)
 		}
 		return
 	}
 
 	response.NoContent(w)
-}
-
-// ListMy handles GET /files
-// @Summary Список моих загрузок
-// @Description Get list of uploads for the current user.
-// @Tags Upload
-// @Produce json
-// @Security BearerAuth
-// @Param category query string false "Фильтр по категории/назначению (purpose)"
-// @Success 200 {object} response.Response{data=[]UploadResponse}
-// @Failure 500 {object} response.Response
-// @Router /files [get]
-func (h *Handler) ListMy(w http.ResponseWriter, r *http.Request) {
-	userID := middleware.GetUserID(r.Context())
-	if userID == uuid.Nil {
-		response.Unauthorized(w, "Unauthorized")
-		return
-	}
-	category := Category(r.URL.Query().Get("category"))
-
-	uploads, err := h.service.ListByUser(r.Context(), userID, category)
-	if err != nil {
-		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
-		return
-	}
-
-	items := make([]*UploadResponse, len(uploads))
-	for i, u := range uploads {
-		items[i] = UploadResponseFromEntity(u, h.stagingBaseURL)
-	}
-
-	response.OK(w, items)
-}
-
-func sanitizeFileName(name string) string {
-	name = strings.TrimSpace(name)
-	name = path.Base(name)
-	name = strings.ReplaceAll(name, "..", "")
-	name = strings.ReplaceAll(name, "/", "_")
-	name = strings.ReplaceAll(name, "\\", "_")
-	if name == "" {
-		return "file"
-	}
-	return name
-}
-
-func isUploadUserReferenceError(err error) bool {
-	var pqErr *pq.Error
-	if !errors.As(err, &pqErr) {
-		return false
-	}
-	if pqErr.Code != "23503" {
-		return false
-	}
-	if pqErr.Constraint == "uploads_user_id_fkey" || pqErr.Constraint == "upload_user_id_fkey" {
-		return true
-	}
-	return (pqErr.Table == "uploads" || pqErr.Table == "upload") && pqErr.Column == "user_id"
-}
-
-func isUploadSizeConstraintError(err error) bool {
-	var pqErr *pq.Error
-	if !errors.As(err, &pqErr) {
-		return false
-	}
-
-	if pqErr.Code == "23514" && (pqErr.Constraint == "uploads_size_check" || pqErr.Constraint == "upload_size_check") {
-		return true
-	}
-
-	if pqErr.Code == "23502" && (pqErr.Table == "uploads" || pqErr.Table == "upload") && pqErr.Column == "size" {
-		return true
-	}
-
-	return false
 }

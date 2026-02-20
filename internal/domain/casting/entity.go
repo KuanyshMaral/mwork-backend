@@ -72,8 +72,14 @@ type Casting struct {
 	DateFrom sql.NullTime `db:"date_from"`
 	DateTo   sql.NullTime `db:"date_to"`
 
-	// Cover image
+	// Cover image — two representations during transition:
+	// CoverImageURL: legacy string column (kept until migration 000072 drops it).
+	// CoverUploadID: new FK to uploads (Phase 4). Use this going forward.
 	CoverImageURL sql.NullString `db:"cover_image_url"`
+	CoverUploadID uuid.NullUUID  `db:"cover_upload_id"` // Phase 4 FK
+
+	// CoverURL is NOT a DB column — populated by service from upload.GetURL().
+	CoverURL string `db:"-" json:"cover_url,omitempty"`
 
 	// Model requirements (dedicated columns from migration 000015)
 	RequiredGender     sql.NullString `db:"required_gender"`
@@ -98,6 +104,9 @@ type Casting struct {
 	// Status and promotion
 	Status     Status `db:"status"`
 	IsPromoted bool   `db:"is_promoted"`
+
+	// Tags (user-defined, migration 000064)
+	Tags pq.StringArray `db:"tags"`
 
 	// Moderation fields
 	ModerationStatus ModerationStatus `db:"moderation_status"`

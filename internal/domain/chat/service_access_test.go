@@ -112,12 +112,18 @@ func (c *testAccessChecker) CanCommunicate(ctx context.Context, user1, user2 uui
 
 type testUploadResolver struct{}
 
-func (u *testUploadResolver) IsCommitted(ctx context.Context, uploadID uuid.UUID) (bool, error) {
-	return true, nil
+func (u *testUploadResolver) GetAttachmentInfo(ctx context.Context, uploadID, userID uuid.UUID) (*AttachmentInfo, error) {
+	return &AttachmentInfo{
+		UploadID: uploadID,
+		URL:      "http://test/file.jpg",
+		FileName: "file.jpg",
+		MimeType: "image/jpeg",
+		Size:     1024,
+	}, nil
 }
 
-func (u *testUploadResolver) GetUploadURL(ctx context.Context, uploadID uuid.UUID) (string, error) {
-	return "", nil
+func (u *testUploadResolver) CommitUpload(ctx context.Context, uploadID, userID uuid.UUID) (*AttachmentInfo, error) {
+	return &AttachmentInfo{URL: "https://example.com/file.jpg", UploadID: uploadID}, nil
 }
 
 func (u *testUploadResolver) CommitUpload(ctx context.Context, uploadID, userID uuid.UUID) (*AttachmentInfo, error) {
