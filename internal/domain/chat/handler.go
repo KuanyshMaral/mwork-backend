@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -14,6 +15,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog/log"
 
+	"github.com/mwork/mwork-api/internal/domain/notification"
 	"github.com/mwork/mwork-api/internal/middleware"
 	"github.com/mwork/mwork-api/internal/pkg/errorhandler"
 	"github.com/mwork/mwork-api/internal/pkg/response"
@@ -22,10 +24,15 @@ import (
 
 // WebSocket constants
 const (
-	writeWait      = 10 * time.Second
-	pongWait       = 60 * time.Second
-	pingPeriod     = (pongWait * 9) / 10
-	maxMessageSize = 512 * 1024 // 512KB
+	writeWait                    = 10 * time.Second
+	pongWait                     = 60 * time.Second
+	pingPeriod                   = (pongWait * 9) / 10
+	maxMessageSize               = 512 * 1024 // 512KB
+	notificationSyncDefaultLimit = 20
+	notificationSyncMaxLimit     = 50
+	notificationSyncRateLimit    = 6
+	notificationReadRateLimit    = 20
+	notificationRateLimitWindow  = 10 * time.Second
 )
 
 // ProfileFetcher interface to retrieve user details
@@ -33,13 +40,30 @@ type ProfileFetcher interface {
 	GetParticipantInfo(ctx context.Context, userID uuid.UUID) (*ParticipantInfo, error)
 }
 
+// NotificationQuery defines read-only notification access for WS sync
+type NotificationQuery interface {
+	List(ctx context.Context, userID uuid.UUID, limit, offset int, unreadOnly bool) ([]*notification.NotificationResponse, error)
+	UnreadCount(ctx context.Context, userID uuid.UUID) (int, error)
+}
+
+// NotificationWriter defines user-scoped notification write operations for WS commands
+type NotificationWriter interface {
+	MarkAsRead(ctx context.Context, userID uuid.UUID, id uuid.UUID) error
+	MarkAllRead(ctx context.Context, userID uuid.UUID) error
+	UnreadCount(ctx context.Context, userID uuid.UUID) (int, error)
+}
+
 // Handler handles chat HTTP requests
 type Handler struct {
-	service        *Service
-	hub            *Hub
-	rateLimiter    *RateLimiter
-	upgrader       websocket.Upgrader
-	profileFetcher ProfileFetcher
+	service            *Service
+	hub                *Hub
+	rateLimiter        *RateLimiter
+	upgrader           websocket.Upgrader
+	profileFetcher     ProfileFetcher
+	notificationQuery  NotificationQuery
+	notificationWriter NotificationWriter
+	syncLimiter        *userWindowLimiter
+	readLimiter        *userWindowLimiter
 }
 
 // RateLimiter for chat messages
@@ -80,12 +104,16 @@ func (rl *RateLimiter) Allow(userID uuid.UUID) bool {
 }
 
 // NewHandler creates chat handler
-func NewHandler(service *Service, hub *Hub, redisClient *redis.Client, allowedOrigins []string, profileFetcher ProfileFetcher) *Handler {
+func NewHandler(service *Service, hub *Hub, redisClient *redis.Client, allowedOrigins []string, profileFetcher ProfileFetcher, notificationQuery NotificationQuery, notificationWriter NotificationWriter) *Handler {
 	return &Handler{
-		service:        service,
-		hub:            hub,
-		rateLimiter:    NewRateLimiter(redisClient),
-		profileFetcher: profileFetcher,
+		service:            service,
+		hub:                hub,
+		rateLimiter:        NewRateLimiter(redisClient),
+		profileFetcher:     profileFetcher,
+		notificationQuery:  notificationQuery,
+		notificationWriter: notificationWriter,
+		syncLimiter:        newUserWindowLimiter(notificationSyncRateLimit, notificationRateLimitWindow),
+		readLimiter:        newUserWindowLimiter(notificationReadRateLimit, notificationRateLimitWindow),
 		upgrader: websocket.Upgrader{
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
@@ -395,6 +423,8 @@ func (h *Handler) WebSocket(w http.ResponseWriter, r *http.Request) {
 		h.hub.SubscribeToRoom(room.ID, userID)
 	}
 
+	h.sendInitialNotificationSync(userID, client)
+
 	// Start reader and writer goroutines
 	go h.wsReader(client)
 	go h.wsWriter(client)
@@ -452,7 +482,213 @@ func (h *Handler) wsReader(client *Connection) {
 				RoomID:   event.RoomID,
 				SenderID: client.UserID,
 			})
+		case "notification:sync":
+			h.processNotificationSyncCommand(client, event.Data)
+		case "notification:read":
+			h.processNotificationReadCommand(client, event.Data)
+		case "notification:read-all":
+			h.processNotificationReadAllCommand(client)
 		}
+	}
+}
+
+func (h *Handler) processNotificationSyncCommand(client *Connection, raw json.RawMessage) {
+	if h.syncLimiter != nil && !h.syncLimiter.Allow(client.UserID.String()) {
+		log.Warn().Str("user_id", client.UserID.String()).Str("action", "notification:sync").Str("result", "rate_limited").Msg("Notification WS command rate limited")
+		h.sendWSError(client, "notification_rate_limited")
+		return
+	}
+	h.handleNotificationSyncRequest(client, raw)
+}
+
+func (h *Handler) processNotificationReadCommand(client *Connection, raw json.RawMessage) {
+	if h.readLimiter != nil && !h.readLimiter.Allow(client.UserID.String()) {
+		log.Warn().Str("user_id", client.UserID.String()).Str("action", "notification:read").Str("result", "rate_limited").Msg("Notification WS command rate limited")
+		h.sendWSError(client, "notification_rate_limited")
+		return
+	}
+	h.handleNotificationReadRequest(client, raw)
+}
+
+func (h *Handler) processNotificationReadAllCommand(client *Connection) {
+	if h.readLimiter != nil && !h.readLimiter.Allow(client.UserID.String()) {
+		log.Warn().Str("user_id", client.UserID.String()).Str("action", "notification:read-all").Str("result", "rate_limited").Msg("Notification WS command rate limited")
+		h.sendWSError(client, "notification_rate_limited")
+		return
+	}
+	h.handleNotificationReadAllRequest(client)
+}
+
+type notificationReadRequest struct {
+	ID string `json:"id"`
+}
+
+func (h *Handler) handleNotificationReadRequest(client *Connection, raw json.RawMessage) {
+	if h.notificationWriter == nil {
+		return
+	}
+
+	var req notificationReadRequest
+	if err := json.Unmarshal(raw, &req); err != nil {
+		log.Warn().Str("user_id", client.UserID.String()).Str("action", "notification:read").Str("result", "invalid_payload").Msg("Notification WS read rejected")
+		h.sendWSError(client, "notification_invalid_payload")
+		return
+	}
+
+	notificationID, err := uuid.Parse(req.ID)
+	if err != nil {
+		log.Warn().Str("user_id", client.UserID.String()).Str("action", "notification:read").Str("result", "invalid_payload").Msg("Notification WS read rejected")
+		h.sendWSError(client, "notification_invalid_payload")
+		return
+	}
+
+	err = h.notificationWriter.MarkAsRead(context.Background(), client.UserID, notificationID)
+	if err != nil {
+		if errors.Is(err, notification.ErrNotificationNotFound) {
+			log.Warn().Str("user_id", client.UserID.String()).Str("notification_id", notificationID.String()).Str("action", "notification:read").Str("result", "not_found").Msg("Notification WS read not found")
+			h.sendWSError(client, "notification_not_found")
+			return
+		}
+		log.Error().Err(err).Str("user_id", client.UserID.String()).Str("notification_id", notificationID.String()).Str("action", "notification:read").Str("result", "failed").Msg("Notification WS read failed")
+		h.sendWSError(client, "notification_read_failed")
+		return
+	}
+
+	log.Debug().Str("user_id", client.UserID.String()).Str("notification_id", notificationID.String()).Str("action", "notification:read").Str("result", "ok").Msg("Notification WS read served")
+	h.broadcastNotificationStateRead(client.UserID, []uuid.UUID{notificationID}, false)
+}
+
+func (h *Handler) handleNotificationReadAllRequest(client *Connection) {
+	if h.notificationWriter == nil {
+		return
+	}
+
+	if err := h.notificationWriter.MarkAllRead(context.Background(), client.UserID); err != nil {
+		log.Error().Err(err).Str("user_id", client.UserID.String()).Str("action", "notification:read-all").Str("result", "failed").Msg("Notification WS read-all failed")
+		h.sendWSError(client, "notification_read_failed")
+		return
+	}
+
+	log.Debug().Str("user_id", client.UserID.String()).Str("action", "notification:read-all").Str("result", "ok").Msg("Notification WS read-all served")
+	h.broadcastNotificationStateRead(client.UserID, nil, true)
+}
+
+func (h *Handler) broadcastNotificationStateRead(userID uuid.UUID, readIDs []uuid.UUID, readAll bool) {
+	unreadCount, err := h.notificationWriter.UnreadCount(context.Background(), userID)
+	if err != nil {
+		return
+	}
+
+	data := map[string]interface{}{
+		"unread_count": unreadCount,
+	}
+	if readAll {
+		data["read_all"] = true
+	} else {
+		ids := make([]string, 0, len(readIDs))
+		for _, id := range readIDs {
+			ids = append(ids, id.String())
+		}
+		data["read_ids"] = ids
+	}
+
+	_ = h.hub.SendToUserJSON(userID, map[string]interface{}{
+		"type": "notification:state",
+		"data": data,
+	})
+}
+
+type notificationSyncRequest struct {
+	Limit      *int `json:"limit"`
+	Offset     *int `json:"offset"`
+	UnreadOnly bool `json:"unread_only"`
+}
+
+func (h *Handler) sendInitialNotificationSync(userID uuid.UUID, client *Connection) {
+	h.sendNotificationSync(context.Background(), userID, client, notificationSyncDefaultLimit, 0, false)
+}
+
+func (h *Handler) handleNotificationSyncRequest(client *Connection, raw json.RawMessage) {
+	limit := notificationSyncDefaultLimit
+	offset := 0
+	unreadOnly := false
+
+	if len(raw) > 0 {
+		var req notificationSyncRequest
+		if err := json.Unmarshal(raw, &req); err != nil {
+			log.Warn().Str("user_id", client.UserID.String()).Str("action", "notification:sync").Str("result", "invalid_payload").Msg("Notification WS sync rejected")
+			h.sendWSError(client, "notification_invalid_payload")
+			return
+		}
+		if req.Limit != nil {
+			limit = *req.Limit
+		}
+		if req.Offset != nil {
+			offset = *req.Offset
+		}
+		unreadOnly = req.UnreadOnly
+	}
+
+	if limit <= 0 {
+		limit = notificationSyncDefaultLimit
+	}
+	if limit > notificationSyncMaxLimit {
+		limit = notificationSyncMaxLimit
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	h.sendNotificationSync(context.Background(), client.UserID, client, limit, offset, unreadOnly)
+}
+
+func (h *Handler) sendNotificationSync(ctx context.Context, userID uuid.UUID, client *Connection, limit, offset int, unreadOnly bool) {
+	if h.notificationQuery == nil {
+		return
+	}
+
+	unreadCount, err := h.notificationQuery.UnreadCount(ctx, userID)
+	if err != nil {
+		h.sendWSError(client, "notification_sync_failed")
+		return
+	}
+
+	items, err := h.notificationQuery.List(ctx, userID, limit, offset, unreadOnly)
+	if err != nil {
+		h.sendWSError(client, "notification_sync_failed")
+		return
+	}
+
+	log.Debug().Str("user_id", userID.String()).Int("limit", limit).Int("offset", offset).Bool("unread_only", unreadOnly).Str("action", "notification:sync").Str("result", "ok").Msg("Notification WS sync served")
+
+	h.sendWSJSON(client, map[string]interface{}{
+		"type": "notification:sync",
+		"data": map[string]interface{}{
+			"unread_count": unreadCount,
+			"items":        items,
+			"limit":        limit,
+			"offset":       offset,
+		},
+	})
+}
+
+func (h *Handler) sendWSError(client *Connection, code string) {
+	h.sendWSJSON(client, map[string]interface{}{
+		"type": "error",
+		"data": map[string]string{"code": code},
+	})
+}
+
+func (h *Handler) sendWSJSON(client *Connection, payload any) {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return
+	}
+
+	select {
+	case client.Send <- data:
+	default:
+		log.Warn().Str("user_id", client.UserID.String()).Msg("WebSocket send buffer full")
 	}
 }
 

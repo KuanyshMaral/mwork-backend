@@ -1,6 +1,7 @@
 package notification
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -48,7 +49,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	notifications, err := h.service.List(r.Context(), userID, limit, offset)
+	notifications, err := h.service.List(r.Context(), userID, limit, offset, false)
 	if err != nil {
 		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		return
@@ -82,16 +83,21 @@ func (h *Handler) GetUnreadCount(w http.ResponseWriter, r *http.Request) {
 // @Security BearerAuth
 // @Param id path string true "ID уведомления"
 // @Success 200 {object} response.Response
-// @Failure 400,500 {object} response.Response
+// @Failure 400,401,404,500 {object} response.Response
 // @Router /notifications/{id}/read [post]
 func (h *Handler) MarkAsRead(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
 		response.BadRequest(w, "Invalid notification ID")
 		return
 	}
 
-	if err := h.service.MarkAsRead(r.Context(), id); err != nil {
+	if err := h.service.MarkAsRead(r.Context(), userID, id); err != nil {
+		if errors.Is(err, ErrNotificationNotFound) {
+			response.NotFound(w, "Notification not found")
+			return
+		}
 		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		return
 	}
@@ -105,12 +111,16 @@ func (h *Handler) MarkAsRead(w http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Security BearerAuth
 // @Success 200 {object} response.Response
-// @Failure 500 {object} response.Response
+// @Failure 401,404,500 {object} response.Response
 // @Router /notifications/read-all [post]
 func (h *Handler) MarkAllAsRead(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 
 	if err := h.service.MarkAllAsRead(r.Context(), userID); err != nil {
+		if errors.Is(err, ErrNotificationNotFound) {
+			response.NotFound(w, "Notifications not found")
+			return
+		}
 		errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
 		return
 	}

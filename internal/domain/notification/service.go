@@ -3,19 +3,29 @@ package notification
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 )
+
+var ErrNotificationNotFound = errors.New("notification not found")
 
 // Service handles notification logic
 type Service struct {
-	repo Repository
+	repo              Repository
+	realtimePublisher RealtimePublisher
 }
 
 // NewService creates notification service
 func NewService(repo Repository) *Service {
 	return &Service{repo: repo}
+}
+
+// SetRealtimePublisher sets optional realtime publisher for WS events
+func (s *Service) SetRealtimePublisher(publisher RealtimePublisher) {
+	s.realtimePublisher = publisher
 }
 
 // Create creates a notification
@@ -38,12 +48,19 @@ func (s *Service) Create(ctx context.Context, userID uuid.UUID, notifType Type, 
 		return nil, err
 	}
 
+	if s.realtimePublisher != nil {
+		if unreadCount, err := s.repo.CountUnreadByUser(ctx, userID); err == nil {
+			_ = s.realtimePublisher.NotifyNew(ctx, userID, NotificationResponseFromEntity(n), unreadCount)
+			log.Debug().Str("user_id", userID.String()).Str("notification_type", string(n.Type)).Str("source", "notification_service_create").Msg("Published notification:new WS event")
+		}
+	}
+
 	return n, nil
 }
 
 // List returns notifications for user
-func (s *Service) List(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*Notification, error) {
-	return s.repo.ListByUser(ctx, userID, limit, offset)
+func (s *Service) List(ctx context.Context, userID uuid.UUID, limit, offset int, unreadOnly bool) ([]*Notification, error) {
+	return s.repo.ListByUser(ctx, userID, limit, offset, unreadOnly)
 }
 
 // GetUnreadCount returns unread count
@@ -52,13 +69,27 @@ func (s *Service) GetUnreadCount(ctx context.Context, userID uuid.UUID) (int, er
 }
 
 // MarkAsRead marks single notification as read
-func (s *Service) MarkAsRead(ctx context.Context, id uuid.UUID) error {
-	return s.repo.MarkAsRead(ctx, id)
+func (s *Service) MarkAsRead(ctx context.Context, userID, id uuid.UUID) error {
+	updated, err := s.repo.MarkAsRead(ctx, userID, id)
+	if err != nil {
+		return err
+	}
+	if !updated {
+		return ErrNotificationNotFound
+	}
+	return nil
 }
 
 // MarkAllAsRead marks all notifications as read
 func (s *Service) MarkAllAsRead(ctx context.Context, userID uuid.UUID) error {
-	return s.repo.MarkAllAsRead(ctx, userID)
+	affected, err := s.repo.MarkAllAsRead(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return ErrNotificationNotFound
+	}
+	return nil
 }
 
 // --- Helper methods for creating specific notifications ---

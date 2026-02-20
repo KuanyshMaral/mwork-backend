@@ -172,7 +172,7 @@ func (s *ExtendedService) sendPush(ctx context.Context, params SendParams) {
 			log.Warn().Err(err).Str("token", token[:20]+"...").Msg("Failed to send push")
 			// Deactivate invalid tokens
 			if err.Error() == "FCM returned status 404" {
-				s.deviceRepo.Deactivate(context.Background(), token)
+				s.deviceRepo.Deactivate(context.Background(), params.UserID, token)
 			}
 		}
 	}
@@ -303,8 +303,15 @@ func (s *ExtendedService) RegisterDevice(ctx context.Context, userID uuid.UUID, 
 }
 
 // UnregisterDevice unregisters a device token
-func (s *ExtendedService) UnregisterDevice(ctx context.Context, token string) error {
-	return s.deviceRepo.Deactivate(ctx, token)
+func (s *ExtendedService) UnregisterDevice(ctx context.Context, userID uuid.UUID, token string) error {
+	deactivated, err := s.deviceRepo.Deactivate(ctx, userID, token)
+	if err != nil {
+		return err
+	}
+	if !deactivated {
+		return ErrNotificationNotFound
+	}
+	return nil
 }
 
 // Helper to extend existing Repository interface
