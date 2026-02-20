@@ -56,14 +56,14 @@ type reorderRequest struct {
 	IDs []uuid.UUID `json:"ids"`
 }
 
-// Attach handles POST /attachments
 // @Summary Привязать один или несколько файлов к сущности
 // @Description Создает связи между ранее загруженными файлами (через POST /files) и бизнес-сущностью (например, портфолио модели).
 // @Tags Attachments
 // @Accept json
 // @Produce json
+// @Security BearerAuth
 // @Param body body attachRequest true "Данные для привязки"
-// @Success 201 {array} AttachmentWithURL "Успешная привязка"
+// @Success 201 {array} attachment.AttachmentWithURL "Успешная привязка"
 // @Failure 400 {object} response.ErrorResponse "Неверные данные"
 // @Failure 401 {object} response.ErrorResponse "Не авторизован"
 // @Failure 403 {object} response.ErrorResponse "Нет прав на использование одного из файлов"
@@ -124,13 +124,12 @@ func (h *Handler) Attach(w http.ResponseWriter, r *http.Request) {
 	response.Created(w, result)
 }
 
-// List handles GET /attachments?target_type=model_portfolio&target_id={uuid}
 // @Summary Получить список вложений сущности
 // @Tags Attachments
 // @Produce json
 // @Param target_type query string true "Тип сущности (например, model_portfolio)"
 // @Param target_id query string true "ID сущности (UUID)"
-// @Success 200 {array} AttachmentWithURL "Список вложений"
+// @Success 200 {array} attachment.AttachmentWithURL "Список вложений"
 // @Failure 400 {object} response.ErrorResponse "Неверные параметры запроса"
 // @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
 // @Router /attachments [get]
@@ -158,10 +157,10 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	response.OK(w, items)
 }
 
-// Delete handles DELETE /attachments/{id}
 // @Summary Удалить вложение
 // @Description Удаляет связь между файлом и сущностью. Сам файл НЕ удаляется.
 // @Tags Attachments
+// @Security BearerAuth
 // @Param id path string true "ID вложения (UUID)"
 // @Success 204 "Успешное удаление"
 // @Failure 400 {object} response.ErrorResponse "Неверный ID"
@@ -198,12 +197,12 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	response.NoContent(w)
 }
 
-// Reorder handles PATCH /attachments/reorder
 // @Summary Изменить порядок вложений
 // @Description Принимает упорядоченный список ID вложений и обновляет их sort_order.
 // @Tags Attachments
 // @Accept json
 // @Produce json
+// @Security BearerAuth
 // @Param body body reorderRequest true "Массив ID вложений в нужном порядке"
 // @Success 200 {object} map[string]string "Успешное обновление"
 // @Failure 400 {object} response.ErrorResponse "Неверные данные"

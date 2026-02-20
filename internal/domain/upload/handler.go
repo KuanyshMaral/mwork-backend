@@ -57,14 +57,14 @@ func (h *Handler) Routes(authMiddleware func(http.Handler) http.Handler) func(ch
 	}
 }
 
-// Upload handles POST /files
 // @Summary Загрузка одного или нескольких файлов
 // @Description Принимает multipart/form-data с одним или несколькими полями "file". Возвращает список метаданных загруженных файлов.
 // @Tags Files
-// @Accept multipart/form-data
+// @Accept mpfd
 // @Produce json
+// @Security BearerAuth
 // @Param file formData file true "Файл для загрузки (можно передать несколько полей 'file')"
-// @Success 201 {array} uploadResponse "Успешная загрузка"
+// @Success 201 {array} upload.uploadResponse "Успешная загрузка"
 // @Failure 400 {object} response.ErrorResponse "Ошибка запроса"
 // @Failure 401 {object} response.ErrorResponse "Не авторизован"
 // @Failure 413 {object} response.ErrorResponse "Файл слишком большой"
@@ -117,13 +117,12 @@ func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 	response.Created(w, results)
 }
 
-// Get handles GET /files/{id}
 // @Summary Получить метаданные файла
 // @Description Возвращает информацию о файле по его ID. Не возвращает сам файл — используйте поле 'url' для доступа к файлу.
 // @Tags Files
 // @Produce json
 // @Param id path string true "ID файла (UUID)"
-// @Success 200 {object} uploadResponse "Успешное получение"
+// @Success 200 {object} upload.uploadResponse "Успешное получение"
 // @Failure 400 {object} response.ErrorResponse "Неверный ID"
 // @Failure 404 {object} response.ErrorResponse "Файл не найден"
 // @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
@@ -148,10 +147,10 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	response.OK(w, h.toResponse(upload))
 }
 
-// Delete handles DELETE /files/{id}
 // @Summary Удалить файл
 // @Description Удаляет файл с диска и его метаданные из базы данных. Только для владельца файла.
 // @Tags Files
+// @Security BearerAuth
 // @Param id path string true "ID файла (UUID)"
 // @Success 204 "Успешное удаление"
 // @Failure 400 {object} response.ErrorResponse "Неверный ID"
