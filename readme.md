@@ -1195,24 +1195,28 @@ Robokassa sends server-to-server payment confirmation to this endpoint.
 
 ### Robokassa Payment Flow
 
-**Init endpoint (authenticated):** `POST /api/v1/payments/robokassa/init`
+**Init endpoints (authenticated):**
 
-Creates a `pending` payment and returns `payment_url` for redirect to Robokassa.
+- `POST /api/v1/payments/robokassa/init` (generic)
+- `POST /api/v1/payments/robokassa/subscriptions` (plan-based subscription purchase)
+- `POST /api/v1/payments/robokassa/responses` (response-package purchase)
+
+Each endpoint creates a `pending` payment and returns `payment_url` for redirect to Robokassa.
 
 **ResultURL webhook (public):** `POST /webhooks/robokassa/result` (also supports `GET`)
 
 - Signature is validated using Robokassa Password #2.
 - `OutSum` is validated against stored payment amount.
-- Payment status and subscription activation are applied atomically.
-- Idempotent behavior: repeated callbacks for already completed payments return `OK{InvId}` without re-running business logic.
+- Payment status and post-payment business logic are applied atomically.
+- Idempotent behavior: repeated callbacks for already paid payments return `OK[InvId]` without re-running business logic.
 
 **SuccessURL (authenticated):** `GET|POST /api/v1/payments/robokassa/success`
 
-Returns informational state (`processing`). Success redirect is not payment confirmation.
+Performs HTTP `302 Found` redirect to `ROBOKASSA_FRONTEND_SUCCESS_URL`. Success redirect is not payment confirmation.
 
 **FailURL (authenticated):** `GET|POST /api/v1/payments/robokassa/fail`
 
-Returns informational failed/cancelled state and does not mark payment successful.
+Performs HTTP `302 Found` redirect to `ROBOKASSA_FRONTEND_FAIL_URL`.
 
 ### Robokassa ENV
 
@@ -1223,12 +1227,15 @@ Set the following variables:
 - `ROBOKASSA_PASSWORD_2`
 - `ROBOKASSA_TEST_PASSWORD_1`
 - `ROBOKASSA_TEST_PASSWORD_2`
-- `ROBOKASSA_IS_TEST` (`true`/`false`)
-- `ROBOKASSA_HASH_ALGO` (`MD5` or `SHA256`)
-- `ROBOKASSA_PAYMENT_URL` (for example `https://auth.robokassa.kz/Merchant/Index.aspx`)
-- `ROBOKASSA_RESULT_URL`
-- `ROBOKASSA_SUCCESS_URL`
-- `ROBOKASSA_FAIL_URL`
+- `ROBOKASSA_IS_TEST` (`1`/`0` or `true`/`false`)
+- `ROBOKASSA_BASE_URL` (for example `https://auth.robokassa.kz/Merchant/Index.aspx`)
+- `ROBOKASSA_FRONTEND_SUCCESS_URL`
+- `ROBOKASSA_FRONTEND_FAIL_URL`
+
+Notes:
+
+- Signatures are SHA256-only.
+- ResultURL success response is strict plain text: `OK[InvId]`.
 
 ---
 
