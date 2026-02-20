@@ -239,6 +239,12 @@ func main() {
 	subscriptionPaymentService := &subscriptionPaymentAdapter{service: paymentService}
 	limitChecker := subscription.NewLimitChecker(subscriptionService)
 	chatService = chat.NewService(chatRepo, userRepo, chatHub, accessChecker, limitChecker, uploadResolver)
+	notificationService.SetRealtimePublisher(notification.NewWSPublisher(chatHub))
+	notificationModelRepo := &notificationProfileAdapter{modelRepo: modelRepo}
+	notificationEmployerRepo := &notificationProfileAdapter{employerRepo: employerRepo}
+	notificationIntegratedService := notification.NewIntegratedService(notificationService, emailService, nil, userRepo, notificationModelRepo, notificationEmployerRepo)
+	responseService.SetNotificationService(notificationIntegratedService)
+	chatService.SetNotificationService(notificationIntegratedService)
 
 	// Adapter for chat service to response service
 	chatServiceAdapter := &chatServiceAdapter{service: chatService}
@@ -281,7 +287,9 @@ func main() {
 		userRepo:       userRepo,
 		profileService: profileService,
 	}
-	chatHandler := chat.NewHandler(chatService, chatHub, redis, cfg.AllowedOrigins, chatProfileFetcher)
+	notificationQuery := chat.NewNotificationQueryAdapter(notificationService)
+	notificationWriter := chat.NewNotificationWriterAdapter(notificationService)
+	chatHandler := chat.NewHandler(chatService, chatHub, redis, cfg.AllowedOrigins, chatProfileFetcher, notificationQuery, notificationWriter)
 	moderationHandler := moderation.NewHandler(moderationService)
 	relationshipProfileFetcher := &relationshipProfileFetcher{
 		userRepo:       userRepo,
@@ -775,6 +783,21 @@ func (a *subscriptionProfileAdapter) GetByUserID(ctx context.Context, userID uui
 
 type responseLimitCounter struct {
 	repo response.Repository
+}
+
+type notificationProfileAdapter struct {
+	modelRepo    profile.ModelRepository
+	employerRepo profile.EmployerRepository
+}
+
+func (a *notificationProfileAdapter) GetByUserID(ctx context.Context, userID uuid.UUID) (interface{}, error) {
+	if a.modelRepo != nil {
+		return a.modelRepo.GetByUserID(ctx, userID)
+	}
+	if a.employerRepo != nil {
+		return a.employerRepo.GetByUserID(ctx, userID)
+	}
+	return nil, nil
 }
 
 func (a *responseLimitCounter) CountMonthlyByUserID(ctx context.Context, userID uuid.UUID) (int, error) {

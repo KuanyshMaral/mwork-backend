@@ -244,9 +244,16 @@ func (r *DeviceTokenRepository) GetActiveByUserID(ctx context.Context, userID uu
 }
 
 // Deactivate deactivates a device token
-func (r *DeviceTokenRepository) Deactivate(ctx context.Context, token string) error {
-	_, err := r.db.ExecContext(ctx, `
-		UPDATE device_tokens SET is_active = false WHERE token = $1
-	`, token)
-	return err
+func (r *DeviceTokenRepository) Deactivate(ctx context.Context, userID uuid.UUID, token string) (bool, error) {
+	result, err := r.db.ExecContext(ctx, `
+		UPDATE device_tokens SET is_active = false WHERE user_id = $1 AND token = $2
+	`, userID, token)
+	if err != nil {
+		return false, err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return affected > 0, nil
 }

@@ -15,11 +15,16 @@ import (
 // PreferencesHandler handles notification preferences API
 type PreferencesHandler struct {
 	prefsRepo  *PreferencesRepository
-	deviceRepo *DeviceTokenRepository
+	deviceRepo deviceTokenStore
+}
+
+type deviceTokenStore interface {
+	Save(ctx context.Context, token *DeviceToken) error
+	Deactivate(ctx context.Context, userID uuid.UUID, token string) (bool, error)
 }
 
 // NewPreferencesHandler creates preferences handler
-func NewPreferencesHandler(prefsRepo *PreferencesRepository, deviceRepo *DeviceTokenRepository) *PreferencesHandler {
+func NewPreferencesHandler(prefsRepo *PreferencesRepository, deviceRepo deviceTokenStore) *PreferencesHandler {
 	return &PreferencesHandler{
 		prefsRepo:  prefsRepo,
 		deviceRepo: deviceRepo,
@@ -214,17 +219,28 @@ func (h *PreferencesHandler) RegisterDevice(w http.ResponseWriter, r *http.Reque
 // @Security BearerAuth
 // @Param token path string true "FCM токен"
 // @Success 200 {object} response.Response
-// @Failure 400,401,500 {object} response.Response
+// @Failure 400,401,404,500 {object} response.Response
 // @Router /notifications/preferences/device/{token} [delete]
 func (h *PreferencesHandler) UnregisterDevice(w http.ResponseWriter, r *http.Request) {
+	userID := getUserIDFromContext(r.Context())
+	if userID == uuid.Nil {
+		response.Unauthorized(w, "Unauthorized")
+		return
+	}
+
 	token := chi.URLParam(r, "token")
 	if token == "" {
 		response.BadRequest(w, "Token is required")
 		return
 	}
 
-	if err := h.deviceRepo.Deactivate(r.Context(), token); err != nil {
+	deactivated, err := h.deviceRepo.Deactivate(r.Context(), userID, token)
+	if err != nil {
 		response.InternalError(w)
+		return
+	}
+	if !deactivated {
+		response.NotFound(w, "Device token not found")
 		return
 	}
 

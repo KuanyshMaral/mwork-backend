@@ -25,6 +25,11 @@ type UploadResolver interface {
 	GetAttachmentInfo(ctx context.Context, uploadID, userID uuid.UUID) (*AttachmentInfo, error)
 }
 
+// NotificationService defines notification operations used by chat service
+type NotificationService interface {
+	NotifyNewMessage(ctx context.Context, recipientUserID uuid.UUID, senderName string, messagePreview string, roomID uuid.UUID, messageID uuid.UUID) error
+}
+
 // Service handles chat business logic
 type Service struct {
 	repo           Repository
@@ -33,6 +38,7 @@ type Service struct {
 	accessChecker  AccessChecker
 	limitChecker   LimitChecker
 	uploadResolver UploadResolver
+	notifService   NotificationService
 }
 
 // NewService creates chat service
@@ -45,6 +51,11 @@ func NewService(repo Repository, userRepo user.Repository, hub *Hub, accessCheck
 		limitChecker:   limitChecker,
 		uploadResolver: uploadResolver,
 	}
+}
+
+// SetNotificationService sets optional notification service for new message notifications
+func (s *Service) SetNotificationService(notifService NotificationService) {
+	s.notifService = notifService
 }
 
 // CreateOrGetRoom creates a room or returns existing one (router method)
@@ -230,6 +241,37 @@ func (s *Service) SendMessage(ctx context.Context, userID, roomID uuid.UUID, req
 			RoomID:  roomID,
 			Message: msg,
 		})
+	}
+
+	if s.notifService != nil {
+		members, err := s.repo.GetMembers(ctx, roomID)
+		if err == nil {
+			senderName := "Пользователь"
+			if sender, err := s.userRepo.GetByID(ctx, userID); err == nil && sender != nil {
+				senderName = sender.Email
+			}
+
+			preview := req.Content
+			if len(preview) > 50 {
+				preview = preview[:50] + "..."
+			}
+			if req.MessageType == "image" {
+				preview = "📷 Фото"
+			}
+			if req.AttachmentUploadID != nil {
+				preview = "📎 Вложение"
+			}
+
+			for _, member := range members {
+				if member.UserID == userID {
+					continue
+				}
+				recipientID := member.UserID
+				go func(rid uuid.UUID) {
+					_ = s.notifService.NotifyNewMessage(context.Background(), rid, senderName, preview, roomID, msg.ID)
+				}(recipientID)
+			}
+		}
 	}
 
 	return msg, nil
