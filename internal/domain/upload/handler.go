@@ -23,9 +23,9 @@ func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
 }
 
-// uploadResponse is the API response shape for an upload.
+// UploadResponse is the API response shape for an upload.
 // @Description Данные о загруженном файле
-type uploadResponse struct {
+type UploadResponse struct {
 	ID           uuid.UUID `json:"id"`
 	URL          string    `json:"url"`
 	OriginalName string    `json:"original_name"`
@@ -34,8 +34,8 @@ type uploadResponse struct {
 	CreatedAt    string    `json:"created_at"`
 }
 
-func (h *Handler) toResponse(u *Upload) *uploadResponse {
-	return &uploadResponse{
+func (h *Handler) toResponse(u *Upload) *UploadResponse {
+	return &UploadResponse{
 		ID:           u.ID,
 		URL:          h.service.GetURL(u),
 		OriginalName: u.OriginalName,
@@ -47,24 +47,25 @@ func (h *Handler) toResponse(u *Upload) *uploadResponse {
 
 // Routes mounts the upload routes onto a chi router.
 // All routes require authentication via the provided middleware.
-func (h *Handler) Routes(authMiddleware func(http.Handler) http.Handler) func(chi.Router) {
-	return func(r chi.Router) {
-		r.Use(authMiddleware)
+func (h *Handler) Routes(authMiddleware func(http.Handler) http.Handler) chi.Router {
+	r := chi.NewRouter()
+	r.Use(authMiddleware)
 
-		r.Post("/", h.Upload)       // POST /files
-		r.Get("/{id}", h.Get)       // GET  /files/{id}
-		r.Delete("/{id}", h.Delete) // DELETE /files/{id}
-	}
+	r.Post("/", h.Upload)       // POST /files
+	r.Get("/{id}", h.Get)       // GET  /files/{id}
+	r.Delete("/{id}", h.Delete) // DELETE /files/{id}
+
+	return r
 }
 
 // @Summary Загрузка одного или нескольких файлов
 // @Description Принимает multipart/form-data с одним или несколькими полями "file". Возвращает список метаданных загруженных файлов.
-// @Tags Files
-// @Accept mpfd
+// @Tags Uploads
+// @Accept multipart/form-data
 // @Produce json
 // @Security BearerAuth
 // @Param file formData file true "Файл для загрузки (можно передать несколько полей 'file')"
-// @Success 201 {array} upload.uploadResponse "Успешная загрузка"
+// @Success 201 {object} response.Response{data=[]UploadResponse} "Успешная загрузка"
 // @Failure 400 {object} response.ErrorResponse "Ошибка запроса"
 // @Failure 401 {object} response.ErrorResponse "Не авторизован"
 // @Failure 413 {object} response.ErrorResponse "Файл слишком большой"
@@ -89,7 +90,7 @@ func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	results := make([]*uploadResponse, 0, len(files))
+	results := make([]*UploadResponse, 0, len(files))
 	for _, header := range files {
 		file, err := header.Open()
 		if err != nil {
@@ -119,10 +120,10 @@ func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 
 // @Summary Получить метаданные файла
 // @Description Возвращает информацию о файле по его ID. Не возвращает сам файл — используйте поле 'url' для доступа к файлу.
-// @Tags Files
+// @Tags Uploads
 // @Produce json
 // @Param id path string true "ID файла (UUID)"
-// @Success 200 {object} upload.uploadResponse "Успешное получение"
+// @Success 200 {object} response.Response{data=UploadResponse} "Успешное получение"
 // @Failure 400 {object} response.ErrorResponse "Неверный ID"
 // @Failure 404 {object} response.ErrorResponse "Файл не найден"
 // @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
@@ -149,10 +150,10 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 
 // @Summary Удалить файл
 // @Description Удаляет файл с диска и его метаданные из базы данных. Только для владельца файла.
-// @Tags Files
+// @Tags Uploads
 // @Security BearerAuth
 // @Param id path string true "ID файла (UUID)"
-// @Success 204 "Успешное удаление"
+// @Success 204 {string} string "Успешное удаление"
 // @Failure 400 {object} response.ErrorResponse "Неверный ID"
 // @Failure 401 {object} response.ErrorResponse "Не авторизован"
 // @Failure 403 {object} response.ErrorResponse "Нет прав на удаление"

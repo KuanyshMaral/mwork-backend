@@ -235,6 +235,25 @@ definitions:
       value:
         type: integer
     type: object
+  internal_domain_attachment.AttachRequest:
+    description: Параметры для привязки файлов к сущности
+    properties:
+      metadata:
+        $ref: '#/definitions/internal_domain_attachment.Metadata'
+      target_id:
+        example: uuid
+        type: string
+      target_type:
+        example: model_portfolio
+        type: string
+      upload_ids:
+        example:
+        - '["uuid1"'
+        - ' "uuid2"]'
+        items:
+          type: string
+        type: array
+    type: object
   internal_domain_attachment.AttachmentWithURL:
     properties:
       created_at:
@@ -277,6 +296,13 @@ definitions:
       year:
         type: integer
     type: object
+  internal_domain_attachment.ReorderRequest:
+    properties:
+      ids:
+        items:
+          type: string
+        type: array
+    type: object
   internal_domain_attachment.TargetType:
     enum:
     - model_portfolio
@@ -289,32 +315,6 @@ definitions:
     - TargetCastingGallery
     - TargetOrgDocument
     - TargetChatAttachment
-  internal_domain_attachment.attachRequest:
-    description: Параметры для привязки файлов к сущности
-    properties:
-      metadata:
-        $ref: '#/definitions/internal_domain_attachment.Metadata'
-      target_id:
-        example: uuid
-        type: string
-      target_type:
-        example: model_portfolio
-        type: string
-      upload_ids:
-        example:
-        - '["uuid1"'
-        - ' "uuid2"]'
-        items:
-          type: string
-        type: array
-    type: object
-  internal_domain_attachment.reorderRequest:
-    properties:
-      ids:
-        items:
-          type: string
-        type: array
-    type: object
   internal_domain_auth.AuthResponse:
     properties:
       tokens:
@@ -2020,7 +2020,7 @@ definitions:
       status:
         type: string
     type: object
-  internal_domain_upload.uploadResponse:
+  internal_domain_upload.UploadResponse:
     description: Данные о загруженном файле
     properties:
       created_at:
@@ -3291,9 +3291,14 @@ paths:
         "200":
           description: Список вложений
           schema:
-            items:
-              $ref: '#/definitions/internal_domain_attachment.AttachmentWithURL'
-            type: array
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/internal_domain_attachment.AttachmentWithURL'
+                  type: array
+              type: object
         "400":
           description: Неверные параметры запроса
           schema:
@@ -3304,7 +3309,7 @@ paths:
             $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
       summary: Получить список вложений сущности
       tags:
-      - Attachments
+      - Entity Attachments
     post:
       consumes:
       - application/json
@@ -3316,16 +3321,21 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/internal_domain_attachment.attachRequest'
+          $ref: '#/definitions/internal_domain_attachment.AttachRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Успешная привязка
           schema:
-            items:
-              $ref: '#/definitions/internal_domain_attachment.AttachmentWithURL'
-            type: array
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/internal_domain_attachment.AttachmentWithURL'
+                  type: array
+              type: object
         "400":
           description: Неверные данные
           schema:
@@ -3346,7 +3356,7 @@ paths:
       - BearerAuth: []
       summary: Привязать один или несколько файлов к сущности
       tags:
-      - Attachments
+      - Entity Attachments
   /attachments/{id}:
     delete:
       description: Удаляет связь между файлом и сущностью. Сам файл НЕ удаляется.
@@ -3359,6 +3369,8 @@ paths:
       responses:
         "204":
           description: Успешное удаление
+          schema:
+            type: string
         "400":
           description: Неверный ID
           schema:
@@ -3383,7 +3395,7 @@ paths:
       - BearerAuth: []
       summary: Удалить вложение
       tags:
-      - Attachments
+      - Entity Attachments
   /attachments/reorder:
     patch:
       consumes:
@@ -3395,16 +3407,19 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/internal_domain_attachment.reorderRequest'
+          $ref: '#/definitions/internal_domain_attachment.ReorderRequest'
       produces:
       - application/json
       responses:
         "200":
           description: Успешное обновление
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  type: object
+              type: object
         "400":
           description: Неверные данные
           schema:
@@ -3417,7 +3432,7 @@ paths:
       - BearerAuth: []
       summary: Изменить порядок вложений
       tags:
-      - Attachments
+      - Entity Attachments
   /auth/login:
     post:
       consumes:
@@ -4777,9 +4792,14 @@ paths:
         "201":
           description: Успешная загрузка
           schema:
-            items:
-              $ref: '#/definitions/internal_domain_upload.uploadResponse'
-            type: array
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/internal_domain_upload.UploadResponse'
+                  type: array
+              type: object
         "400":
           description: Ошибка запроса
           schema:
@@ -4804,7 +4824,7 @@ paths:
       - BearerAuth: []
       summary: Загрузка одного или нескольких файлов
       tags:
-      - Files
+      - Uploads
   /files/{id}:
     delete:
       description: Удаляет файл с диска и его метаданные из базы данных. Только для
@@ -4818,6 +4838,8 @@ paths:
       responses:
         "204":
           description: Успешное удаление
+          schema:
+            type: string
         "400":
           description: Неверный ID
           schema:
@@ -4842,7 +4864,7 @@ paths:
       - BearerAuth: []
       summary: Удалить файл
       tags:
-      - Files
+      - Uploads
     get:
       description: Возвращает информацию о файле по его ID. Не возвращает сам файл
         — используйте поле 'url' для доступа к файлу.
@@ -4858,7 +4880,12 @@ paths:
         "200":
           description: Успешное получение
           schema:
-            $ref: '#/definitions/internal_domain_upload.uploadResponse'
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_domain_upload.UploadResponse'
+              type: object
         "400":
           description: Неверный ID
           schema:
@@ -4873,7 +4900,7 @@ paths:
             $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
       summary: Получить метаданные файла
       tags:
-      - Files
+      - Uploads
   /leads/employer:
     post:
       consumes:
