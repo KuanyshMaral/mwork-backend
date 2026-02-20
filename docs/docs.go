@@ -1984,6 +1984,11 @@ const docTemplate = `{
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Создает связи между ранее загруженными файлами (через POST /files) и бизнес-сущностью (например, портфолио модели).",
                 "consumes": [
                     "application/json"
@@ -2045,6 +2050,11 @@ const docTemplate = `{
         },
         "/attachments/reorder": {
             "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Принимает упорядоченный список ID вложений и обновляет их sort_order.",
                 "consumes": [
                     "application/json"
@@ -2094,6 +2104,11 @@ const docTemplate = `{
         },
         "/attachments/{id}": {
             "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Удаляет связь между файлом и сущностью. Сам файл НЕ удаляется.",
                 "tags": [
                     "Attachments"
@@ -4315,6 +4330,11 @@ const docTemplate = `{
         },
         "/files": {
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Принимает multipart/form-data с одним или несколькими полями \"file\". Возвращает список метаданных загруженных файлов.",
                 "consumes": [
                     "multipart/form-data"
@@ -4425,6 +4445,11 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Удаляет файл с диска и его метаданные из базы данных. Только для владельца файла.",
                 "tags": [
                     "Files"

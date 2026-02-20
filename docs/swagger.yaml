@@ -3342,6 +3342,8 @@ paths:
           description: Внутренняя ошибка сервера
           schema:
             $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Привязать один или несколько файлов к сущности
       tags:
       - Attachments
@@ -3377,6 +3379,8 @@ paths:
           description: Внутренняя ошибка сервера
           schema:
             $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Удалить вложение
       tags:
       - Attachments
@@ -3409,6 +3413,8 @@ paths:
           description: Внутренняя ошибка сервера
           schema:
             $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Изменить порядок вложений
       tags:
       - Attachments
@@ -4794,6 +4800,8 @@ paths:
           description: Внутренняя ошибка сервера
           schema:
             $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Загрузка одного или нескольких файлов
       tags:
       - Files
@@ -4830,6 +4838,8 @@ paths:
           description: Внутренняя ошибка сервера
           schema:
             $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Удалить файл
       tags:
       - Files
