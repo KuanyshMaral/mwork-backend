@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -55,11 +56,7 @@ type Config struct {
 	RobokassaTestPassword1      string
 	RobokassaTestPassword2      string
 	RobokassaIsTest             bool
-	RobokassaHashAlgo           string
-	RobokassaPaymentURL         string
-	RobokassaResultURL          string
-	RobokassaSuccessURL         string
-	RobokassaFailURL            string
+	RobokassaBaseURL            string
 	RobokassaFrontendSuccessURL string
 	RobokassaFrontendFailURL    string
 
@@ -124,12 +121,8 @@ func Load() *Config {
 		RobokassaPassword2:          getEnv("ROBOKASSA_PASSWORD_2", ""),
 		RobokassaTestPassword1:      getEnv("ROBOKASSA_TEST_PASSWORD_1", ""),
 		RobokassaTestPassword2:      getEnv("ROBOKASSA_TEST_PASSWORD_2", ""),
-		RobokassaIsTest:             parseBool(getEnv("ROBOKASSA_IS_TEST", "false"), false),
-		RobokassaHashAlgo:           getEnv("ROBOKASSA_HASH_ALGO", "SHA256"),
-		RobokassaPaymentURL:         getEnv("ROBOKASSA_PAYMENT_URL", "https://auth.robokassa.kz/Merchant/Index.aspx"),
-		RobokassaResultURL:          getEnv("ROBOKASSA_RESULT_URL", "/webhooks/robokassa/result"),
-		RobokassaSuccessURL:         getEnv("ROBOKASSA_SUCCESS_URL", "/api/v1/payments/robokassa/success"),
-		RobokassaFailURL:            getEnv("ROBOKASSA_FAIL_URL", "/api/v1/payments/robokassa/fail"),
+		RobokassaIsTest:             parseRobokassaTestFlag(getEnv("ROBOKASSA_IS_TEST", "false")),
+		RobokassaBaseURL:            getEnv("ROBOKASSA_BASE_URL", "https://auth.robokassa.kz/Merchant/Index.aspx"),
 		RobokassaFrontendSuccessURL: getEnv("ROBOKASSA_FRONTEND_SUCCESS_URL", "http://89.35.125.136/profile?payment=success"),
 		RobokassaFrontendFailURL:    getEnv("ROBOKASSA_FRONTEND_FAIL_URL", "http://89.35.125.136/payment-error"),
 
@@ -200,6 +193,14 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func parseRobokassaTestFlag(raw string) bool {
+	trimmed := strings.TrimSpace(strings.ToLower(raw))
+	if trimmed == "1" {
+		return true
+	}
+	return parseBool(trimmed, false)
 }
 
 // IsDevelopment returns true if running in development mode

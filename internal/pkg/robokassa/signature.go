@@ -1,7 +1,6 @@
 package robokassa
 
 import (
-	"crypto/md5"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
@@ -14,14 +13,13 @@ import (
 type HashAlgorithm string
 
 const (
-	HashMD5    HashAlgorithm = "MD5"
 	HashSHA256 HashAlgorithm = "SHA256"
 )
 
 func NormalizeHashAlgorithm(raw string) (HashAlgorithm, error) {
 	algo := HashAlgorithm(strings.ToUpper(strings.TrimSpace(raw)))
 	switch algo {
-	case HashMD5, HashSHA256:
+	case HashSHA256:
 		return algo, nil
 	default:
 		return "", fmt.Errorf("unsupported hash algorithm: %s", raw)
@@ -52,9 +50,6 @@ func BuildSuccessSignatureBase(outSum, invID, password1 string, shp map[string]s
 
 func Sign(base string, algo HashAlgorithm) (string, error) {
 	switch algo {
-	case HashMD5:
-		h := md5.Sum([]byte(base))
-		return hex.EncodeToString(h[:]), nil
 	case HashSHA256:
 		h := sha256.Sum256([]byte(base))
 		return hex.EncodeToString(h[:]), nil

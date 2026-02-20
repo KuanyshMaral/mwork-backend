@@ -108,8 +108,8 @@ func TestValidateCreateCastingRequest_Table(t *testing.T) {
 		wantKey string
 	}{
 		{name: "invalid pay range", req: CreateCastingRequest{PayMin: ptr(200.0), PayMax: ptr(100.0)}, wantKey: "pay_min"},
-		{name: "invalid age range", req: CreateCastingRequest{Requirements: &RequirementsRequest{AgeMin: ptr(30), AgeMax: ptr(20)}}, wantKey: "requirements.age_min"},
-		{name: "invalid height range", req: CreateCastingRequest{Requirements: &RequirementsRequest{HeightMin: ptr(180.0), HeightMax: ptr(170.0)}}, wantKey: "requirements.height_min"},
+		{name: "invalid age range", req: CreateCastingRequest{AgeMin: ptr(30), AgeMax: ptr(20)}, wantKey: "age_min"},
+		{name: "invalid height range", req: CreateCastingRequest{HeightMin: ptr(180), HeightMax: ptr(170)}, wantKey: "height_min"},
 	}
 
 	for _, tc := range tests {
