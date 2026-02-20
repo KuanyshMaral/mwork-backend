@@ -43,10 +43,11 @@ func (h *Handler) Routes(authMiddleware func(http.Handler) http.Handler) func(ch
 }
 
 // attachRequest is the body for POST /attachments.
+// @Description Параметры для привязки файлов к сущности
 type attachRequest struct {
-	UploadID   string   `json:"upload_id"`
-	TargetType string   `json:"target_type"`
-	TargetID   string   `json:"target_id"`
+	UploadIDs  []string `json:"upload_ids" example:"[\"uuid1\", \"uuid2\"]"`
+	TargetType string   `json:"target_type" example:"model_portfolio"`
+	TargetID   string   `json:"target_id" example:"uuid"`
 	Metadata   Metadata `json:"metadata"`
 }
 
@@ -56,7 +57,18 @@ type reorderRequest struct {
 }
 
 // Attach handles POST /attachments
-// Links an already-uploaded file (from POST /files) to a business entity.
+// @Summary Привязать один или несколько файлов к сущности
+// @Description Создает связи между ранее загруженными файлами (через POST /files) и бизнес-сущностью (например, портфолио модели).
+// @Tags Attachments
+// @Accept json
+// @Produce json
+// @Param body body attachRequest true "Данные для привязки"
+// @Success 201 {array} AttachmentWithURL "Успешная привязка"
+// @Failure 400 {object} response.ErrorResponse "Неверные данные"
+// @Failure 401 {object} response.ErrorResponse "Не авторизован"
+// @Failure 403 {object} response.ErrorResponse "Нет прав на использование одного из файлов"
+// @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
+// @Router /attachments [post]
 func (h *Handler) Attach(w http.ResponseWriter, r *http.Request) {
 	callerID := middleware.GetUserID(r.Context())
 	if callerID == uuid.Nil {
@@ -70,11 +82,21 @@ func (h *Handler) Attach(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	uploadID, err := uuid.Parse(req.UploadID)
-	if err != nil {
-		response.BadRequest(w, "Invalid upload_id")
+	if len(req.UploadIDs) == 0 {
+		response.BadRequest(w, "At least one upload_id is required")
 		return
 	}
+
+	uploadIDs := make([]uuid.UUID, len(req.UploadIDs))
+	for i, idStr := range req.UploadIDs {
+		uid, err := uuid.Parse(idStr)
+		if err != nil {
+			response.BadRequest(w, "Invalid upload_id: "+idStr)
+			return
+		}
+		uploadIDs[i] = uid
+	}
+
 	targetID, err := uuid.Parse(req.TargetID)
 	if err != nil {
 		response.BadRequest(w, "Invalid target_id")
@@ -83,7 +105,7 @@ func (h *Handler) Attach(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.service.Attach(
 		r.Context(),
-		uploadID,
+		uploadIDs,
 		callerID,
 		TargetType(req.TargetType),
 		targetID,
@@ -103,6 +125,15 @@ func (h *Handler) Attach(w http.ResponseWriter, r *http.Request) {
 }
 
 // List handles GET /attachments?target_type=model_portfolio&target_id={uuid}
+// @Summary Получить список вложений сущности
+// @Tags Attachments
+// @Produce json
+// @Param target_type query string true "Тип сущности (например, model_portfolio)"
+// @Param target_id query string true "ID сущности (UUID)"
+// @Success 200 {array} AttachmentWithURL "Список вложений"
+// @Failure 400 {object} response.ErrorResponse "Неверные параметры запроса"
+// @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
+// @Router /attachments [get]
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	targetTypeStr := r.URL.Query().Get("target_type")
 	targetIDStr := r.URL.Query().Get("target_id")
@@ -128,7 +159,17 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 // Delete handles DELETE /attachments/{id}
-// Removes the link between file and entity. The file itself is NOT deleted.
+// @Summary Удалить вложение
+// @Description Удаляет связь между файлом и сущностью. Сам файл НЕ удаляется.
+// @Tags Attachments
+// @Param id path string true "ID вложения (UUID)"
+// @Success 204 "Успешное удаление"
+// @Failure 400 {object} response.ErrorResponse "Неверный ID"
+// @Failure 401 {object} response.ErrorResponse "Не авторизован"
+// @Failure 403 {object} response.ErrorResponse "Нет прав на удаление"
+// @Failure 404 {object} response.ErrorResponse "Вложение не найден"
+// @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
+// @Router /attachments/{id} [delete]
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	callerID := middleware.GetUserID(r.Context())
 	if callerID == uuid.Nil {
@@ -158,7 +199,16 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 }
 
 // Reorder handles PATCH /attachments/reorder
-// Accepts an ordered list of attachment IDs; updates sort_order accordingly.
+// @Summary Изменить порядок вложений
+// @Description Принимает упорядоченный список ID вложений и обновляет их sort_order.
+// @Tags Attachments
+// @Accept json
+// @Produce json
+// @Param body body reorderRequest true "Массив ID вложений в нужном порядке"
+// @Success 200 {object} map[string]string "Успешное обновление"
+// @Failure 400 {object} response.ErrorResponse "Неверные данные"
+// @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
+// @Router /attachments/reorder [patch]
 func (h *Handler) Reorder(w http.ResponseWriter, r *http.Request) {
 	var req reorderRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

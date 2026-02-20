@@ -24,6 +24,7 @@ func NewHandler(service *Service) *Handler {
 }
 
 // uploadResponse is the API response shape for an upload.
+// @Description Данные о загруженном файле
 type uploadResponse struct {
 	ID           uuid.UUID `json:"id"`
 	URL          string    `json:"url"`
@@ -57,8 +58,19 @@ func (h *Handler) Routes(authMiddleware func(http.Handler) http.Handler) func(ch
 }
 
 // Upload handles POST /files
-// Accepts multipart/form-data with a "file" field.
-// Saves file to disk, writes metadata to DB, returns id + url.
+// @Summary Загрузка одного или нескольких файлов
+// @Description Принимает multipart/form-data с одним или несколькими полями "file". Возвращает список метаданных загруженных файлов.
+// @Tags Files
+// @Accept multipart/form-data
+// @Produce json
+// @Param file formData file true "Файл для загрузки (можно передать несколько полей 'file')"
+// @Success 201 {array} uploadResponse "Успешная загрузка"
+// @Failure 400 {object} response.ErrorResponse "Ошибка запроса"
+// @Failure 401 {object} response.ErrorResponse "Не авторизован"
+// @Failure 413 {object} response.ErrorResponse "Файл слишком большой"
+// @Failure 422 {object} response.ErrorResponse "Неподдерживаемый тип файла"
+// @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
+// @Router /files [post]
 func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 	authorID := middleware.GetUserID(r.Context())
 	if authorID == uuid.Nil {
@@ -71,31 +83,51 @@ func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	file, header, err := r.FormFile("file")
-	if err != nil {
-		response.BadRequest(w, "Missing 'file' field in form data")
+	files := r.MultipartForm.File["file"]
+	if len(files) == 0 {
+		response.BadRequest(w, "Missing 'file' field(s) in form data")
 		return
 	}
-	defer file.Close()
 
-	upload, err := h.service.Upload(r.Context(), authorID, header.Filename, file)
-	if err != nil {
-		switch {
-		case errors.Is(err, ErrFileTooLarge):
-			response.Error(w, http.StatusRequestEntityTooLarge, "FILE_TOO_LARGE", "File exceeds the maximum allowed size (50 MB)")
-		case errors.Is(err, ErrInvalidMime):
-			response.Error(w, http.StatusUnprocessableEntity, "INVALID_FILE_TYPE", "File type is not allowed")
-		default:
+	results := make([]*uploadResponse, 0, len(files))
+	for _, header := range files {
+		file, err := header.Open()
+		if err != nil {
 			response.InternalError(w)
+			return
 		}
-		return
+
+		upload, err := h.service.Upload(r.Context(), authorID, header.Filename, file)
+		file.Close() // Close immediately after reading
+
+		if err != nil {
+			switch {
+			case errors.Is(err, ErrFileTooLarge):
+				response.Error(w, http.StatusRequestEntityTooLarge, "FILE_TOO_LARGE", "File "+header.Filename+" exceeds the maximum allowed size (50 MB)")
+			case errors.Is(err, ErrInvalidMime):
+				response.Error(w, http.StatusUnprocessableEntity, "INVALID_FILE_TYPE", "File type of "+header.Filename+" is not allowed")
+			default:
+				response.InternalError(w)
+			}
+			return // For now, we abort on first error to keep it simple and consistent
+		}
+		results = append(results, h.toResponse(upload))
 	}
 
-	response.Created(w, h.toResponse(upload))
+	response.Created(w, results)
 }
 
 // Get handles GET /files/{id}
-// Returns file metadata from DB. Does not stream the file — use the static URL.
+// @Summary Получить метаданные файла
+// @Description Возвращает информацию о файле по его ID. Не возвращает сам файл — используйте поле 'url' для доступа к файлу.
+// @Tags Files
+// @Produce json
+// @Param id path string true "ID файла (UUID)"
+// @Success 200 {object} uploadResponse "Успешное получение"
+// @Failure 400 {object} response.ErrorResponse "Неверный ID"
+// @Failure 404 {object} response.ErrorResponse "Файл не найден"
+// @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
+// @Router /files/{id} [get]
 func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
@@ -117,7 +149,17 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 }
 
 // Delete handles DELETE /files/{id}
-// Only the file's author can delete it.
+// @Summary Удалить файл
+// @Description Удаляет файл с диска и его метаданные из базы данных. Только для владельца файла.
+// @Tags Files
+// @Param id path string true "ID файла (UUID)"
+// @Success 204 "Успешное удаление"
+// @Failure 400 {object} response.ErrorResponse "Неверный ID"
+// @Failure 401 {object} response.ErrorResponse "Не авторизован"
+// @Failure 403 {object} response.ErrorResponse "Нет прав на удаление"
+// @Failure 404 {object} response.ErrorResponse "Файл не найден"
+// @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
+// @Router /files/{id} [delete]
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	callerID := middleware.GetUserID(r.Context())
 	if callerID == uuid.Nil {

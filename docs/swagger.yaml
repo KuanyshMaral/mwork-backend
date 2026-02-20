@@ -31,6 +31,14 @@ definitions:
       message:
         type: string
     type: object
+  github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse:
+    properties:
+      error:
+        $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorInfo'
+      success:
+        example: false
+        type: boolean
+    type: object
   github_com_mwork_mwork-api_internal_pkg_response.Meta:
     properties:
       has_next:
@@ -226,6 +234,86 @@ definitions:
         type: string
       value:
         type: integer
+    type: object
+  internal_domain_attachment.AttachmentWithURL:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      metadata:
+        $ref: '#/definitions/internal_domain_attachment.Metadata'
+      mime_type:
+        type: string
+      original_name:
+        type: string
+      size_bytes:
+        type: integer
+      sort_order:
+        type: integer
+      target_id:
+        type: string
+      target_type:
+        $ref: '#/definitions/internal_domain_attachment.TargetType'
+      upload_id:
+        type: string
+      url:
+        type: string
+    type: object
+  internal_domain_attachment.Metadata:
+    properties:
+      brand:
+        type: string
+      caption:
+        description: 'For model_portfolio:'
+        type: string
+      doc_type:
+        description: 'For org_document:'
+        type: string
+      label:
+        type: string
+      project_name:
+        type: string
+      year:
+        type: integer
+    type: object
+  internal_domain_attachment.TargetType:
+    enum:
+    - model_portfolio
+    - casting_gallery
+    - org_document
+    - chat_attachment
+    type: string
+    x-enum-varnames:
+    - TargetModelPortfolio
+    - TargetCastingGallery
+    - TargetOrgDocument
+    - TargetChatAttachment
+  internal_domain_attachment.attachRequest:
+    description: Параметры для привязки файлов к сущности
+    properties:
+      metadata:
+        $ref: '#/definitions/internal_domain_attachment.Metadata'
+      target_id:
+        example: uuid
+        type: string
+      target_type:
+        example: model_portfolio
+        type: string
+      upload_ids:
+        example:
+        - '["uuid1"'
+        - ' "uuid2"]'
+        items:
+          type: string
+        type: array
+    type: object
+  internal_domain_attachment.reorderRequest:
+    properties:
+      ids:
+        items:
+          type: string
+        type: array
     type: object
   internal_domain_auth.AuthResponse:
     properties:
@@ -1932,6 +2020,22 @@ definitions:
       status:
         type: string
     type: object
+  internal_domain_upload.uploadResponse:
+    description: Данные о загруженном файле
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      mime_type:
+        type: string
+      original_name:
+        type: string
+      size_bytes:
+        type: integer
+      url:
+        type: string
+    type: object
   sql.NullInt64:
     properties:
       int64:
@@ -3168,6 +3272,146 @@ paths:
       summary: Изменение статуса пользователя
       tags:
       - Admin Users
+  /attachments:
+    get:
+      parameters:
+      - description: Тип сущности (например, model_portfolio)
+        in: query
+        name: target_type
+        required: true
+        type: string
+      - description: ID сущности (UUID)
+        in: query
+        name: target_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Список вложений
+          schema:
+            items:
+              $ref: '#/definitions/internal_domain_attachment.AttachmentWithURL'
+            type: array
+        "400":
+          description: Неверные параметры запроса
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
+        "500":
+          description: Внутренняя ошибка сервера
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
+      summary: Получить список вложений сущности
+      tags:
+      - Attachments
+    post:
+      consumes:
+      - application/json
+      description: Создает связи между ранее загруженными файлами (через POST /files)
+        и бизнес-сущностью (например, портфолио модели).
+      parameters:
+      - description: Данные для привязки
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_domain_attachment.attachRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Успешная привязка
+          schema:
+            items:
+              $ref: '#/definitions/internal_domain_attachment.AttachmentWithURL'
+            type: array
+        "400":
+          description: Неверные данные
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
+        "401":
+          description: Не авторизован
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
+        "403":
+          description: Нет прав на использование одного из файлов
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
+        "500":
+          description: Внутренняя ошибка сервера
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
+      summary: Привязать один или несколько файлов к сущности
+      tags:
+      - Attachments
+  /attachments/{id}:
+    delete:
+      description: Удаляет связь между файлом и сущностью. Сам файл НЕ удаляется.
+      parameters:
+      - description: ID вложения (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: Успешное удаление
+        "400":
+          description: Неверный ID
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
+        "401":
+          description: Не авторизован
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
+        "403":
+          description: Нет прав на удаление
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
+        "404":
+          description: Вложение не найден
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
+        "500":
+          description: Внутренняя ошибка сервера
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
+      summary: Удалить вложение
+      tags:
+      - Attachments
+  /attachments/reorder:
+    patch:
+      consumes:
+      - application/json
+      description: Принимает упорядоченный список ID вложений и обновляет их sort_order.
+      parameters:
+      - description: Массив ID вложений в нужном порядке
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_domain_attachment.reorderRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Успешное обновление
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Неверные данные
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
+        "500":
+          description: Внутренняя ошибка сервера
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
+      summary: Изменить порядок вложений
+      tags:
+      - Attachments
   /auth/login:
     post:
       consumes:
@@ -4509,6 +4753,117 @@ paths:
       summary: Проверить наличие в избранном
       tags:
       - Favorite
+  /files:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Принимает multipart/form-data с одним или несколькими полями "file".
+        Возвращает список метаданных загруженных файлов.
+      parameters:
+      - description: Файл для загрузки (можно передать несколько полей 'file')
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Успешная загрузка
+          schema:
+            items:
+              $ref: '#/definitions/internal_domain_upload.uploadResponse'
+            type: array
+        "400":
+          description: Ошибка запроса
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
+        "401":
+          description: Не авторизован
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
+        "413":
+          description: Файл слишком большой
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
+        "422":
+          description: Неподдерживаемый тип файла
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
+        "500":
+          description: Внутренняя ошибка сервера
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
+      summary: Загрузка одного или нескольких файлов
+      tags:
+      - Files
+  /files/{id}:
+    delete:
+      description: Удаляет файл с диска и его метаданные из базы данных. Только для
+        владельца файла.
+      parameters:
+      - description: ID файла (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: Успешное удаление
+        "400":
+          description: Неверный ID
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
+        "401":
+          description: Не авторизован
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
+        "403":
+          description: Нет прав на удаление
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
+        "404":
+          description: Файл не найден
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
+        "500":
+          description: Внутренняя ошибка сервера
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
+      summary: Удалить файл
+      tags:
+      - Files
+    get:
+      description: Возвращает информацию о файле по его ID. Не возвращает сам файл
+        — используйте поле 'url' для доступа к файлу.
+      parameters:
+      - description: ID файла (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Успешное получение
+          schema:
+            $ref: '#/definitions/internal_domain_upload.uploadResponse'
+        "400":
+          description: Неверный ID
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
+        "404":
+          description: Файл не найден
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
+        "500":
+          description: Внутренняя ошибка сервера
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse'
+      summary: Получить метаданные файла
+      tags:
+      - Files
   /leads/employer:
     post:
       consumes:
@@ -4761,6 +5116,14 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
         "500":
           description: Internal Server Error
           schema:
@@ -4884,6 +5247,10 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
         "500":
           description: Internal Server Error
           schema:
@@ -4900,6 +5267,14 @@ paths:
       responses:
         "200":
           description: OK
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "404":
+          description: Not Found
           schema:
             $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
         "500":
