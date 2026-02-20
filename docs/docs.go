@@ -1934,6 +1934,217 @@ const docTemplate = `{
                 }
             }
         },
+        "/attachments": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Attachments"
+                ],
+                "summary": "Получить список вложений сущности",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Тип сущности (например, model_portfolio)",
+                        "name": "target_type",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID сущности (UUID)",
+                        "name": "target_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Список вложений",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/internal_domain_attachment.AttachmentWithURL"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Неверные параметры запроса",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Внутренняя ошибка сервера",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Создает связи между ранее загруженными файлами (через POST /files) и бизнес-сущностью (например, портфолио модели).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Attachments"
+                ],
+                "summary": "Привязать один или несколько файлов к сущности",
+                "parameters": [
+                    {
+                        "description": "Данные для привязки",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_domain_attachment.attachRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Успешная привязка",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/internal_domain_attachment.AttachmentWithURL"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Неверные данные",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Не авторизован",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Нет прав на использование одного из файлов",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Внутренняя ошибка сервера",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/attachments/reorder": {
+            "patch": {
+                "description": "Принимает упорядоченный список ID вложений и обновляет их sort_order.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Attachments"
+                ],
+                "summary": "Изменить порядок вложений",
+                "parameters": [
+                    {
+                        "description": "Массив ID вложений в нужном порядке",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_domain_attachment.reorderRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Успешное обновление",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Неверные данные",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Внутренняя ошибка сервера",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/attachments/{id}": {
+            "delete": {
+                "description": "Удаляет связь между файлом и сущностью. Сам файл НЕ удаляется.",
+                "tags": [
+                    "Attachments"
+                ],
+                "summary": "Удалить вложение",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID вложения (UUID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Успешное удаление"
+                    },
+                    "400": {
+                        "description": "Неверный ID",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Не авторизован",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Нет прав на удаление",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Вложение не найден",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Внутренняя ошибка сервера",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/login": {
             "post": {
                 "description": "Выполняет вход пользователя по email/паролю и возвращает access/refresh токены.",
@@ -4102,6 +4313,169 @@ const docTemplate = `{
                 }
             }
         },
+        "/files": {
+            "post": {
+                "description": "Принимает multipart/form-data с одним или несколькими полями \"file\". Возвращает список метаданных загруженных файлов.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Files"
+                ],
+                "summary": "Загрузка одного или нескольких файлов",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "Файл для загрузки (можно передать несколько полей 'file')",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Успешная загрузка",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/internal_domain_upload.uploadResponse"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Ошибка запроса",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Не авторизован",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "Файл слишком большой",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Неподдерживаемый тип файла",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Внутренняя ошибка сервера",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/files/{id}": {
+            "get": {
+                "description": "Возвращает информацию о файле по его ID. Не возвращает сам файл — используйте поле 'url' для доступа к файлу.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Files"
+                ],
+                "summary": "Получить метаданные файла",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID файла (UUID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Успешное получение",
+                        "schema": {
+                            "$ref": "#/definitions/internal_domain_upload.uploadResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Неверный ID",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Файл не найден",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Внутренняя ошибка сервера",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Удаляет файл с диска и его метаданные из базы данных. Только для владельца файла.",
+                "tags": [
+                    "Files"
+                ],
+                "summary": "Удалить файл",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID файла (UUID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Успешное удаление"
+                    },
+                    "400": {
+                        "description": "Неверный ID",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Не авторизован",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Нет прав на удаление",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Файл не найден",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Внутренняя ошибка сервера",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/leads/employer": {
             "post": {
                 "description": "Публичная форма создания лида работодателя.",
@@ -4669,6 +5043,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
                         }
                     },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
@@ -4695,6 +5075,18 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
                         }
@@ -4776,6 +5168,18 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
                         }
@@ -8298,6 +8702,18 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_mwork_mwork-api_internal_pkg_response.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.ErrorInfo"
+                },
+                "success": {
+                    "type": "boolean",
+                    "example": false
+                }
+            }
+        },
         "github_com_mwork_mwork-api_internal_pkg_response.Meta": {
             "type": "object",
             "properties": {
@@ -8583,6 +8999,122 @@ const docTemplate = `{
                 },
                 "value": {
                     "type": "integer"
+                }
+            }
+        },
+        "internal_domain_attachment.AttachmentWithURL": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "metadata": {
+                    "$ref": "#/definitions/internal_domain_attachment.Metadata"
+                },
+                "mime_type": {
+                    "type": "string"
+                },
+                "original_name": {
+                    "type": "string"
+                },
+                "size_bytes": {
+                    "type": "integer"
+                },
+                "sort_order": {
+                    "type": "integer"
+                },
+                "target_id": {
+                    "type": "string"
+                },
+                "target_type": {
+                    "$ref": "#/definitions/internal_domain_attachment.TargetType"
+                },
+                "upload_id": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_domain_attachment.Metadata": {
+            "type": "object",
+            "properties": {
+                "brand": {
+                    "type": "string"
+                },
+                "caption": {
+                    "description": "For model_portfolio:",
+                    "type": "string"
+                },
+                "doc_type": {
+                    "description": "For org_document:",
+                    "type": "string"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "project_name": {
+                    "type": "string"
+                },
+                "year": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_domain_attachment.TargetType": {
+            "type": "string",
+            "enum": [
+                "model_portfolio",
+                "casting_gallery",
+                "org_document",
+                "chat_attachment"
+            ],
+            "x-enum-varnames": [
+                "TargetModelPortfolio",
+                "TargetCastingGallery",
+                "TargetOrgDocument",
+                "TargetChatAttachment"
+            ]
+        },
+        "internal_domain_attachment.attachRequest": {
+            "description": "Параметры для привязки файлов к сущности",
+            "type": "object",
+            "properties": {
+                "metadata": {
+                    "$ref": "#/definitions/internal_domain_attachment.Metadata"
+                },
+                "target_id": {
+                    "type": "string",
+                    "example": "uuid"
+                },
+                "target_type": {
+                    "type": "string",
+                    "example": "model_portfolio"
+                },
+                "upload_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "[\"uuid1\"",
+                        " \"uuid2\"]"
+                    ]
+                }
+            }
+        },
+        "internal_domain_attachment.reorderRequest": {
+            "type": "object",
+            "properties": {
+                "ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -11058,6 +11590,30 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_domain_upload.uploadResponse": {
+            "description": "Данные о загруженном файле",
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "mime_type": {
+                    "type": "string"
+                },
+                "original_name": {
+                    "type": "string"
+                },
+                "size_bytes": {
+                    "type": "integer"
+                },
+                "url": {
                     "type": "string"
                 }
             }
