@@ -30,46 +30,51 @@ func NewService(repo Repository, uploadService *uploadDomain.Service) *Service {
 	}
 }
 
-// Attach links an existing upload to a business entity.
-// The caller provides the upload_id (from POST /files), the target, and optional metadata.
+// Attach links one or multiple existing uploads to a business entity.
+// The caller provides a list of upload_ids (from POST /files), the target, and optional metadata.
 func (s *Service) Attach(
 	ctx context.Context,
-	uploadID uuid.UUID,
+	uploadIDs []uuid.UUID,
 	callerID uuid.UUID,
 	targetType TargetType,
 	targetID uuid.UUID,
 	metadata Metadata,
-) (*AttachmentWithURL, error) {
-	// Verify upload exists and belongs to caller
-	upload, err := s.uploadService.GetByID(ctx, uploadID)
-	if err != nil {
-		return nil, fmt.Errorf("upload not found: %w", err)
-	}
-	if upload.AuthorID != callerID {
-		return nil, ErrNotOwner
-	}
-
-	// Get current count for sort_order
+) ([]*AttachmentWithURL, error) {
+	// Get current count for sort_order once
 	count, err := s.repo.CountByTarget(ctx, targetType, targetID)
 	if err != nil {
 		return nil, fmt.Errorf("count attachments: %w", err)
 	}
 
-	a := &Attachment{
-		ID:         uuid.New(),
-		UploadID:   uploadID,
-		TargetID:   targetID,
-		TargetType: targetType,
-		SortOrder:  count,
-		Metadata:   metadata,
-		CreatedAt:  time.Now(),
+	results := make([]*AttachmentWithURL, 0, len(uploadIDs))
+	for i, uploadID := range uploadIDs {
+		// Verify upload exists and belongs to caller
+		upload, err := s.uploadService.GetByID(ctx, uploadID)
+		if err != nil {
+			return nil, fmt.Errorf("upload %s not found: %w", uploadID, err)
+		}
+		if upload.AuthorID != callerID {
+			return nil, fmt.Errorf("upload %s: %w", uploadID, ErrNotOwner)
+		}
+
+		a := &Attachment{
+			ID:         uuid.New(),
+			UploadID:   uploadID,
+			TargetID:   targetID,
+			TargetType: targetType,
+			SortOrder:  count + i,
+			Metadata:   metadata,
+			CreatedAt:  time.Now(),
+		}
+
+		if err := s.repo.Create(ctx, a); err != nil {
+			return nil, fmt.Errorf("create attachment for %s: %w", uploadID, err)
+		}
+
+		results = append(results, s.enrich(a, upload))
 	}
 
-	if err := s.repo.Create(ctx, a); err != nil {
-		return nil, fmt.Errorf("create attachment: %w", err)
-	}
-
-	return s.enrich(a, upload), nil
+	return results, nil
 }
 
 // ListByTarget returns all attachments for an entity with enriched URL info.
