@@ -77,7 +77,7 @@ func (r *modelRepository) Create(ctx context.Context, profile *ModelProfile) err
 		id, user_id, name, bio, description, age, height, weight, gender,
 		clothing_size, shoe_size, experience, hourly_rate, city, country,
 		languages, categories, skills, barter_accepted, accept_remote_work,
-		travel_cities, visibility, profile_views, rating, total_reviews, is_public,
+		travel_cities, visibility, profile_views, rating_score, reviews_count, is_public,
 		created_at, updated_at
 	) VALUES (
 		$1,$2,$3,$4,$5,$6,$7,$8,$9,
@@ -101,7 +101,7 @@ func (r *modelRepository) Create(ctx context.Context, profile *ModelProfile) err
 func (r *modelRepository) GetByID(ctx context.Context, id uuid.UUID) (*ModelProfile, error) {
 	q := `SELECT id,user_id,name,bio,description,age,height,weight,gender,clothing_size,shoe_size,experience,
 	hourly_rate,city,country,languages,categories,skills,barter_accepted,accept_remote_work,travel_cities,
-	visibility,profile_views,rating,total_reviews,is_public,created_at,updated_at FROM model_profiles WHERE id=$1`
+	visibility,profile_views,rating_score,reviews_count,is_public,created_at,updated_at FROM model_profiles WHERE id=$1`
 	var p ModelProfile
 	err := r.db.GetContext(ctx, &p, q, id)
 	if err != nil {
@@ -115,7 +115,7 @@ func (r *modelRepository) GetByID(ctx context.Context, id uuid.UUID) (*ModelProf
 func (r *modelRepository) GetByUserID(ctx context.Context, userID uuid.UUID) (*ModelProfile, error) {
 	q := `SELECT id,user_id,name,bio,description,age,height,weight,gender,clothing_size,shoe_size,experience,
 	hourly_rate,city,country,languages,categories,skills,barter_accepted,accept_remote_work,travel_cities,
-	visibility,profile_views,rating,total_reviews,is_public,created_at,updated_at FROM model_profiles WHERE user_id=$1`
+	visibility,profile_views,rating_score,reviews_count,is_public,created_at,updated_at FROM model_profiles WHERE user_id=$1`
 	var p ModelProfile
 	err := r.db.GetContext(ctx, &p, q, userID)
 	if err != nil {
@@ -203,8 +203,8 @@ func (r *modelRepository) List(ctx context.Context, filter *Filter, pagination *
 	offset := (pagination.Page - 1) * pagination.Limit
 	q := `SELECT id,user_id,name,bio,description,age,height,weight,gender,clothing_size,shoe_size,experience,
 	hourly_rate,city,country,languages,categories,skills,barter_accepted,accept_remote_work,travel_cities,visibility,
-	profile_views,rating,total_reviews,is_public,created_at,updated_at FROM model_profiles ` + where +
-		" ORDER BY rating DESC, created_at DESC LIMIT " + placeholder(argIndex) + " OFFSET " + placeholder(argIndex+1)
+	profile_views,rating_score,reviews_count,is_public,created_at,updated_at FROM model_profiles ` + where +
+		" ORDER BY rating_score DESC, created_at DESC LIMIT " + placeholder(argIndex) + " OFFSET " + placeholder(argIndex+1)
 	args = append(args, pagination.Limit, offset)
 
 	var profiles []*ModelProfile
@@ -222,7 +222,7 @@ func (r *modelRepository) ListPromoted(ctx context.Context, city *string, limit 
 		p.id,p.user_id,p.name,p.bio,p.description,p.age,p.height,p.weight,p.gender,p.clothing_size,p.shoe_size,p.experience,
 		p.hourly_rate,p.city,p.country,COALESCE(p.languages,'[]'::jsonb) as languages,COALESCE(p.categories,'[]'::jsonb) as categories,
 		COALESCE(p.skills,'[]'::jsonb) as skills,COALESCE(p.barter_accepted,false) as barter_accepted,COALESCE(p.accept_remote_work,false) as accept_remote_work,
-		COALESCE(p.travel_cities,'[]'::jsonb) as travel_cities,COALESCE(p.visibility,'public') as visibility,p.profile_views,p.rating,p.total_reviews,COALESCE(p.is_public,true) as is_public,
+		COALESCE(p.travel_cities,'[]'::jsonb) as travel_cities,COALESCE(p.visibility,'public') as visibility,p.profile_views,p.rating_score,p.reviews_count,COALESCE(p.is_public,true) as is_public,
 		p.created_at,p.updated_at
 	FROM model_profiles p
 	INNER JOIN profile_promotions pr ON pr.profile_id = p.id
@@ -261,13 +261,13 @@ type employerRepository struct{ db *sqlx.DB }
 func NewEmployerRepository(db *sqlx.DB) EmployerRepository { return &employerRepository{db: db} }
 
 func (r *employerRepository) Create(ctx context.Context, p *EmployerProfile) error {
-	q := `INSERT INTO employer_profiles (id,user_id,company_name,company_type,description,website,contact_person,contact_phone,city,country,rating,total_reviews,castings_posted,is_verified,verified_at,created_at,updated_at)
+	q := `INSERT INTO employer_profiles (id,user_id,company_name,company_type,description,website,contact_person,contact_phone,city,country,rating_score,reviews_count,castings_posted,is_verified,verified_at,created_at,updated_at)
 	VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`
 	_, err := r.db.ExecContext(ctx, q, p.ID, p.UserID, p.CompanyName, p.CompanyType, p.Description, p.Website, p.ContactPerson, p.ContactPhone, p.City, p.Country, p.Rating, p.TotalReviews, p.CastingsPosted, p.IsVerified, p.VerifiedAt, p.CreatedAt, p.UpdatedAt)
 	return err
 }
 func (r *employerRepository) GetByID(ctx context.Context, id uuid.UUID) (*EmployerProfile, error) {
-	q := `SELECT id,user_id,company_name,company_type,description,website,contact_person,contact_phone,city,country,rating,total_reviews,castings_posted,is_verified,verified_at,created_at,updated_at FROM employer_profiles WHERE id=$1`
+	q := `SELECT id,user_id,company_name,company_type,description,website,contact_person,contact_phone,city,country,rating_score,reviews_count,castings_posted,is_verified,verified_at,created_at,updated_at FROM employer_profiles WHERE id=$1`
 	var p EmployerProfile
 	err := r.db.GetContext(ctx, &p, q, id)
 	if err != nil {
@@ -279,7 +279,7 @@ func (r *employerRepository) GetByID(ctx context.Context, id uuid.UUID) (*Employ
 	return &p, nil
 }
 func (r *employerRepository) GetByUserID(ctx context.Context, userID uuid.UUID) (*EmployerProfile, error) {
-	q := `SELECT id,user_id,company_name,company_type,description,website,contact_person,contact_phone,city,country,rating,total_reviews,castings_posted,is_verified,verified_at,created_at,updated_at FROM employer_profiles WHERE user_id=$1`
+	q := `SELECT id,user_id,company_name,company_type,description,website,contact_person,contact_phone,city,country,rating_score,reviews_count,castings_posted,is_verified,verified_at,created_at,updated_at FROM employer_profiles WHERE user_id=$1`
 	var p EmployerProfile
 	err := r.db.GetContext(ctx, &p, q, userID)
 	if err != nil {

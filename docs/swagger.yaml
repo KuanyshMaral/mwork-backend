@@ -315,6 +315,24 @@ definitions:
     - TargetCastingGallery
     - TargetOrgDocument
     - TargetChatAttachment
+  internal_domain_attachment.swaggerListAttachmentResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/internal_domain_attachment.AttachmentWithURL'
+        type: array
+      success:
+        type: boolean
+    type: object
+  internal_domain_attachment.swaggerReorderResponse:
+    properties:
+      data:
+        additionalProperties:
+          type: string
+        type: object
+      success:
+        type: boolean
+    type: object
   internal_domain_auth.AuthResponse:
     properties:
       tokens:
@@ -2036,6 +2054,22 @@ definitions:
       url:
         type: string
     type: object
+  internal_domain_upload.swaggerListUploadResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/internal_domain_upload.UploadResponse'
+        type: array
+      success:
+        type: boolean
+    type: object
+  internal_domain_upload.swaggerUploadResponse:
+    properties:
+      data:
+        $ref: '#/definitions/internal_domain_upload.UploadResponse'
+      success:
+        type: boolean
+    type: object
   sql.NullInt64:
     properties:
       int64:
@@ -3291,14 +3325,7 @@ paths:
         "200":
           description: Список вложений
           schema:
-            allOf:
-            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/internal_domain_attachment.AttachmentWithURL'
-                  type: array
-              type: object
+            $ref: '#/definitions/internal_domain_attachment.swaggerListAttachmentResponse'
         "400":
           description: Неверные параметры запроса
           schema:
@@ -3328,14 +3355,7 @@ paths:
         "201":
           description: Успешная привязка
           schema:
-            allOf:
-            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/internal_domain_attachment.AttachmentWithURL'
-                  type: array
-              type: object
+            $ref: '#/definitions/internal_domain_attachment.swaggerListAttachmentResponse'
         "400":
           description: Неверные данные
           schema:
@@ -3414,12 +3434,7 @@ paths:
         "200":
           description: Успешное обновление
           schema:
-            allOf:
-            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-            - properties:
-                data:
-                  type: object
-              type: object
+            $ref: '#/definitions/internal_domain_attachment.swaggerReorderResponse'
         "400":
           description: Неверные данные
           schema:
@@ -4792,14 +4807,7 @@ paths:
         "201":
           description: Успешная загрузка
           schema:
-            allOf:
-            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/internal_domain_upload.UploadResponse'
-                  type: array
-              type: object
+            $ref: '#/definitions/internal_domain_upload.swaggerListUploadResponse'
         "400":
           description: Ошибка запроса
           schema:
@@ -4880,12 +4888,7 @@ paths:
         "200":
           description: Успешное получение
           schema:
-            allOf:
-            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-            - properties:
-                data:
-                  $ref: '#/definitions/internal_domain_upload.UploadResponse'
-              type: object
+            $ref: '#/definitions/internal_domain_upload.swaggerUploadResponse'
         "400":
           description: Неверный ID
           schema:

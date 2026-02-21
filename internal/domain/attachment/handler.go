@@ -58,6 +58,12 @@ type ReorderRequest struct {
 	IDs []uuid.UUID `json:"ids"`
 }
 
+// swaggerListAttachmentResponse is a wrapper strictly for generating Swagger documentation.
+type swaggerListAttachmentResponse struct {
+	Success bool                `json:"success"`
+	Data    []AttachmentWithURL `json:"data"`
+}
+
 // @Summary Привязать один или несколько файлов к сущности
 // @Description Создает связи между ранее загруженными файлами (через POST /files) и бизнес-сущностью (например, портфолио модели).
 // @Tags Entity Attachments
@@ -65,7 +71,7 @@ type ReorderRequest struct {
 // @Produce json
 // @Security BearerAuth
 // @Param body body AttachRequest true "Данные для привязки"
-// @Success 201 {object} response.Response{data=[]AttachmentWithURL} "Успешная привязка"
+// @Success 201 {object} swaggerListAttachmentResponse "Успешная привязка"
 // @Failure 400 {object} response.ErrorResponse "Неверные данные"
 // @Failure 401 {object} response.ErrorResponse "Не авторизован"
 // @Failure 403 {object} response.ErrorResponse "Нет прав на использование одного из файлов"
@@ -131,7 +137,7 @@ func (h *Handler) Attach(w http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Param target_type query string true "Тип сущности (например, model_portfolio)"
 // @Param target_id query string true "ID сущности (UUID)"
-// @Success 200 {object} response.Response{data=[]AttachmentWithURL} "Список вложений"
+// @Success 200 {object} swaggerListAttachmentResponse "Список вложений"
 // @Failure 400 {object} response.ErrorResponse "Неверные параметры запроса"
 // @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
 // @Router /attachments [get]
@@ -199,6 +205,12 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	response.NoContent(w)
 }
 
+// swaggerReorderResponse is a wrapper strictly for generating Swagger documentation.
+type swaggerReorderResponse struct {
+	Success bool              `json:"success"`
+	Data    map[string]string `json:"data"`
+}
+
 // @Summary Изменить порядок вложений
 // @Description Принимает упорядоченный список ID вложений и обновляет их sort_order.
 // @Tags Entity Attachments
@@ -206,7 +218,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Security BearerAuth
 // @Param body body ReorderRequest true "Массив ID вложений в нужном порядке"
-// @Success 200 {object} response.Response{data=object} "Успешное обновление"
+// @Success 200 {object} swaggerReorderResponse "Успешное обновление"
 // @Failure 400 {object} response.ErrorResponse "Неверные данные"
 // @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
 // @Router /attachments/reorder [patch]
