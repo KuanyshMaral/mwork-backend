@@ -93,6 +93,8 @@ type Casting struct {
 	RequiredLanguages  pq.StringArray `db:"required_languages"`
 	ClothingSizes      pq.StringArray `db:"clothing_sizes"`
 	ShoeSizes          pq.StringArray `db:"shoe_sizes"`
+	RequiredHairColors pq.StringArray `db:"required_hair_colors"`
+	RequiredEyeColors  pq.StringArray `db:"required_eye_colors"`
 
 	// Work details (from migration 000015)
 	WorkType      sql.NullString `db:"work_type"`

@@ -19,6 +19,7 @@ type Pagination struct {
 // Repository defines response data access interface
 type Repository interface {
 	Create(ctx context.Context, response *Response) error
+	CreateTx(ctx context.Context, tx *sqlx.Tx, response *Response) error
 	GetByID(ctx context.Context, id uuid.UUID) (*Response, error)
 	GetByModelAndCasting(ctx context.Context, modelID, castingID uuid.UUID) (*Response, error)
 	UpdateStatus(ctx context.Context, id uuid.UUID, status Status) error
@@ -46,12 +47,24 @@ func (r *repository) Create(ctx context.Context, response *Response) error {
 	}
 	defer tx.Rollback()
 
+	if err := r.createInTx(ctx, tx, response); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+func (r *repository) CreateTx(ctx context.Context, tx *sqlx.Tx, response *Response) error {
+	return r.createInTx(ctx, tx, response)
+}
+
+func (r *repository) createInTx(ctx context.Context, tx *sqlx.Tx, response *Response) error {
 	query := `
 		INSERT INTO casting_responses (id, casting_id, model_id, user_id, message, proposed_rate, status)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`
 
-	_, err = tx.ExecContext(ctx, query,
+	_, err := tx.ExecContext(ctx, query,
 		response.ID,
 		response.CastingID,
 		response.ModelID,
@@ -69,7 +82,7 @@ func (r *repository) Create(ctx context.Context, response *Response) error {
 		return err
 	}
 
-	return tx.Commit()
+	return nil
 }
 
 func (r *repository) GetByID(ctx context.Context, id uuid.UUID) (*Response, error) {

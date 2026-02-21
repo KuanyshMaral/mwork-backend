@@ -4,10 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 
 	"github.com/mwork/mwork-api/internal/domain/casting"
 	"github.com/mwork/mwork-api/internal/domain/credit"
@@ -51,6 +53,7 @@ type Service struct {
 	creditSvc       credit.Service
 	paymentProvider featurepayment.PaymentProvider
 	chatSvc         ChatServiceInterface
+	limitChecker    SubLimitChecker
 }
 
 // NewService creates response service
@@ -84,7 +87,22 @@ func (s *Service) SetChatService(chatSvc ChatServiceInterface) {
 }
 
 // Apply applies to a casting
-// Application creation is governed by subscription limits in handler middleware.
+// SubLimitChecker checks subscription-based response limits.
+type SubLimitChecker interface {
+	CanApplyToResponse(ctx context.Context, userID uuid.UUID, monthlyApplications int) error
+}
+
+// SetLimitChecker sets the subscription limit checker (optional, to avoid circular dependency).
+func (s *Service) SetLimitChecker(lc SubLimitChecker) {
+	s.limitChecker = lc
+}
+
+// Apply applies to a casting with hybrid billing:
+//  1. Validate requirements (BEFORE billing)
+//  2. Check monthly subscription limit
+//  3. If within limit → create response (non-tx)
+//  4. If limit exhausted → open tx, DeductTx (FOR UPDATE), CreateTx, Commit
+//  5. Any failure → Rollback
 func (s *Service) Apply(ctx context.Context, userID uuid.UUID, castingID uuid.UUID, req *ApplyRequest) (*Response, error) {
 	// Get user's model profile
 	prof, err := s.modelRepo.GetByUserID(ctx, userID)
@@ -113,8 +131,14 @@ func (s *Service) Apply(ctx context.Context, userID uuid.UUID, castingID uuid.UU
 		return nil, ErrGeoBlocked
 	}
 
+	// Phase 1: Check casting requirements BEFORE any billing
+	if violations := CheckRequirements(cast, prof); len(violations) > 0 {
+		return nil, &RequirementsError{Details: violations}
+	}
+
+	// Build response entity
 	now := time.Now()
-	response := &Response{
+	resp := &Response{
 		ID:        uuid.New(),
 		CastingID: castingID,
 		ModelID:   prof.ID,
@@ -125,44 +149,100 @@ func (s *Service) Apply(ctx context.Context, userID uuid.UUID, castingID uuid.UU
 	}
 
 	if req.Message != "" {
-		response.Message = sql.NullString{String: req.Message, Valid: true}
+		resp.Message = sql.NullString{String: req.Message, Valid: true}
 	}
 	if req.ProposedRate != nil {
-		response.ProposedRate = sql.NullFloat64{Float64: *req.ProposedRate, Valid: true}
+		resp.ProposedRate = sql.NullFloat64{Float64: *req.ProposedRate, Valid: true}
 	}
 
-	// Create response
-	err = s.repo.Create(ctx, response)
-	if err != nil {
-		return nil, err
+	// Phase 2: Hybrid billing — subscription first, then credits
+	usedCredit := false
+	withinLimit := true
+
+	if s.limitChecker != nil {
+		count, err := s.repo.CountMonthlyByUserID(ctx, userID)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.limitChecker.CanApplyToResponse(ctx, userID, count); err != nil {
+			// Subscription limit exhausted — will try credits
+			withinLimit = false
+		}
 	}
 
-	// Send notification to employer about new response
+	if withinLimit {
+		// Within subscription limit → simple non-transactional create
+		if err := s.repo.Create(ctx, resp); err != nil {
+			return nil, err
+		}
+	} else {
+		// Subscription limit exhausted → use credits atomically
+		if s.creditSvc == nil {
+			return nil, ErrInsufficientCredits
+		}
+
+		tx, err := s.repo.BeginTx(ctx)
+		if err != nil {
+			return nil, ErrCreditOperationFailed
+		}
+		defer tx.Rollback()
+
+		// DeductTx uses FOR UPDATE row lock on users.credit_balance
+		creditMeta := credit.TransactionMeta{
+			RelatedEntityType: "casting",
+			RelatedEntityID:   castingID,
+			Description:       "apply to casting: " + cast.Title,
+		}
+		if err := s.creditSvc.DeductTx(ctx, tx, userID, 1, creditMeta); err != nil {
+			if errors.Is(err, credit.ErrInsufficientCredits) {
+				return nil, ErrInsufficientCredits
+			}
+			return nil, ErrCreditOperationFailed
+		}
+
+		// Create response within same transaction
+		if err := s.repo.CreateTx(ctx, tx, resp); err != nil {
+			return nil, err
+		}
+
+		if err := tx.Commit(); err != nil {
+			return nil, ErrCreditOperationFailed
+		}
+		usedCredit = true
+	}
+
+	_ = usedCredit // future: can be used for analytics or response metadata
+
+	// Send notification to employer about new response (async with panic guard)
 	if s.notifService != nil {
 		go func() {
-			// Use background context to avoid cancellation
+			defer func() {
+				if r := recover(); r != nil {
+					log.Error().Interface("panic", r).Msg("[apply goroutine] recovered from panic in notification")
+				}
+			}()
 			bgCtx := context.Background()
 
-			// Get model details for notification
 			model, _ := s.modelRepo.GetByID(bgCtx, prof.ID)
 			modelName := "Модель"
 			if model != nil && model.Name.Valid && model.Name.String != "" {
 				modelName = model.Name.String
 			}
 
-			// Send notification
-			_ = s.notifService.NotifyNewResponse(
+			if err := s.notifService.NotifyNewResponse(
 				bgCtx,
 				cast.CreatorID,
 				castingID,
-				response.ID,
+				resp.ID,
 				cast.Title,
 				modelName,
-			)
+			); err != nil {
+				log.Error().Err(err).Str("response_id", resp.ID.String()).Msg("[apply goroutine] failed to send new response notification")
+			}
 		}()
 	}
 
-	return response, nil
+	return resp, nil
 }
 
 // UpdateStatus updates response status (casting owner only)
@@ -191,7 +271,12 @@ func (s *Service) UpdateStatus(ctx context.Context, userID uuid.UUID, responseID
 		return nil, ErrNotCastingOwner
 	}
 
-	// Validate status transition
+	// Check casting is still active before accepting
+	if newStatus == StatusAccepted && !cast.IsActive() {
+		return nil, ErrCastingNotActive
+	}
+
+	// Validate status transition (state machine)
 	if !resp.CanBeUpdatedTo(newStatus) {
 		return nil, ErrInvalidStatusTransition
 	}
@@ -230,54 +315,78 @@ func (s *Service) UpdateStatus(ctx context.Context, userID uuid.UUID, responseID
 	resp.Status = newStatus
 	resp.UpdatedAt = time.Now()
 
-	// Send notification to model about status change
+	// Send notification to model about status change (async with panic guard)
 	if s.notifService != nil && (newStatus == StatusAccepted || newStatus == StatusRejected) {
 		go func() {
-			// Use background context to avoid cancellation
+			defer func() {
+				if r := recover(); r != nil {
+					log.Error().Interface("panic", r).Str("response_id", responseID.String()).Msg("[update_status goroutine] recovered from panic in notification")
+				}
+			}()
 			bgCtx := context.Background()
 
-			// Get model's user ID
 			model, _ := s.modelRepo.GetByID(bgCtx, resp.ModelID)
 			if model != nil {
 				status := "accepted"
 				if newStatus == StatusRejected {
 					status = "rejected"
 				}
-
-				_ = s.notifService.NotifyResponseStatusChange(
+				if err := s.notifService.NotifyResponseStatusChange(
 					bgCtx,
 					model.UserID,
 					cast.Title,
 					status,
 					cast.ID,
 					resp.ID,
-				)
+				); err != nil {
+					log.Error().Err(err).Str("response_id", responseID.String()).Msg("[update_status goroutine] failed to notify model")
+				}
 			}
 		}()
 	}
 
-	// Task 1: AUTO-CREATE CHAT ROOM ON ACCEPTANCE
-	// When response is accepted, automatically create a chat room between employer and model
+	// AUTO-CREATE CHAT ROOM ON ACCEPTANCE with context initialization
+	// Immediately sends the model's offer as the first message so neither party
+	// opens an empty chat — the negotiation context is visible right away.
 	if s.chatSvc != nil && newStatus == StatusAccepted {
 		go func() {
-			// Use background context to avoid cancellation
+			defer func() {
+				if r := recover(); r != nil {
+					log.Error().Interface("panic", r).Str("response_id", responseID.String()).Msg("[update_status goroutine] recovered from panic in chat creation")
+				}
+			}()
 			bgCtx := context.Background()
 
-			// Get model's user ID
 			model, err := s.modelRepo.GetByID(bgCtx, resp.ModelID)
 			if err != nil || model == nil {
+				log.Error().Err(err).Str("model_id", resp.ModelID.String()).Msg("[update_status goroutine] failed to get model for chat creation")
 				return
 			}
 
-			// Create chat room request using proper DTO
+			// Build initial context message from model's offer
+			initialMsg := resp.GetMessage()
+			if resp.ProposedRate.Valid {
+				rateStr := fmt.Sprintf("%.0f ₸", resp.ProposedRate.Float64)
+				if initialMsg != "" {
+					initialMsg = initialMsg + "\n\n💰 Предложенная ставка: " + rateStr
+				} else {
+					initialMsg = "💰 Предложенная ставка: " + rateStr
+				}
+			}
+			if initialMsg == "" {
+				initialMsg = fmt.Sprintf("✅ Отклик на кастинг \"%s\" принят. Добро пожаловать!", cast.Title)
+			}
+
 			castingIDPtr := &cast.ID
 			chatReq := &ChatRoomRequest{
 				RecipientID: model.UserID,
 				CastingID:   castingIDPtr,
+				Message:     initialMsg,
 			}
 
-			// Create or get existing room between employer and model
-			_, _ = s.chatSvc.CreateOrGetRoom(bgCtx, userID, chatReq)
+			if _, err := s.chatSvc.CreateOrGetRoom(bgCtx, userID, chatReq); err != nil {
+				log.Error().Err(err).Str("response_id", responseID.String()).Msg("[update_status goroutine] failed to create/get chat room")
+			}
 		}()
 	}
 
@@ -345,4 +454,81 @@ func (s *Service) ListMyApplications(ctx context.Context, userID uuid.UUID, pagi
 // CountMonthlyByUserID returns how many applications user made this month
 func (s *Service) CountMonthlyByUserID(ctx context.Context, userID uuid.UUID) (int, error) {
 	return s.repo.CountMonthlyByUserID(ctx, userID)
+}
+
+// CheckRequirements validates model profile against casting requirements.
+// Returns a map of field→reason for each failed check. Empty map = all OK.
+func CheckRequirements(cast *casting.Casting, prof *profile.ModelProfile) map[string]string {
+	violations := make(map[string]string)
+
+	// Gender
+	if cast.RequiredGender.Valid && cast.RequiredGender.String != "" {
+		if !prof.Gender.Valid || !strings.EqualFold(prof.Gender.String, cast.RequiredGender.String) {
+			violations["gender"] = fmt.Sprintf("required %s", cast.RequiredGender.String)
+		}
+	}
+
+	// Age range
+	if cast.AgeMin.Valid && prof.Age.Valid && prof.Age.Int32 < cast.AgeMin.Int32 {
+		violations["age_min"] = fmt.Sprintf("required min %d, got %d", cast.AgeMin.Int32, prof.Age.Int32)
+	}
+	if cast.AgeMax.Valid && prof.Age.Valid && prof.Age.Int32 > cast.AgeMax.Int32 {
+		violations["age_max"] = fmt.Sprintf("required max %d, got %d", cast.AgeMax.Int32, prof.Age.Int32)
+	}
+
+	// Height range
+	if cast.HeightMin.Valid && prof.Height.Valid && int32(prof.Height.Float64) < cast.HeightMin.Int32 {
+		violations["height_min"] = fmt.Sprintf("required min %d, got %d", cast.HeightMin.Int32, int32(prof.Height.Float64))
+	}
+	if cast.HeightMax.Valid && prof.Height.Valid && int32(prof.Height.Float64) > cast.HeightMax.Int32 {
+		violations["height_max"] = fmt.Sprintf("required max %d, got %d", cast.HeightMax.Int32, int32(prof.Height.Float64))
+	}
+
+	// Weight range
+	if cast.WeightMin.Valid && prof.Weight.Valid && int32(prof.Weight.Float64) < cast.WeightMin.Int32 {
+		violations["weight_min"] = fmt.Sprintf("required min %d, got %d", cast.WeightMin.Int32, int32(prof.Weight.Float64))
+	}
+	if cast.WeightMax.Valid && prof.Weight.Valid && int32(prof.Weight.Float64) > cast.WeightMax.Int32 {
+		violations["weight_max"] = fmt.Sprintf("required max %d, got %d", cast.WeightMax.Int32, int32(prof.Weight.Float64))
+	}
+
+	// Hair color (model's hair color must be in the casting's required list)
+	if len(cast.RequiredHairColors) > 0 && prof.HairColor.Valid {
+		if !containsIgnoreCase([]string(cast.RequiredHairColors), prof.HairColor.String) {
+			violations["hair_color"] = fmt.Sprintf("required one of %v, got %s", []string(cast.RequiredHairColors), prof.HairColor.String)
+		}
+	}
+
+	// Eye color
+	if len(cast.RequiredEyeColors) > 0 && prof.EyeColor.Valid {
+		if !containsIgnoreCase([]string(cast.RequiredEyeColors), prof.EyeColor.String) {
+			violations["eye_color"] = fmt.Sprintf("required one of %v, got %s", []string(cast.RequiredEyeColors), prof.EyeColor.String)
+		}
+	}
+
+	// Clothing size
+	if len(cast.ClothingSizes) > 0 && prof.ClothingSize.Valid {
+		if !containsIgnoreCase([]string(cast.ClothingSizes), prof.ClothingSize.String) {
+			violations["clothing_size"] = fmt.Sprintf("required one of %v, got %s", []string(cast.ClothingSizes), prof.ClothingSize.String)
+		}
+	}
+
+	// Shoe size
+	if len(cast.ShoeSizes) > 0 && prof.ShoeSize.Valid {
+		if !containsIgnoreCase([]string(cast.ShoeSizes), prof.ShoeSize.String) {
+			violations["shoe_size"] = fmt.Sprintf("required one of %v, got %s", []string(cast.ShoeSizes), prof.ShoeSize.String)
+		}
+	}
+
+	return violations
+}
+
+// containsIgnoreCase checks if a string is in a slice (case-insensitive).
+func containsIgnoreCase(list []string, value string) bool {
+	for _, item := range list {
+		if strings.EqualFold(item, value) {
+			return true
+		}
+	}
+	return false
 }

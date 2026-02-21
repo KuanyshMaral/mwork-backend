@@ -325,6 +325,38 @@ func (s *Service) UpdateModelProfile(ctx context.Context, userID uuid.UUID, req 
 	if req.AcceptRemoteWork != nil {
 		profile.AcceptRemoteWork = *req.AcceptRemoteWork
 	}
+	// New physical characteristics
+	if req.HairColor != "" {
+		profile.HairColor = sql.NullString{String: req.HairColor, Valid: true}
+	}
+	if req.EyeColor != "" {
+		profile.EyeColor = sql.NullString{String: req.EyeColor, Valid: true}
+	}
+	if req.Tattoos != "" {
+		profile.Tattoos = sql.NullString{String: req.Tattoos, Valid: true}
+	}
+	if req.ClothingSize != "" {
+		profile.ClothingSize = sql.NullString{String: req.ClothingSize, Valid: true}
+	}
+	if req.ShoeSize != "" {
+		profile.ShoeSize = sql.NullString{String: req.ShoeSize, Valid: true}
+	}
+	// New professional details
+	if req.WorkingHours != "" {
+		profile.WorkingHours = sql.NullString{String: req.WorkingHours, Valid: true}
+	}
+	if req.MinBudget != nil {
+		profile.MinBudget = sql.NullFloat64{Float64: *req.MinBudget, Valid: true}
+	}
+	if req.HourlyRate != nil {
+		profile.HourlyRate = sql.NullFloat64{Float64: *req.HourlyRate, Valid: true}
+	}
+	if req.Experience != nil {
+		profile.Experience = sql.NullInt32{Int32: int32(*req.Experience), Valid: true}
+	}
+	if req.SocialLinks != nil {
+		profile.SetSocialLinks(req.SocialLinks)
+	}
 
 	profile.UpdatedAt = time.Now()
 
@@ -362,6 +394,9 @@ func (s *Service) UpdateEmployerProfile(ctx context.Context, userID uuid.UUID, r
 	}
 	if req.ContactPhone != "" {
 		profile.ContactPhone = sql.NullString{String: req.ContactPhone, Valid: true}
+	}
+	if req.SocialLinks != nil {
+		profile.SetSocialLinks(req.SocialLinks)
 	}
 
 	profile.UpdatedAt = time.Now()

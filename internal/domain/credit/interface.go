@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jmoiron/sqlx"
 )
 
 // TransactionType represents the type of credit transaction
@@ -30,6 +31,10 @@ type Service interface {
 	// Deduct atomically deducts credits from a user
 	// Returns ErrInsufficientCredits if balance is insufficient
 	Deduct(ctx context.Context, userID uuid.UUID, amount int, meta TransactionMeta) error
+
+	// DeductTx deducts credits within an external transaction (FOR UPDATE row lock).
+	// Used when credit deduction must be atomic with another operation (e.g. creating a response).
+	DeductTx(ctx context.Context, tx *sqlx.Tx, userID uuid.UUID, amount int, meta TransactionMeta) error
 
 	// Add atomically adds credits to a user
 	Add(ctx context.Context, userID uuid.UUID, amount int, txType TransactionType, meta TransactionMeta) error

@@ -20,4 +20,5 @@ var (
 	ErrNoAccess            = errors.New("you don't have access to this casting chat")
 	ErrUploadNotReady      = errors.New("attachment upload is not committed")
 	ErrInvalidRoomType     = errors.New("invalid room type")
+	ErrInvalidMembersCount = errors.New("at least one member is required")
 )
