@@ -283,13 +283,15 @@ func (h *Handler) Routes(authMiddleware func(http.Handler) http.Handler) chi.Rou
 		r.Use(authMiddleware)
 		r.Get("/", h.GetHistory)
 		r.Post("/robokassa/init", h.InitRobokassaPayment)
-		r.Get("/robokassa/success", h.RobokassaSuccess)
-		r.Post("/robokassa/success", h.RobokassaSuccess)
-		r.Get("/robokassa/fail", h.RobokassaFail)
-		r.Post("/robokassa/fail", h.RobokassaFail)
 		r.Post("/robokassa/subscriptions", h.CreateRobokassaSubscriptionPayment)
 		r.Post("/robokassa/responses", h.CreateRobokassaResponsePayment)
 	})
+
+	// Robokassa user redirects should be publicly accessible
+	r.Get("/robokassa/success", h.RobokassaSuccess)
+	r.Post("/robokassa/success", h.RobokassaSuccess)
+	r.Get("/robokassa/fail", h.RobokassaFail)
+	r.Post("/robokassa/fail", h.RobokassaFail)
 
 	return r
 }

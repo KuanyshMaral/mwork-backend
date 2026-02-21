@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/mwork/mwork-api/internal/domain/credit"
 	"github.com/mwork/mwork-api/internal/domain/subscription"
+	"github.com/mwork/mwork-api/internal/pkg/robokassa"
 	"github.com/rs/zerolog/log"
 )
 
@@ -35,6 +36,7 @@ type RobokassaConfig struct {
 	TestPassword2 string // Тестовый пароль #2
 	IsTest        bool   // Режим тестирования
 	BaseURL       string
+	HashAlgo      string
 }
 
 // NewService создает новый экземпляр сервиса платежей
@@ -60,7 +62,11 @@ func (s *Service) SetRobokassaConfig(cfg RobokassaConfig) {
 	if password2 == "" {
 		password2 = cfg.TestPassword2
 	}
-	s.roboSvc = RobokassaService{MerchantLogin: cfg.MerchantLogin, Password1: password1, Password2: password2, BaseURL: cfg.BaseURL}
+	algo, _ := robokassa.NormalizeHashAlgorithm(cfg.HashAlgo)
+	if algo == "" {
+		algo = robokassa.HashSHA256
+	}
+	s.roboSvc = RobokassaService{MerchantLogin: cfg.MerchantLogin, Password1: password1, Password2: password2, BaseURL: cfg.BaseURL, HashAlgo: algo}
 }
 
 // InitRobokassaPaymentRequest содержит параметры для инициализации платежа через Robokassa
@@ -161,11 +167,11 @@ func (s *Service) InitRobokassaPayment(ctx context.Context, req InitRobokassaPay
 //   - payment not found: платеж не найден
 //   - amount mismatch: сумма не совпадает с ожидаемой
 func (s *Service) ProcessRobokassaResult(ctx context.Context, outSum, invID, signature string, shp map[string]string, rawPayload map[string]string) error {
-	if !s.roboSvc.ValidateResultSignature(outSum, invID, signature) {
+	if !s.roboSvc.ValidateResultSignature(outSum, invID, signature, shp) {
 		return fmt.Errorf("invalid signature")
 	}
 
-	callbackAmount, err := strconv.ParseFloat(outSum, 64)
+	callbackAmount, err := normalizeAmount(outSum)
 	if err != nil {
 		return fmt.Errorf("invalid amount")
 	}
@@ -190,8 +196,20 @@ func (s *Service) ProcessRobokassaResult(ctx context.Context, outSum, invID, sig
 		return fmt.Errorf("invalid payment status")
 	}
 
-	if fmt.Sprintf("%.2f", payment.Amount) != fmt.Sprintf("%.2f", callbackAmount) {
+	expectedAmount, err := robokassa.ParseAmount(fmt.Sprintf("%.2f", payment.Amount))
+	if err != nil {
+		return fmt.Errorf("invalid expected amount")
+	}
+	if !robokassa.AmountsEqual(expectedAmount, callbackAmount) {
 		return fmt.Errorf("amount mismatch")
+	}
+
+	if s.robokassaConfig.IsTest {
+		if !isTestCallback(rawPayload) {
+			return fmt.Errorf("test mode callback must include IsTest=1")
+		}
+	} else if isTestCallback(rawPayload) {
+		return fmt.Errorf("test callback is not allowed in production mode")
 	}
 
 	if err := s.repo.MarkRobokassaSucceeded(ctx, tx, payment.ID, rawPayload); err != nil {
@@ -496,3 +514,18 @@ func (s *Service) GetPaymentHistory(ctx context.Context, userID uuid.UUID, limit
 var (
 	ErrPaymentNotFound = subscription.ErrPaymentFailed
 )
+
+func normalizeAmount(raw string) (*big.Rat, error) {
+	normalized := strings.TrimSpace(strings.ReplaceAll(raw, ",", "."))
+	return robokassa.ParseAmount(normalized)
+}
+
+func isTestCallback(rawPayload map[string]string) bool {
+	for k, v := range rawPayload {
+		if strings.EqualFold(k, "IsTest") {
+			trimmed := strings.TrimSpace(strings.ToLower(v))
+			return trimmed == "1" || trimmed == "true"
+		}
+	}
+	return false
+}

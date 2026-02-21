@@ -229,10 +229,13 @@ func main() {
 	paymentService = payment.NewService(paymentRepo, subscriptionService)
 	paymentService.SetRobokassaConfig(payment.RobokassaConfig{
 		MerchantLogin: cfg.RobokassaMerchantLogin,
+		Password1:     cfg.RobokassaPassword1,
+		Password2:     cfg.RobokassaPassword2,
 		TestPassword1: cfg.RobokassaTestPassword1,
 		TestPassword2: cfg.RobokassaTestPassword2,
 		IsTest:        cfg.RobokassaIsTest,
 		BaseURL:       cfg.RobokassaBaseURL,
+		HashAlgo:      cfg.RobokassaHashAlgorithm,
 	})
 
 	// Adapter for subscription payment service (must use configured paymentService instance)
