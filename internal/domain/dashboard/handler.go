@@ -168,7 +168,7 @@ func (r *Repository) GetModelStats(ctx context.Context, userID uuid.UUID) (*Mode
 
 	// Get rating from model profile
 	_ = r.db.GetContext(ctx, &stats.Rating, `
-		SELECT COALESCE(rating, 0) FROM model_profiles WHERE user_id = $1
+		SELECT COALESCE(rating_score, 0) FROM model_profiles WHERE user_id = $1
 	`, userID)
 
 	// Get new castings today

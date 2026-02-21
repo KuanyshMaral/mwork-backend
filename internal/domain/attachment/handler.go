@@ -28,35 +28,55 @@ func NewHandler(service *Service) *Handler {
 //	GET    /attachments?target_type=&target_id= - list attachments for a target
 //	DELETE /attachments/{id}         - unlink an attachment (does NOT delete the file)
 //	PATCH  /attachments/reorder      - reorder attachments within a target
-func (h *Handler) Routes(authMiddleware func(http.Handler) http.Handler) func(chi.Router) {
-	return func(r chi.Router) {
-		// Public: read attachments for any entity (e.g. model portfolio gallery)
-		r.Get("/", h.List)
+func (h *Handler) Routes(authMiddleware func(http.Handler) http.Handler) chi.Router {
+	r := chi.NewRouter()
 
-		r.Group(func(r chi.Router) {
-			r.Use(authMiddleware)
-			r.Post("/", h.Attach)
-			r.Delete("/{id}", h.Delete)
-			r.Patch("/reorder", h.Reorder)
-		})
-	}
+	// Public: read attachments for any entity (e.g. model portfolio gallery)
+	r.Get("/", h.List)
+
+	r.Group(func(r chi.Router) {
+		r.Use(authMiddleware)
+		r.Post("/", h.Attach)
+		r.Delete("/{id}", h.Delete)
+		r.Patch("/reorder", h.Reorder)
+	})
+
+	return r
 }
 
-// attachRequest is the body for POST /attachments.
-type attachRequest struct {
-	UploadID   string   `json:"upload_id"`
-	TargetType string   `json:"target_type"`
-	TargetID   string   `json:"target_id"`
+// AttachRequest is the body for POST /attachments.
+// @Description Параметры для привязки файлов к сущности
+type AttachRequest struct {
+	UploadIDs  []string `json:"upload_ids" example:"[\"uuid1\", \"uuid2\"]"`
+	TargetType string   `json:"target_type" example:"model_portfolio"`
+	TargetID   string   `json:"target_id" example:"uuid"`
 	Metadata   Metadata `json:"metadata"`
 }
 
-// reorderRequest is the body for PATCH /attachments/reorder.
-type reorderRequest struct {
+// ReorderRequest is the body for PATCH /attachments/reorder.
+type ReorderRequest struct {
 	IDs []uuid.UUID `json:"ids"`
 }
 
-// Attach handles POST /attachments
-// Links an already-uploaded file (from POST /files) to a business entity.
+// swaggerListAttachmentResponse is a wrapper strictly for generating Swagger documentation.
+type swaggerListAttachmentResponse struct {
+	Success bool                `json:"success"`
+	Data    []AttachmentWithURL `json:"data"`
+}
+
+// @Summary Привязать один или несколько файлов к сущности
+// @Description Создает связи между ранее загруженными файлами (через POST /files) и бизнес-сущностью (например, портфолио модели).
+// @Tags Entity Attachments
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body AttachRequest true "Данные для привязки"
+// @Success 201 {object} swaggerListAttachmentResponse "Успешная привязка"
+// @Failure 400 {object} response.ErrorResponse "Неверные данные"
+// @Failure 401 {object} response.ErrorResponse "Не авторизован"
+// @Failure 403 {object} response.ErrorResponse "Нет прав на использование одного из файлов"
+// @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
+// @Router /attachments [post]
 func (h *Handler) Attach(w http.ResponseWriter, r *http.Request) {
 	callerID := middleware.GetUserID(r.Context())
 	if callerID == uuid.Nil {
@@ -64,17 +84,27 @@ func (h *Handler) Attach(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req attachRequest
+	var req AttachRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		response.BadRequest(w, "Invalid JSON body")
 		return
 	}
 
-	uploadID, err := uuid.Parse(req.UploadID)
-	if err != nil {
-		response.BadRequest(w, "Invalid upload_id")
+	if len(req.UploadIDs) == 0 {
+		response.BadRequest(w, "At least one upload_id is required")
 		return
 	}
+
+	uploadIDs := make([]uuid.UUID, len(req.UploadIDs))
+	for i, idStr := range req.UploadIDs {
+		uid, err := uuid.Parse(idStr)
+		if err != nil {
+			response.BadRequest(w, "Invalid upload_id: "+idStr)
+			return
+		}
+		uploadIDs[i] = uid
+	}
+
 	targetID, err := uuid.Parse(req.TargetID)
 	if err != nil {
 		response.BadRequest(w, "Invalid target_id")
@@ -83,7 +113,7 @@ func (h *Handler) Attach(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.service.Attach(
 		r.Context(),
-		uploadID,
+		uploadIDs,
 		callerID,
 		TargetType(req.TargetType),
 		targetID,
@@ -102,7 +132,15 @@ func (h *Handler) Attach(w http.ResponseWriter, r *http.Request) {
 	response.Created(w, result)
 }
 
-// List handles GET /attachments?target_type=model_portfolio&target_id={uuid}
+// @Summary Получить список вложений сущности
+// @Tags Entity Attachments
+// @Produce json
+// @Param target_type query string true "Тип сущности (например, model_portfolio)"
+// @Param target_id query string true "ID сущности (UUID)"
+// @Success 200 {object} swaggerListAttachmentResponse "Список вложений"
+// @Failure 400 {object} response.ErrorResponse "Неверные параметры запроса"
+// @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
+// @Router /attachments [get]
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	targetTypeStr := r.URL.Query().Get("target_type")
 	targetIDStr := r.URL.Query().Get("target_id")
@@ -127,8 +165,18 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	response.OK(w, items)
 }
 
-// Delete handles DELETE /attachments/{id}
-// Removes the link between file and entity. The file itself is NOT deleted.
+// @Summary Удалить вложение
+// @Description Удаляет связь между файлом и сущностью. Сам файл НЕ удаляется.
+// @Tags Entity Attachments
+// @Security BearerAuth
+// @Param id path string true "ID вложения (UUID)"
+// @Success 204 {string} string "Успешное удаление"
+// @Failure 400 {object} response.ErrorResponse "Неверный ID"
+// @Failure 401 {object} response.ErrorResponse "Не авторизован"
+// @Failure 403 {object} response.ErrorResponse "Нет прав на удаление"
+// @Failure 404 {object} response.ErrorResponse "Вложение не найден"
+// @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
+// @Router /attachments/{id} [delete]
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	callerID := middleware.GetUserID(r.Context())
 	if callerID == uuid.Nil {
@@ -157,10 +205,25 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	response.NoContent(w)
 }
 
-// Reorder handles PATCH /attachments/reorder
-// Accepts an ordered list of attachment IDs; updates sort_order accordingly.
+// swaggerReorderResponse is a wrapper strictly for generating Swagger documentation.
+type swaggerReorderResponse struct {
+	Success bool              `json:"success"`
+	Data    map[string]string `json:"data"`
+}
+
+// @Summary Изменить порядок вложений
+// @Description Принимает упорядоченный список ID вложений и обновляет их sort_order.
+// @Tags Entity Attachments
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body ReorderRequest true "Массив ID вложений в нужном порядке"
+// @Success 200 {object} swaggerReorderResponse "Успешное обновление"
+// @Failure 400 {object} response.ErrorResponse "Неверные данные"
+// @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
+// @Router /attachments/reorder [patch]
 func (h *Handler) Reorder(w http.ResponseWriter, r *http.Request) {
-	var req reorderRequest
+	var req ReorderRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		response.BadRequest(w, "Invalid JSON body")
 		return
