@@ -61,8 +61,11 @@ func (s *Service) SetRobokassaConfig(cfg RobokassaConfig) {
 	if err != nil {
 		algo = robokassa.HashSHA256
 	}
-	s.roboSvc = RobokassaService{MerchantLogin: strings.TrimSpace(cfg.MerchantLogin), Password1: password1, Password2: password2, BaseURL: strings.TrimSpace(cfg.BaseURL), HashAlgo: algo}
-	s.robokassaErr = s.validateRobokassaRuntimeConfig()
+	algo, _ := robokassa.NormalizeHashAlgorithm(cfg.HashAlgo)
+	if algo == "" {
+		algo = robokassa.HashSHA256
+	}
+	s.roboSvc = RobokassaService{MerchantLogin: cfg.MerchantLogin, Password1: password1, Password2: password2, BaseURL: cfg.BaseURL, HashAlgo: algo}
 }
 
 // InitRobokassaPaymentRequest содержит параметры для инициализации платежа через Robokassa
@@ -172,9 +175,6 @@ func (s *Service) InitRobokassaPayment(ctx context.Context, req InitRobokassaPay
 //   - payment not found: платеж не найден
 //   - amount mismatch: сумма не совпадает с ожидаемой
 func (s *Service) ProcessRobokassaResult(ctx context.Context, outSum, invID, signature string, shp map[string]string, rawPayload map[string]string) error {
-	if s.robokassaErr != nil {
-		return s.robokassaErr
-	}
 	if !s.roboSvc.ValidateResultSignature(outSum, invID, signature, shp) {
 		return fmt.Errorf("invalid signature")
 	}
