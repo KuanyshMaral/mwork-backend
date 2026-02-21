@@ -10552,6 +10552,9 @@ const docTemplate = `{
                 "created_at": {
                     "type": "string"
                 },
+                "credit_balance": {
+                    "type": "integer"
+                },
                 "description": {
                     "type": "string"
                 },
@@ -10622,6 +10625,9 @@ const docTemplate = `{
                 },
                 "created_at": {
                     "type": "string"
+                },
+                "credit_balance": {
+                    "type": "integer"
                 },
                 "experience": {
                     "type": "integer"

@@ -49,11 +49,13 @@ func (h *Handler) toResponse(u *Upload) *UploadResponse {
 // All routes require authentication via the provided middleware.
 func (h *Handler) Routes(authMiddleware func(http.Handler) http.Handler) chi.Router {
 	r := chi.NewRouter()
-	r.Use(authMiddleware)
+	r.Get("/{id}", h.Get) // GET  /files/{id} (Public)
 
-	r.Post("/", h.Upload)       // POST /files
-	r.Get("/{id}", h.Get)       // GET  /files/{id}
-	r.Delete("/{id}", h.Delete) // DELETE /files/{id}
+	r.Group(func(r chi.Router) {
+		r.Use(authMiddleware)
+		r.Post("/", h.Upload)       // POST /files (Protected)
+		r.Delete("/{id}", h.Delete) // DELETE /files/{id} (Protected)
+	})
 
 	return r
 }
