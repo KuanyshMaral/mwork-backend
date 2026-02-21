@@ -13,16 +13,19 @@ import (
 	"github.com/mwork/mwork-api/internal/pkg/errorhandler"
 	"github.com/mwork/mwork-api/internal/pkg/response"
 	"github.com/mwork/mwork-api/internal/pkg/validator"
+
+	attachmentDomain "github.com/mwork/mwork-api/internal/domain/attachment"
 )
 
 // Handler handles profile HTTP requests
 type Handler struct {
-	service *Service
+	service           *Service
+	attachmentService *attachmentDomain.Service
 }
 
 // NewHandler creates profile handler
-func NewHandler(service *Service) *Handler {
-	return &Handler{service: service}
+func NewHandler(service *Service, attachmentService *attachmentDomain.Service) *Handler {
+	return &Handler{service: service, attachmentService: attachmentService}
 }
 
 // GetMe handles GET /profiles/me
@@ -51,6 +54,18 @@ func (h *Handler) GetMe(w http.ResponseWriter, r *http.Request) {
 	if err == nil && modelProfile != nil {
 		resp := ModelProfileResponseFromEntity(modelProfile)
 		resp.CreditBalance = creditBalance
+
+		// Fetch portfolio securely
+		if h.attachmentService != nil {
+			attachments, err := h.attachmentService.ListByTarget(r.Context(), attachmentDomain.TargetModelPortfolio, modelProfile.ID)
+			if err == nil {
+				resp.Portfolio = make([]attachmentDomain.AttachmentWithURL, len(attachments))
+				for i, a := range attachments {
+					resp.Portfolio[i] = *a
+				}
+			}
+		}
+
 		response.OK(w, resp)
 		return
 	}
@@ -97,7 +112,19 @@ func (h *Handler) GetModelByID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	go h.service.IncrementModelViewCount(context.Background(), id)
-	response.OK(w, ModelProfileResponseFromEntity(profile))
+
+	resp := ModelProfileResponseFromEntity(profile)
+	if h.attachmentService != nil {
+		attachments, err := h.attachmentService.ListByTarget(r.Context(), attachmentDomain.TargetModelPortfolio, profile.ID)
+		if err == nil {
+			resp.Portfolio = make([]attachmentDomain.AttachmentWithURL, len(attachments))
+			for i, a := range attachments {
+				resp.Portfolio[i] = *a
+			}
+		}
+	}
+
+	response.OK(w, resp)
 }
 
 // UpdateModel handles PUT /profiles/models/{userId}
