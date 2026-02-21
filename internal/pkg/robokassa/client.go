@@ -136,9 +136,13 @@ func (c *Client) CreatePayment(ctx context.Context, req CreatePaymentRequest) (*
 		params.Set("ExpirationDate", req.ExpirationDate)
 	}
 
-	// Add custom parameters
+	// Add custom parameters (preserve keys already prefixed with Shp_)
 	for k, v := range req.Shp {
-		params.Set("Shp_"+k, v)
+		paramKey := k
+		if !strings.HasPrefix(strings.ToLower(k), "shp_") {
+			paramKey = "Shp_" + k
+		}
+		params.Set(paramKey, v)
 	}
 
 	paymentURL := baseURL + "?" + params.Encode()
