@@ -546,6 +546,7 @@ func (a *authModelProfileAdapter) Create(ctx context.Context, authProfile *auth.
 	modelProfile.SetCategories(nil)
 	modelProfile.SetSkills(nil)
 	modelProfile.SetTravelCities(nil)
+	modelProfile.SetSocialLinks(nil)
 
 	return a.repo.Create(ctx, modelProfile)
 }
