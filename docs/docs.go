@@ -1963,22 +1963,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Список вложений",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/internal_domain_attachment.AttachmentWithURL"
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
+                            "$ref": "#/definitions/internal_domain_attachment.swaggerListAttachmentResponse"
                         }
                     },
                     "400": {
@@ -2027,22 +2012,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Успешная привязка",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/internal_domain_attachment.AttachmentWithURL"
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
+                            "$ref": "#/definitions/internal_domain_attachment.swaggerListAttachmentResponse"
                         }
                     },
                     "400": {
@@ -2105,19 +2075,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Успешное обновление",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object"
-                                        }
-                                    }
-                                }
-                            ]
+                            "$ref": "#/definitions/internal_domain_attachment.swaggerReorderResponse"
                         }
                     },
                     "400": {
@@ -4395,22 +4353,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Успешная загрузка",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/internal_domain_upload.UploadResponse"
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
+                            "$ref": "#/definitions/internal_domain_upload.swaggerListUploadResponse"
                         }
                     },
                     "400": {
@@ -4469,19 +4412,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Успешное получение",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/internal_domain_upload.UploadResponse"
-                                        }
-                                    }
-                                }
-                            ]
+                            "$ref": "#/definitions/internal_domain_upload.swaggerUploadResponse"
                         }
                     },
                     "400": {
@@ -9206,6 +9137,34 @@ const docTemplate = `{
                 "TargetChatAttachment"
             ]
         },
+        "internal_domain_attachment.swaggerListAttachmentResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_domain_attachment.AttachmentWithURL"
+                    }
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "internal_domain_attachment.swaggerReorderResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
         "internal_domain_auth.AuthResponse": {
             "type": "object",
             "properties": {
@@ -11703,6 +11662,31 @@ const docTemplate = `{
                 },
                 "url": {
                     "type": "string"
+                }
+            }
+        },
+        "internal_domain_upload.swaggerListUploadResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_domain_upload.UploadResponse"
+                    }
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "internal_domain_upload.swaggerUploadResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/internal_domain_upload.UploadResponse"
+                },
+                "success": {
+                    "type": "boolean"
                 }
             }
         },

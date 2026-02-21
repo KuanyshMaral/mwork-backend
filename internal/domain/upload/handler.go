@@ -58,6 +58,12 @@ func (h *Handler) Routes(authMiddleware func(http.Handler) http.Handler) chi.Rou
 	return r
 }
 
+// swaggerListUploadResponse is a wrapper strictly for generating Swagger documentation.
+type swaggerListUploadResponse struct {
+	Success bool             `json:"success"`
+	Data    []UploadResponse `json:"data"`
+}
+
 // @Summary Загрузка одного или нескольких файлов
 // @Description Принимает multipart/form-data с одним или несколькими полями "file". Возвращает список метаданных загруженных файлов.
 // @Tags Uploads
@@ -65,7 +71,7 @@ func (h *Handler) Routes(authMiddleware func(http.Handler) http.Handler) chi.Rou
 // @Produce json
 // @Security BearerAuth
 // @Param file formData file true "Файл для загрузки (можно передать несколько полей 'file')"
-// @Success 201 {object} response.Response{data=[]UploadResponse} "Успешная загрузка"
+// @Success 201 {object} swaggerListUploadResponse "Успешная загрузка"
 // @Failure 400 {object} response.ErrorResponse "Ошибка запроса"
 // @Failure 401 {object} response.ErrorResponse "Не авторизован"
 // @Failure 413 {object} response.ErrorResponse "Файл слишком большой"
@@ -118,12 +124,18 @@ func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 	response.Created(w, results)
 }
 
+// swaggerUploadResponse is a wrapper strictly for generating Swagger documentation.
+type swaggerUploadResponse struct {
+	Success bool           `json:"success"`
+	Data    UploadResponse `json:"data"`
+}
+
 // @Summary Получить метаданные файла
 // @Description Возвращает информацию о файле по его ID. Не возвращает сам файл — используйте поле 'url' для доступа к файлу.
 // @Tags Uploads
 // @Produce json
 // @Param id path string true "ID файла (UUID)"
-// @Success 200 {object} response.Response{data=UploadResponse} "Успешное получение"
+// @Success 200 {object} swaggerUploadResponse "Успешное получение"
 // @Failure 400 {object} response.ErrorResponse "Неверный ID"
 // @Failure 404 {object} response.ErrorResponse "Файл не найден"
 // @Failure 500 {object} response.ErrorResponse "Внутренняя ошибка сервера"
