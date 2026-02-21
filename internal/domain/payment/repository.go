@@ -25,6 +25,7 @@ type Repository interface {
 	MarkRobokassaSucceeded(ctx context.Context, tx *sqlx.Tx, paymentID uuid.UUID, callbackPayload map[string]string) error
 	CreatePaymentEvent(ctx context.Context, tx *sqlx.Tx, paymentID uuid.UUID, eventType string, payload any) error
 	BeginTxx(ctx context.Context) (*sqlx.Tx, error)
+	NextRobokassaInvID(ctx context.Context) (int64, error)
 }
 
 type repository struct {
@@ -199,4 +200,12 @@ func (r *repository) CreatePaymentEvent(ctx context.Context, tx *sqlx.Tx, paymen
 
 func (r *repository) BeginTxx(ctx context.Context) (*sqlx.Tx, error) {
 	return r.db.BeginTxx(ctx, nil)
+}
+
+func (r *repository) NextRobokassaInvID(ctx context.Context) (int64, error) {
+	var id int64
+	if err := r.db.QueryRowContext(ctx, `SELECT nextval('robokassa_invoice_seq')`).Scan(&id); err != nil {
+		return 0, err
+	}
+	return id, nil
 }
