@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -16,7 +15,8 @@ type Config struct {
 	Password1     string        // Password #1 for payment initialization
 	Password2     string        // Password #2 for webhook verification (ResultURL)
 	TestMode      bool          // Test mode flag
-	HashAlgo      HashAlgorithm // Hash algorithm: SHA256
+	HashAlgo      HashAlgorithm // Hash algorithm: SHA256/MD5 (configured in merchant cabinet)
+	BaseURL       string        // Payment form URL (e.g. https://auth.robokassa.kz/Merchant/Index.aspx)
 	Timeout       time.Duration
 }
 
@@ -104,12 +104,11 @@ func (c *Client) CreatePayment(ctx context.Context, req CreatePaymentRequest) (*
 	if err != nil {
 		return nil, fmt.Errorf("robokassa: failed to sign payment request: %w", err)
 	}
-	_ = sort.Search // ensure sort import is used
 
 	// Build payment URL
-	baseURL := "https://auth.robokassa.ru/Merchant/Index.aspx"
-	if c.config.TestMode {
-		baseURL = "https://auth.robokassa.ru/Merchant/Index.aspx" // Same URL, test mode via IsTest param
+	baseURL := strings.TrimSpace(c.config.BaseURL)
+	if baseURL == "" {
+		baseURL = "https://auth.robokassa.kz/Merchant/Index.aspx"
 	}
 
 	params := url.Values{}

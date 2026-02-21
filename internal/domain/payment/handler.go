@@ -169,7 +169,6 @@ func (h *Handler) CreateRobokassaResponsePayment(w http.ResponseWriter, r *http.
 // @Description Обрабатывает редирект пользователя после успешной оплаты (Success URL)
 // @Tags Payment
 // @Produce json
-// @Security BearerAuth
 // @Success 200 {object} response.Response{data=object{status=string,message=string}}
 // @Router /payments/robokassa/success [get]
 // @Router /payments/robokassa/success [post]
@@ -184,7 +183,6 @@ func (h *Handler) RobokassaSuccess(w http.ResponseWriter, r *http.Request) {
 // @Description Обрабатывает редирект пользователя после неудачной оплаты (Fail URL)
 // @Tags Payment
 // @Produce json
-// @Security BearerAuth
 // @Success 200 {object} response.Response{data=object{status=string,message=string}}
 // @Router /payments/robokassa/fail [get]
 // @Router /payments/robokassa/fail [post]

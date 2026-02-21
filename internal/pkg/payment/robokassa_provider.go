@@ -74,12 +74,18 @@ func (p *RoboKassaProvider) VerifyWebhook(rawData interface{}, signature string)
 	}
 
 	// Verify using Password2 (ResultURL)
-	return robokassa.VerifyResultSignature(
+	algo := p.config.HashAlgo
+	if algo == "" {
+		algo = robokassa.HashSHA256
+	}
+
+	return robokassa.VerifyResultSignatureWithAlgo(
 		payload.OutSum,
 		payload.InvId,
 		signature,
 		p.config.Password2,
 		payload.Shp,
+		algo,
 	)
 }
 

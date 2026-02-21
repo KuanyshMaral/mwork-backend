@@ -20,3 +20,16 @@ func TestNormalizeAmount_Comma(t *testing.T) {
 		t.Fatalf("unexpected normalized amount: %s", a.FloatString(2))
 	}
 }
+
+func TestSetRobokassaConfig_InvalidHashAlgorithm(t *testing.T) {
+	svc := NewService(nil, nil)
+	svc.SetRobokassaConfig(RobokassaConfig{
+		MerchantLogin: "merchant",
+		Password1:     "p1",
+		Password2:     "p2",
+		HashAlgo:      "BAD",
+	})
+	if svc.robokassaErr == nil {
+		t.Fatal("expected configuration error for invalid hash algorithm")
+	}
+}
