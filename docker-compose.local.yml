@@ -3,7 +3,7 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: Sagster-2020
+      POSTGRES_PASSWORD: 123
       POSTGRES_DB: mwork
     volumes:
       - postgres_data_local:/var/lib/postgresql/data
@@ -48,7 +48,7 @@ services:
       - ./migrations:/migrations:ro
     command:
       - -path=/migrations
-      - -database=postgresql://postgres:Sagster-2020@postgres:5432/mwork?sslmode=disable
+      - -database=postgresql://postgres:123@postgres:5432/mwork?sslmode=disable
       - up
     restart: "no"
 
