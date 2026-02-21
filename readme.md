@@ -1210,11 +1210,11 @@ Each endpoint creates a `pending` payment and returns `payment_url` for redirect
 - Payment status and post-payment business logic are applied atomically.
 - Idempotent behavior: repeated callbacks for already paid payments return `OK[InvId]` without re-running business logic.
 
-**SuccessURL (authenticated):** `GET|POST /api/v1/payments/robokassa/success`
+**SuccessURL (public redirect):** `GET|POST /api/v1/payments/robokassa/success`
 
 Performs HTTP `302 Found` redirect to `ROBOKASSA_FRONTEND_SUCCESS_URL`. Success redirect is not payment confirmation.
 
-**FailURL (authenticated):** `GET|POST /api/v1/payments/robokassa/fail`
+**FailURL (public redirect):** `GET|POST /api/v1/payments/robokassa/fail`
 
 Performs HTTP `302 Found` redirect to `ROBOKASSA_FRONTEND_FAIL_URL`.
 
