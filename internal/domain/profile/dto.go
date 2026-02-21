@@ -119,10 +119,11 @@ type ModelProfileResponse struct {
 	ClothingSize *string `json:"clothing_size,omitempty"`
 	ShoeSize     *string `json:"shoe_size,omitempty"`
 	// Professional details
-	WorkingHours *string           `json:"working_hours,omitempty"`
-	MinBudget    *float64          `json:"min_budget,omitempty"`
-	SocialLinks  []SocialLinkEntry `json:"social_links"`
-	AvatarURL    string            `json:"avatar_url,omitempty"`
+	WorkingHours  *string           `json:"working_hours,omitempty"`
+	MinBudget     *float64          `json:"min_budget,omitempty"`
+	SocialLinks   []SocialLinkEntry `json:"social_links"`
+	AvatarURL     string            `json:"avatar_url,omitempty"`
+	CreditBalance int               `json:"credit_balance"`
 }
 
 // EmployerProfileResponse represents employer profile in API response
@@ -145,6 +146,7 @@ type EmployerProfileResponse struct {
 	SocialLinks    []SocialLinkEntry `json:"social_links"`
 	CreatedAt      string            `json:"created_at"`
 	UpdatedAt      string            `json:"updated_at"`
+	CreditBalance  int               `json:"credit_balance"`
 }
 
 // CompletenessResponse for profile completeness endpoint

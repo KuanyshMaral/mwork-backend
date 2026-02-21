@@ -39,17 +39,28 @@ func NewHandler(service *Service) *Handler {
 func (h *Handler) GetMe(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 
+	// Fetch user to get credit balance
+	user, err := h.service.userRepo.GetByID(r.Context(), userID)
+	creditBalance := 0
+	if err == nil && user != nil {
+		creditBalance = user.CreditBalance
+	}
+
 	// Try to get model profile first
 	modelProfile, err := h.service.GetModelProfileByUserID(r.Context(), userID)
 	if err == nil && modelProfile != nil {
-		response.OK(w, ModelProfileResponseFromEntity(modelProfile))
+		resp := ModelProfileResponseFromEntity(modelProfile)
+		resp.CreditBalance = creditBalance
+		response.OK(w, resp)
 		return
 	}
 
 	// Try employer profile
 	employerProfile, err := h.service.GetEmployerProfileByUserID(r.Context(), userID)
 	if err == nil && employerProfile != nil {
-		response.OK(w, EmployerProfileResponseFromEntity(employerProfile))
+		resp := EmployerProfileResponseFromEntity(employerProfile)
+		resp.CreditBalance = creditBalance
+		response.OK(w, resp)
 		return
 	}
 
