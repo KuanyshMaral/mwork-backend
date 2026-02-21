@@ -563,6 +563,10 @@ definitions:
         - medium
         - professional
         type: string
+      required_eye_colors:
+        items:
+          type: string
+        type: array
       required_gender:
         description: Model requirements
         enum:
@@ -570,6 +574,10 @@ definitions:
         - female
         - other
         type: string
+      required_hair_colors:
+        items:
+          type: string
+        type: array
       required_languages:
         items:
           type: string
@@ -622,8 +630,16 @@ definitions:
         type: array
       experience:
         type: string
+      eye_colors:
+        items:
+          type: string
+        type: array
       gender:
         type: string
+      hair_colors:
+        items:
+          type: string
+        type: array
       height_max:
         type: integer
       height_min:
@@ -707,6 +723,10 @@ definitions:
         - medium
         - professional
         type: string
+      required_eye_colors:
+        items:
+          type: string
+        type: array
       required_gender:
         description: Model requirements
         enum:
@@ -714,6 +734,10 @@ definitions:
         - female
         - other
         type: string
+      required_hair_colors:
+        items:
+          type: string
+        type: array
       required_languages:
         items:
           type: string
@@ -1422,19 +1446,6 @@ definitions:
       user_id:
         type: string
     type: object
-  internal_domain_profile.CompletenessResponse:
-    properties:
-      missing_fields:
-        items:
-          type: string
-        type: array
-      percentage:
-        type: integer
-      tips:
-        items:
-          type: string
-        type: array
-    type: object
   internal_domain_profile.EmployerProfileResponse:
     properties:
       castings_posted:
@@ -1459,8 +1470,14 @@ definitions:
         type: string
       is_verified:
         type: boolean
+      profile_views:
+        type: integer
       rating:
         type: number
+      social_links:
+        items:
+          $ref: '#/definitions/internal_domain_profile.SocialLinkEntry'
+        type: array
       total_reviews:
         type: integer
       updated_at:
@@ -1476,6 +1493,8 @@ definitions:
         type: boolean
       age:
         type: integer
+      avatar_url:
+        type: string
       barter_accepted:
         type: boolean
       bio:
@@ -1486,13 +1505,20 @@ definitions:
         type: array
       city:
         type: string
+      clothing_size:
+        type: string
       country:
         type: string
       created_at:
         type: string
       experience:
         type: integer
+      eye_color:
+        type: string
       gender:
+        type: string
+      hair_color:
+        description: Physical characteristics
         type: string
       height:
         type: number
@@ -1506,16 +1532,26 @@ definitions:
         items:
           type: string
         type: array
+      min_budget:
+        type: number
       name:
         type: string
       profile_views:
         type: integer
       rating:
         type: number
+      shoe_size:
+        type: string
       skills:
         items:
           type: string
         type: array
+      social_links:
+        items:
+          $ref: '#/definitions/internal_domain_profile.SocialLinkEntry'
+        type: array
+      tattoos:
+        type: string
       total_reviews:
         type: integer
       travel_cities:
@@ -1530,34 +1566,12 @@ definitions:
         type: string
       weight:
         type: number
+      working_hours:
+        description: Professional details
+        type: string
     type: object
-  internal_domain_profile.SocialLinkRequest:
+  internal_domain_profile.SocialLinkEntry:
     properties:
-      platform:
-        enum:
-        - instagram
-        - tiktok
-        - facebook
-        - twitter
-        - youtube
-        - telegram
-        - linkedin
-        - vk
-        type: string
-      url:
-        maxLength: 500
-        type: string
-      username:
-        maxLength: 100
-        type: string
-    required:
-    - platform
-    - url
-    type: object
-  internal_domain_profile.SocialLinkResponse:
-    properties:
-      is_verified:
-        type: boolean
       platform:
         type: string
       url:
@@ -1599,6 +1613,10 @@ definitions:
       description:
         maxLength: 2000
         type: string
+      social_links:
+        items:
+          $ref: '#/definitions/internal_domain_profile.SocialLinkEntry'
+        type: array
       website:
         maxLength: 500
         type: string
@@ -1624,15 +1642,25 @@ definitions:
         maxLength: 100
         minLength: 2
         type: string
+      clothing_size:
+        maxLength: 20
+        type: string
       experience:
         maximum: 50
         minimum: 0
         type: integer
+      eye_color:
+        maxLength: 50
+        type: string
       gender:
         enum:
         - male
         - female
         - other
+        type: string
+      hair_color:
+        description: Physical characteristics
+        maxLength: 50
         type: string
       height:
         maximum: 250
@@ -1647,14 +1675,27 @@ definitions:
         items:
           type: string
         type: array
+      min_budget:
+        minimum: 0
+        type: number
       name:
         maxLength: 100
         minLength: 2
+        type: string
+      shoe_size:
+        maxLength: 20
         type: string
       skills:
         items:
           type: string
         type: array
+      social_links:
+        items:
+          $ref: '#/definitions/internal_domain_profile.SocialLinkEntry'
+        type: array
+      tattoos:
+        maxLength: 255
+        type: string
       travel_cities:
         items:
           type: string
@@ -1669,6 +1710,10 @@ definitions:
         maximum: 200
         minimum: 30
         type: number
+      working_hours:
+        description: Professional details
+        maxLength: 150
+        type: string
     type: object
   internal_domain_promotion.CreateRequest:
     properties:
@@ -5954,37 +5999,6 @@ paths:
       summary: Список фотостудий
       tags:
       - PhotoStudio
-  /profiles/{id}/completeness:
-    get:
-      parameters:
-      - description: ID профиля
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-            - properties:
-                data:
-                  $ref: '#/definitions/internal_domain_profile.CompletenessResponse'
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-      summary: Полнота профиля модели
-      tags:
-      - Profile
   /profiles/{id}/experience:
     get:
       parameters:
@@ -6119,128 +6133,6 @@ paths:
       summary: Удалить опыт работы
       tags:
       - Experience
-  /profiles/{id}/social-links:
-    get:
-      parameters:
-      - description: ID профиля
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/internal_domain_profile.SocialLinkResponse'
-                  type: array
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-      summary: Список социальных ссылок профиля
-      tags:
-      - Profile
-    post:
-      consumes:
-      - application/json
-      parameters:
-      - description: ID профиля
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Данные социальной ссылки
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/internal_domain_profile.SocialLinkRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            allOf:
-            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-            - properties:
-                data:
-                  $ref: '#/definitions/internal_domain_profile.SocialLinkResponse'
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-      security:
-      - BearerAuth: []
-      summary: Добавить социальную ссылку профиля
-      tags:
-      - Profile
-  /profiles/{id}/social-links/{platform}:
-    delete:
-      parameters:
-      - description: ID профиля
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Платформа
-        in: path
-        name: platform
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "204":
-          description: No Content
-          schema:
-            type: string
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
-      security:
-      - BearerAuth: []
-      summary: Удалить социальную ссылку профиля
-      tags:
-      - Profile
   /profiles/admins/{userId}:
     put:
       consumes:

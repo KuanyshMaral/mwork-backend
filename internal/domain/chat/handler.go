@@ -179,6 +179,8 @@ func (h *Handler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 			response.Forbidden(w, "Cannot create chat - user is blocked")
 		case ErrEmployerNotVerified:
 			response.Forbidden(w, "Employer account is pending verification")
+		case ErrInvalidMembersCount:
+			response.BadRequest(w, "At least one member is required")
 		default:
 			errorhandler.HandleError(r.Context(), w,
 				http.StatusInternalServerError,

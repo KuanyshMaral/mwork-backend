@@ -27,7 +27,6 @@ func (s *service) Deduct(ctx context.Context, userID uuid.UUID, amount int, meta
 		return ErrInvalidAmount
 	}
 
-	// Convert TransactionMeta to TxMeta for repository
 	txMeta := TxMeta{
 		Description: meta.Description,
 	}
@@ -42,6 +41,29 @@ func (s *service) Deduct(ctx context.Context, userID uuid.UUID, amount int, meta
 	}
 
 	return s.repo.Deduct(ctx, userID.String(), amount, txMeta)
+}
+
+// DeductTx deducts credits within an external transaction (FOR UPDATE row lock).
+// Used when credit deduction must be atomic with another operation (e.g. creating a response).
+func (s *service) DeductTx(ctx context.Context, tx *sqlx.Tx, userID uuid.UUID, amount int, meta TransactionMeta) error {
+	if amount <= 0 {
+		return ErrInvalidAmount
+	}
+
+	txMeta := TxMeta{
+		Description: meta.Description,
+	}
+
+	if meta.RelatedEntityType != "" {
+		txMeta.RelatedEntityType = &meta.RelatedEntityType
+	}
+
+	if meta.RelatedEntityID != uuid.Nil {
+		entityIDStr := meta.RelatedEntityID.String()
+		txMeta.RelatedEntityID = &entityIDStr
+	}
+
+	return s.repo.DeductTx(ctx, tx, userID.String(), amount, txMeta)
 }
 
 // Add atomically adds credits to a user

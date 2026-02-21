@@ -275,6 +275,7 @@ func main() {
 	// Inject payment abstractions into response service
 	responseService.SetCreditService(creditService)
 	responseService.SetPaymentProvider(featurePayProvider)
+	responseService.SetLimitChecker(limitChecker)
 
 	// TASK 1: Inject chat service into response service via adapter
 	// This enables auto-creation of chat rooms when responses are accepted
@@ -324,7 +325,6 @@ func main() {
 	favoriteHandler := favorite.NewHandler(favoriteRepo)
 	walletHandler := wallet.NewHandler(walletService)
 
-	socialLinksHandler := profile.NewSocialLinksHandler(db, modelRepo)
 	reviewRepo := review.NewRepository(db)
 	reviewHandler := review.NewHandler(reviewRepo)
 	faqHandler := content.NewFAQHandler(db)
@@ -427,17 +427,6 @@ func main() {
 
 		// Backward-compat: serve portfolio photos for a profile via attachments domain
 		r.Get("/profiles/{id}/photos", attachmentHandler.List)
-
-		r.Route("/profiles/{id}/social-links", func(r chi.Router) {
-			r.Get("/", socialLinksHandler.List)
-			r.Group(func(r chi.Router) {
-				r.Use(authWithVerifiedEmailMiddleware)
-				r.Post("/", socialLinksHandler.Create)
-				r.Delete("/{platform}", socialLinksHandler.Delete)
-			})
-		})
-
-		r.Get("/profiles/{id}/completeness", socialLinksHandler.GetCompleteness)
 
 		r.Get("/reviews", reviewHandler.ListByTarget)
 		r.Get("/reviews/summary", reviewHandler.GetSummary)
@@ -557,6 +546,7 @@ func (a *authModelProfileAdapter) Create(ctx context.Context, authProfile *auth.
 	modelProfile.SetCategories(nil)
 	modelProfile.SetSkills(nil)
 	modelProfile.SetTravelCities(nil)
+	modelProfile.SetSocialLinks(nil)
 
 	return a.repo.Create(ctx, modelProfile)
 }

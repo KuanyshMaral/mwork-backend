@@ -27,18 +27,24 @@ type ModelProfile struct {
 	Gender       sql.NullString  `db:"gender"`
 	ClothingSize sql.NullString  `db:"clothing_size"`
 	ShoeSize     sql.NullString  `db:"shoe_size"`
+	HairColor    sql.NullString  `db:"hair_color"`
+	EyeColor     sql.NullString  `db:"eye_color"`
+	Tattoos      sql.NullString  `db:"tattoos"`
 
 	// Professional info
-	Experience sql.NullInt32   `db:"experience"`
-	HourlyRate sql.NullFloat64 `db:"hourly_rate"`
-	City       sql.NullString  `db:"city"`
-	Country    sql.NullString  `db:"country"`
+	Experience   sql.NullInt32   `db:"experience"`
+	HourlyRate   sql.NullFloat64 `db:"hourly_rate"`
+	City         sql.NullString  `db:"city"`
+	Country      sql.NullString  `db:"country"`
+	WorkingHours sql.NullString  `db:"working_hours"`
+	MinBudget    sql.NullFloat64 `db:"min_budget"`
 
 	// JSON arrays
 	Languages    json.RawMessage `db:"languages"`
 	Categories   json.RawMessage `db:"categories"`
 	Skills       json.RawMessage `db:"skills"`
 	TravelCities json.RawMessage `db:"travel_cities"`
+	SocialLinks  json.RawMessage `db:"social_links"`
 
 	// Preferences
 	BarterAccepted   bool `db:"barter_accepted"`
@@ -86,6 +92,10 @@ type EmployerProfile struct {
 	CastingsPosted int          `db:"castings_posted"`
 	IsVerified     bool         `db:"is_verified"`
 	VerifiedAt     sql.NullTime `db:"verified_at"`
+	ProfileViews   int          `db:"profile_views"`
+
+	// JSON arrays
+	SocialLinks json.RawMessage `db:"social_links"`
 }
 
 // AdminProfile represents an admin profile (matches admin_profiles table)
@@ -195,4 +205,47 @@ func (p *EmployerProfile) GetCity() string {
 		return p.City.String
 	}
 	return ""
+}
+
+// SocialLinkEntry represents a single social media link
+type SocialLinkEntry struct {
+	Platform string `json:"platform"`
+	URL      string `json:"url"`
+	Username string `json:"username,omitempty"`
+}
+
+// GetSocialLinks parses social_links JSON for ModelProfile
+func (p *ModelProfile) GetSocialLinks() []SocialLinkEntry {
+	if p.SocialLinks == nil {
+		return []SocialLinkEntry{}
+	}
+	var links []SocialLinkEntry
+	_ = json.Unmarshal(p.SocialLinks, &links)
+	return links
+}
+
+// SetSocialLinks serializes social links to JSON for ModelProfile
+func (p *ModelProfile) SetSocialLinks(links []SocialLinkEntry) {
+	if links == nil {
+		links = []SocialLinkEntry{}
+	}
+	p.SocialLinks, _ = json.Marshal(links)
+}
+
+// GetSocialLinks parses social_links JSON for EmployerProfile
+func (p *EmployerProfile) GetSocialLinks() []SocialLinkEntry {
+	if p.SocialLinks == nil {
+		return []SocialLinkEntry{}
+	}
+	var links []SocialLinkEntry
+	_ = json.Unmarshal(p.SocialLinks, &links)
+	return links
+}
+
+// SetSocialLinks serializes social links to JSON for EmployerProfile
+func (p *EmployerProfile) SetSocialLinks(links []SocialLinkEntry) {
+	if links == nil {
+		links = []SocialLinkEntry{}
+	}
+	p.SocialLinks, _ = json.Marshal(links)
 }

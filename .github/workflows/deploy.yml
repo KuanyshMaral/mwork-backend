@@ -64,15 +64,18 @@ jobs:
             # тянем свежий образ API
             docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
 
+            # ВСЕГДА явно указываем файл, чтобы игнорировать COMPOSE_FILE на сервере
+            # и не подтягивать docker-compose.local.yml или docker-compose.override.yml
+
             # (опционально) тянем фронт, если он тоже в compose
-            docker compose pull web || true
+            docker compose -f docker-compose.yml pull web || true
 
             # 1) миграции (если упадут — деплой остановится)
-            docker compose run --rm migrate
+            docker compose -f docker-compose.yml run --rm migrate
 
-            # 2) рестарт API + web
-            docker compose up -d api
-            docker compose up -d web || true
+            # 2) рестарт API + web с force-recreate, чтобы всегда брать новый образ
+            docker compose -f docker-compose.yml up -d --force-recreate api
+            docker compose -f docker-compose.yml up -d web || true
 
             # чистка старых образов
             docker image prune -f
