@@ -3,6 +3,7 @@ package payment
 import (
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"net/http"
 	"strconv"
 	"strings"
@@ -57,12 +58,16 @@ func (h *Handler) InitRobokassaPayment(w http.ResponseWriter, r *http.Request) {
 		response.BadRequest(w, "invalid request body")
 		return
 	}
-	subscriptionID, err := parseUUID(req.SubscriptionID)
-	if err != nil {
-		response.BadRequest(w, "invalid subscription_id")
-		return
+	subscriptionID := uuid.Nil
+	if strings.TrimSpace(req.SubscriptionID) != "" {
+		parsedSubscriptionID, err := parseUUID(req.SubscriptionID)
+		if err != nil {
+			response.BadRequest(w, "invalid subscription_id")
+			return
+		}
+		subscriptionID = parsedSubscriptionID
 	}
-	if _, err := strconv.ParseFloat(req.Amount, 64); err != nil {
+	if _, ok := new(big.Rat).SetString(strings.TrimSpace(strings.ReplaceAll(req.Amount, ",", "."))); !ok {
 		response.BadRequest(w, "invalid amount")
 		return
 	}
