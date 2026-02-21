@@ -290,7 +290,7 @@ func main() {
 
 	// ---------- Handlers ----------
 	authHandler := auth.NewHandler(authService)
-	profileHandler := profile.NewHandler(profileService)
+	profileHandler := profile.NewHandler(profileService, attachmentService)
 	castingHandler := casting.NewHandler(castingService, castingProfileService)
 	experienceHandler := experience.NewHandler(experienceRepo, modelRepo)
 	responseHandler := response.NewHandler(responseService, limitChecker)

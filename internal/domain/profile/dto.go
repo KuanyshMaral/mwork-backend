@@ -4,6 +4,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	attachmentDomain "github.com/mwork/mwork-api/internal/domain/attachment"
 )
 
 // CreateModelProfileRequest defines model profile payload (used for service-level profile creation).
@@ -50,11 +52,12 @@ type UpdateModelProfileRequest struct {
 	EyeColor  string `json:"eye_color" validate:"omitempty,max=50"`
 	Tattoos   string `json:"tattoos" validate:"omitempty,max=255"`
 	// Professional details
-	WorkingHours string            `json:"working_hours" validate:"omitempty,max=150"`
-	MinBudget    *float64          `json:"min_budget" validate:"omitempty,gte=0"`
-	ClothingSize string            `json:"clothing_size" validate:"omitempty,max=20"`
-	ShoeSize     string            `json:"shoe_size" validate:"omitempty,max=20"`
-	SocialLinks  []SocialLinkEntry `json:"social_links"`
+	WorkingHours   string            `json:"working_hours" validate:"omitempty,max=150"`
+	MinBudget      *float64          `json:"min_budget" validate:"omitempty,gte=0"`
+	ClothingSize   string            `json:"clothing_size" validate:"omitempty,max=20"`
+	ShoeSize       string            `json:"shoe_size" validate:"omitempty,max=20"`
+	SocialLinks    []SocialLinkEntry `json:"social_links"`
+	AvatarUploadID *uuid.UUID        `json:"avatar_upload_id"`
 }
 
 // CreateEmployerProfileRequest defines employer profile payload (used for service-level profile creation).
@@ -119,10 +122,13 @@ type ModelProfileResponse struct {
 	ClothingSize *string `json:"clothing_size,omitempty"`
 	ShoeSize     *string `json:"shoe_size,omitempty"`
 	// Professional details
-	WorkingHours *string           `json:"working_hours,omitempty"`
-	MinBudget    *float64          `json:"min_budget,omitempty"`
-	SocialLinks  []SocialLinkEntry `json:"social_links"`
-	AvatarURL    string            `json:"avatar_url,omitempty"`
+	WorkingHours   *string                              `json:"working_hours,omitempty"`
+	MinBudget      *float64                             `json:"min_budget,omitempty"`
+	SocialLinks    []SocialLinkEntry                    `json:"social_links"`
+	AvatarURL      string                               `json:"avatar_url,omitempty"`
+	AvatarUploadID *uuid.UUID                           `json:"avatar_upload_id,omitempty"`
+	CreditBalance  int                                  `json:"credit_balance"`
+	Portfolio      []attachmentDomain.AttachmentWithURL `json:"portfolio,omitempty"`
 }
 
 // EmployerProfileResponse represents employer profile in API response
@@ -145,6 +151,7 @@ type EmployerProfileResponse struct {
 	SocialLinks    []SocialLinkEntry `json:"social_links"`
 	CreatedAt      string            `json:"created_at"`
 	UpdatedAt      string            `json:"updated_at"`
+	CreditBalance  int               `json:"credit_balance"`
 }
 
 // CompletenessResponse for profile completeness endpoint
@@ -229,6 +236,9 @@ func ModelProfileResponseFromEntity(p *ModelProfile) *ModelProfileResponse {
 	}
 	if p.MinBudget.Valid {
 		resp.MinBudget = &p.MinBudget.Float64
+	}
+	if p.AvatarUploadID.Valid {
+		resp.AvatarUploadID = &p.AvatarUploadID.UUID
 	}
 
 	return resp

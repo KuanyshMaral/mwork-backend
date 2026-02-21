@@ -24,6 +24,8 @@ type Stats struct {
 	TotalResponses int `json:"total_responses,omitempty"`
 	ActiveCastings int `json:"active_castings,omitempty"`
 	TotalViews     int `json:"total_views,omitempty"`
+
+	CreditBalance int `json:"credit_balance"`
 }
 
 // Service provides dashboard statistics
@@ -81,6 +83,9 @@ func (s *Service) GetModelStats(ctx context.Context, userID uuid.UUID) (*Stats, 
 		 AND cm.sender_id != $1 AND cm.is_read = false`,
 		userID)
 
+	_ = s.db.GetContext(ctx, &stats.CreditBalance,
+		`SELECT credit_balance FROM users WHERE id = $1`, userID)
+
 	return stats, nil
 }
 
@@ -126,6 +131,9 @@ func (s *Service) GetEmployerStats(ctx context.Context, userID uuid.UUID) (*Stat
 		 WHERE (cr.participant_1_id = $1 OR cr.participant_2_id = $1)
 		 AND cm.sender_id != $1 AND cm.is_read = false`,
 		userID)
+
+	_ = s.db.GetContext(ctx, &stats.CreditBalance,
+		`SELECT credit_balance FROM users WHERE id = $1`, userID)
 
 	return stats, nil
 }

@@ -358,6 +358,10 @@ func (s *Service) UpdateModelProfile(ctx context.Context, userID uuid.UUID, req 
 		profile.SetSocialLinks(req.SocialLinks)
 	}
 
+	if req.AvatarUploadID != nil {
+		profile.AvatarUploadID = uuid.NullUUID{UUID: *req.AvatarUploadID, Valid: true}
+	}
+
 	profile.UpdatedAt = time.Now()
 
 	if err := s.modelRepo.Update(ctx, profile); err != nil {
