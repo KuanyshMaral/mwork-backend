@@ -84,6 +84,7 @@ func (h *Handler) GetEmployerStats(w http.ResponseWriter, r *http.Request) {
 		"messages_count":  stats.MessagesCount,
 		"new_messages":    stats.NewMessages,
 		"response_rate":   responseRate,
+		"credit_balance":  stats.CreditBalance,
 	})
 }
 
@@ -126,6 +127,8 @@ type ModelDashboardStats struct {
 	// Subscription
 	CurrentPlan   string `json:"current_plan"`
 	PlanExpiresAt string `json:"plan_expires_at,omitempty"`
+
+	CreditBalance int `json:"credit_balance"`
 }
 
 // Repository handles dashboard data aggregation
@@ -184,6 +187,10 @@ func (r *Repository) GetModelStats(ctx context.Context, userID uuid.UUID) (*Mode
 	_ = r.db.GetContext(ctx, &stats.TotalEarnings, `
 		SELECT COALESCE(SUM(amount), 0) FROM payments
 		WHERE user_id = $1 AND status = 'completed'
+	`, userID)
+
+	_ = r.db.GetContext(ctx, &stats.CreditBalance, `
+		SELECT credit_balance FROM users WHERE id = $1
 	`, userID)
 
 	return stats, nil
