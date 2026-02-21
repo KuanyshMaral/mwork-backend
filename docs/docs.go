@@ -6706,58 +6706,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/profiles/{id}/completeness": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Profile"
-                ],
-                "summary": "Полнота профиля модели",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "ID профиля",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/internal_domain_profile.CompletenessResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    }
-                }
-            }
-        },
         "/profiles/{id}/experience": {
             "get": {
                 "produces": [
@@ -6949,204 +6897,6 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    }
-                }
-            }
-        },
-        "/profiles/{id}/social-links": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Profile"
-                ],
-                "summary": "Список социальных ссылок профиля",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "ID профиля",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/internal_domain_profile.SocialLinkResponse"
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    }
-                }
-            },
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Profile"
-                ],
-                "summary": "Добавить социальную ссылку профиля",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "ID профиля",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Данные социальной ссылки",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/internal_domain_profile.SocialLinkRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/internal_domain_profile.SocialLinkResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
-                        }
-                    }
-                }
-            }
-        },
-        "/profiles/{id}/social-links/{platform}": {
-            "delete": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Profile"
-                ],
-                "summary": "Удалить социальную ссылку профиля",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "ID профиля",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Платформа",
-                        "name": "platform",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
                         }
@@ -9505,6 +9255,12 @@ const docTemplate = `{
                         "professional"
                     ]
                 },
+                "required_eye_colors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "required_gender": {
                     "description": "Model requirements",
                     "type": "string",
@@ -9513,6 +9269,12 @@ const docTemplate = `{
                         "female",
                         "other"
                     ]
+                },
+                "required_hair_colors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "required_languages": {
                     "type": "array",
@@ -9582,8 +9344,20 @@ const docTemplate = `{
                 "experience": {
                     "type": "string"
                 },
+                "eye_colors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "gender": {
                     "type": "string"
+                },
+                "hair_colors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "height_max": {
                     "type": "integer"
@@ -9700,6 +9474,12 @@ const docTemplate = `{
                         "professional"
                     ]
                 },
+                "required_eye_colors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "required_gender": {
                     "description": "Model requirements",
                     "type": "string",
@@ -9708,6 +9488,12 @@ const docTemplate = `{
                         "female",
                         "other"
                     ]
+                },
+                "required_hair_colors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "required_languages": {
                     "type": "array",
@@ -10739,26 +10525,6 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_domain_profile.CompletenessResponse": {
-            "type": "object",
-            "properties": {
-                "missing_fields": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "percentage": {
-                    "type": "integer"
-                },
-                "tips": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                }
-            }
-        },
         "internal_domain_profile.EmployerProfileResponse": {
             "type": "object",
             "properties": {
@@ -10795,8 +10561,17 @@ const docTemplate = `{
                 "is_verified": {
                     "type": "boolean"
                 },
+                "profile_views": {
+                    "type": "integer"
+                },
                 "rating": {
                     "type": "number"
+                },
+                "social_links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_domain_profile.SocialLinkEntry"
+                    }
                 },
                 "total_reviews": {
                     "type": "integer"
@@ -10821,6 +10596,9 @@ const docTemplate = `{
                 "age": {
                     "type": "integer"
                 },
+                "avatar_url": {
+                    "type": "string"
+                },
                 "barter_accepted": {
                     "type": "boolean"
                 },
@@ -10836,6 +10614,9 @@ const docTemplate = `{
                 "city": {
                     "type": "string"
                 },
+                "clothing_size": {
+                    "type": "string"
+                },
                 "country": {
                     "type": "string"
                 },
@@ -10845,7 +10626,14 @@ const docTemplate = `{
                 "experience": {
                     "type": "integer"
                 },
+                "eye_color": {
+                    "type": "string"
+                },
                 "gender": {
+                    "type": "string"
+                },
+                "hair_color": {
+                    "description": "Physical characteristics",
                     "type": "string"
                 },
                 "height": {
@@ -10866,6 +10654,9 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "min_budget": {
+                    "type": "number"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -10875,11 +10666,23 @@ const docTemplate = `{
                 "rating": {
                     "type": "number"
                 },
+                "shoe_size": {
+                    "type": "string"
+                },
                 "skills": {
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
+                },
+                "social_links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_domain_profile.SocialLinkEntry"
+                    }
+                },
+                "tattoos": {
+                    "type": "string"
                 },
                 "total_reviews": {
                     "type": "integer"
@@ -10901,45 +10704,16 @@ const docTemplate = `{
                 },
                 "weight": {
                     "type": "number"
+                },
+                "working_hours": {
+                    "description": "Professional details",
+                    "type": "string"
                 }
             }
         },
-        "internal_domain_profile.SocialLinkRequest": {
-            "type": "object",
-            "required": [
-                "platform",
-                "url"
-            ],
-            "properties": {
-                "platform": {
-                    "type": "string",
-                    "enum": [
-                        "instagram",
-                        "tiktok",
-                        "facebook",
-                        "twitter",
-                        "youtube",
-                        "telegram",
-                        "linkedin",
-                        "vk"
-                    ]
-                },
-                "url": {
-                    "type": "string",
-                    "maxLength": 500
-                },
-                "username": {
-                    "type": "string",
-                    "maxLength": 100
-                }
-            }
-        },
-        "internal_domain_profile.SocialLinkResponse": {
+        "internal_domain_profile.SocialLinkEntry": {
             "type": "object",
             "properties": {
-                "is_verified": {
-                    "type": "boolean"
-                },
                 "platform": {
                     "type": "string"
                 },
@@ -10997,6 +10771,12 @@ const docTemplate = `{
                     "type": "string",
                     "maxLength": 2000
                 },
+                "social_links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_domain_profile.SocialLinkEntry"
+                    }
+                },
                 "website": {
                     "type": "string",
                     "maxLength": 500
@@ -11032,10 +10812,18 @@ const docTemplate = `{
                     "maxLength": 100,
                     "minLength": 2
                 },
+                "clothing_size": {
+                    "type": "string",
+                    "maxLength": 20
+                },
                 "experience": {
                     "type": "integer",
                     "maximum": 50,
                     "minimum": 0
+                },
+                "eye_color": {
+                    "type": "string",
+                    "maxLength": 50
                 },
                 "gender": {
                     "type": "string",
@@ -11044,6 +10832,11 @@ const docTemplate = `{
                         "female",
                         "other"
                     ]
+                },
+                "hair_color": {
+                    "description": "Physical characteristics",
+                    "type": "string",
+                    "maxLength": 50
                 },
                 "height": {
                     "type": "number",
@@ -11063,16 +10856,34 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "min_budget": {
+                    "type": "number",
+                    "minimum": 0
+                },
                 "name": {
                     "type": "string",
                     "maxLength": 100,
                     "minLength": 2
+                },
+                "shoe_size": {
+                    "type": "string",
+                    "maxLength": 20
                 },
                 "skills": {
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
+                },
+                "social_links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_domain_profile.SocialLinkEntry"
+                    }
+                },
+                "tattoos": {
+                    "type": "string",
+                    "maxLength": 255
                 },
                 "travel_cities": {
                     "type": "array",
@@ -11092,6 +10903,11 @@ const docTemplate = `{
                     "type": "number",
                     "maximum": 200,
                     "minimum": 30
+                },
+                "working_hours": {
+                    "description": "Professional details",
+                    "type": "string",
+                    "maxLength": 150
                 }
             }
         },

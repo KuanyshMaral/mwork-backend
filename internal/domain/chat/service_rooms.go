@@ -112,7 +112,7 @@ func (s *Service) CreateCastingRoom(ctx context.Context, userID uuid.UUID, casti
 	// This will be checked by HasCastingResponseAccess in iteration
 
 	if len(memberIDs) == 0 {
-		return nil, ErrRoomNotFound // need at least 1 other member
+		return nil, ErrInvalidMembersCount // need at least 1 other member
 	}
 
 	// Create casting room
@@ -162,7 +162,7 @@ func (s *Service) CreateCastingRoom(ctx context.Context, userID uuid.UUID, casti
 // CreateGroupRoom creates a multi-user group chat
 func (s *Service) CreateGroupRoom(ctx context.Context, userID uuid.UUID, memberIDs []uuid.UUID, name string) (*Room, error) {
 	if len(memberIDs) == 0 {
-		return nil, ErrRoomNotFound
+		return nil, ErrInvalidMembersCount
 	}
 
 	// Check creator has chat access

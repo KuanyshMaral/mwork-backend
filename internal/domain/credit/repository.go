@@ -15,6 +15,7 @@ const queryTimeout = 3 * time.Second
 
 type Repository interface {
 	Deduct(ctx context.Context, userID string, amount int, meta TxMeta) error
+	DeductTx(ctx context.Context, tx *sqlx.Tx, userID string, amount int, meta TxMeta) error
 	Add(ctx context.Context, userID string, amount int, txType string, meta TxMeta) error
 	GetBalance(ctx context.Context, userID string) (int, error)
 	ListTransactions(ctx context.Context, userID string, pagination Pagination) ([]CreditTransaction, error)
@@ -67,6 +68,41 @@ func (r *CreditRepository) Deduct(ctx context.Context, userID string, amount int
 
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("%w: commit tx", ErrInternal)
+	}
+
+	return nil
+}
+
+// DeductTx deducts credits within an external transaction using FOR UPDATE row lock.
+// This method does NOT commit or rollback the transaction — the caller is responsible.
+func (r *CreditRepository) DeductTx(ctx context.Context, tx *sqlx.Tx, userID string, amount int, meta TxMeta) error {
+	if amount <= 0 {
+		return ErrInvalidAmount
+	}
+
+	// FOR UPDATE lock on the user's credit balance row
+	var balance int
+	err := tx.QueryRowContext(ctx, `SELECT credit_balance FROM users WHERE id = $1 FOR UPDATE`, userID).Scan(&balance)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrUserNotFound
+		}
+		return fmt.Errorf("%w: lock user row", ErrInternal)
+	}
+
+	if balance < amount {
+		return ErrInsufficientCredits
+	}
+
+	// Deduct balance
+	_, err = tx.ExecContext(ctx, `UPDATE users SET credit_balance = credit_balance - $2 WHERE id = $1`, userID, amount)
+	if err != nil {
+		return fmt.Errorf("%w: update user balance", ErrInternal)
+	}
+
+	// Write ledger entry within the same transaction
+	if err := r.insertLedger(ctx, tx, userID, -amount, string(TxTypeDeduction), meta); err != nil {
+		return err
 	}
 
 	return nil

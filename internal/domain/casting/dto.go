@@ -31,6 +31,8 @@ type CreateCastingRequest struct {
 	RequiredLanguages  []string `json:"required_languages" validate:"omitempty"`
 	ClothingSizes      []string `json:"clothing_sizes" validate:"omitempty"`
 	ShoeSizes          []string `json:"shoe_sizes" validate:"omitempty"`
+	RequiredHairColors []string `json:"required_hair_colors" validate:"omitempty"`
+	RequiredEyeColors  []string `json:"required_eye_colors" validate:"omitempty"`
 
 	// Work details
 	WorkType      string  `json:"work_type" validate:"omitempty,oneof=one_time contract permanent"`
@@ -68,6 +70,8 @@ type UpdateCastingRequest struct {
 	RequiredLanguages  []string `json:"required_languages"`
 	ClothingSizes      []string `json:"clothing_sizes"`
 	ShoeSizes          []string `json:"shoe_sizes"`
+	RequiredHairColors []string `json:"required_hair_colors"`
+	RequiredEyeColors  []string `json:"required_eye_colors"`
 
 	// Work details
 	WorkType      string   `json:"work_type" validate:"omitempty,oneof=one_time contract permanent"`
@@ -96,6 +100,8 @@ type RequirementsResponse struct {
 	Languages  []string `json:"languages,omitempty"`
 	Clothing   []string `json:"clothing_sizes,omitempty"`
 	Shoes      []string `json:"shoe_sizes,omitempty"`
+	HairColors []string `json:"hair_colors,omitempty"`
+	EyeColors  []string `json:"eye_colors,omitempty"`
 }
 
 // CastingResponse represents casting in API response
@@ -198,9 +204,11 @@ func CastingResponseFromEntity(c *Casting) *CastingResponse {
 
 	// Build requirements response from dedicated columns
 	req := &RequirementsResponse{
-		Languages: []string(c.RequiredLanguages),
-		Clothing:  []string(c.ClothingSizes),
-		Shoes:     []string(c.ShoeSizes),
+		Languages:  []string(c.RequiredLanguages),
+		Clothing:   []string(c.ClothingSizes),
+		Shoes:      []string(c.ShoeSizes),
+		HairColors: []string(c.RequiredHairColors),
+		EyeColors:  []string(c.RequiredEyeColors),
 	}
 	if c.RequiredGender.Valid {
 		req.Gender = c.RequiredGender.String
@@ -238,7 +246,8 @@ func CastingResponseFromEntity(c *Casting) *CastingResponse {
 		req.HeightMin != nil || req.HeightMax != nil ||
 		req.WeightMin != nil || req.WeightMax != nil ||
 		req.Experience != "" || len(req.Languages) > 0 ||
-		len(req.Clothing) > 0 || len(req.Shoes) > 0 {
+		len(req.Clothing) > 0 || len(req.Shoes) > 0 ||
+		len(req.HairColors) > 0 || len(req.EyeColors) > 0 {
 		resp.Requirements = req
 	}
 
