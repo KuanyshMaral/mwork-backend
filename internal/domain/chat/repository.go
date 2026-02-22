@@ -128,32 +128,51 @@ func (r *repository) UpdateRoomLastMessage(ctx context.Context, roomID uuid.UUID
 // Message operations
 
 func (r *repository) CreateMessage(ctx context.Context, msg *Message) error {
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
 	query := `
-		INSERT INTO messages (id, room_id, sender_id, content, message_type, attachment_upload_id, is_read, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		INSERT INTO messages (id, room_id, sender_id, content, message_type, is_read, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`
-	_, err := r.db.ExecContext(ctx, query,
+	_, err = tx.ExecContext(ctx, query,
 		msg.ID,
 		msg.RoomID,
 		msg.SenderID,
 		msg.Content,
 		msg.MessageType,
-		msg.AttachmentUploadID,
 		msg.IsRead,
 		msg.CreatedAt,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+
+	// Insert into polymorphic attachments table
+	if len(msg.Attachments) > 0 {
+		attachmentQuery := `
+			INSERT INTO attachments (upload_id, target_id, target_type, sort_order)
+			VALUES ($1, $2, $3, $4)
+		`
+		for i, att := range msg.Attachments {
+			_, err = tx.ExecContext(ctx, attachmentQuery,
+				att.UploadID, msg.ID, "chat_attachment", i)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return tx.Commit()
 }
 
 func (r *repository) GetMessageByID(ctx context.Context, id uuid.UUID) (*Message, error) {
 	query := `
-		SELECT m.*,
-			u.file_path as attachment_url,
-			u.original_name as attachment_name,
-			u.mime_type as attachment_mime,
-			u.size_bytes as attachment_size
+		SELECT m.*
 		FROM messages m
-		LEFT JOIN uploads u ON m.attachment_upload_id = u.id
 		WHERE m.id = $1 AND m.deleted_at IS NULL
 	`
 	var msg Message
@@ -164,25 +183,93 @@ func (r *repository) GetMessageByID(ctx context.Context, id uuid.UUID) (*Message
 		}
 		return nil, err
 	}
+
+	// Load attachments
+	err = r.loadAttachments(ctx, []*Message{&msg})
+	if err != nil {
+		return nil, err
+	}
+
 	return &msg, nil
 }
 
 func (r *repository) ListMessagesByRoom(ctx context.Context, roomID uuid.UUID, limit, offset int) ([]*Message, error) {
 	query := `
-		SELECT m.*,
-			u.file_path as attachment_url,
-			u.original_name as attachment_name,
-			u.mime_type as attachment_mime,
-			u.size_bytes as attachment_size
+		SELECT m.*
 		FROM messages m
-		LEFT JOIN uploads u ON m.attachment_upload_id = u.id
 		WHERE m.room_id = $1 AND m.deleted_at IS NULL
 		ORDER BY m.created_at DESC
 		LIMIT $2 OFFSET $3
 	`
 	var messages []*Message
 	err := r.db.SelectContext(ctx, &messages, query, roomID, limit, offset)
-	return messages, err
+	if err != nil {
+		return nil, err
+	}
+
+	if len(messages) > 0 {
+		if err := r.loadAttachments(ctx, messages); err != nil {
+			return nil, err
+		}
+	}
+
+	return messages, nil
+}
+
+type attachmentRow struct {
+	MessageID uuid.UUID `db:"target_id"`
+	UploadID  uuid.UUID `db:"upload_id"`
+	URL       string    `db:"attachment_url"`
+	FileName  string    `db:"attachment_name"`
+	MimeType  string    `db:"attachment_mime"`
+	Size      int64     `db:"attachment_size"`
+}
+
+func (r *repository) loadAttachments(ctx context.Context, messages []*Message) error {
+	if len(messages) == 0 {
+		return nil
+	}
+
+	msgIDs := make([]uuid.UUID, len(messages))
+	msgMap := make(map[uuid.UUID]*Message)
+	for i, m := range messages {
+		msgIDs[i] = m.ID
+		msgMap[m.ID] = m
+		m.Attachments = make([]*AttachmentInfo, 0)
+	}
+
+	query, args, err := sqlx.In(`
+		SELECT a.target_id, a.upload_id, 
+			   u.file_path as attachment_url, u.original_name as attachment_name, 
+			   u.mime_type as attachment_mime, u.size_bytes as attachment_size
+		FROM attachments a
+		JOIN uploads u ON a.upload_id = u.id
+		WHERE a.target_type = 'chat_attachment' AND a.target_id IN (?)
+		ORDER BY a.sort_order ASC
+	`, msgIDs)
+	if err != nil {
+		return err
+	}
+	query = r.db.Rebind(query)
+
+	var rows []attachmentRow
+	if err := r.db.SelectContext(ctx, &rows, query, args...); err != nil {
+		return err
+	}
+
+	for _, row := range rows {
+		if msg, ok := msgMap[row.MessageID]; ok {
+			msg.Attachments = append(msg.Attachments, &AttachmentInfo{
+				UploadID: row.UploadID,
+				URL:      row.URL,
+				FileName: row.FileName,
+				MimeType: row.MimeType,
+				Size:     row.Size,
+			})
+		}
+	}
+
+	return nil
 }
 
 func (r *repository) MarkMessagesAsRead(ctx context.Context, roomID, userID uuid.UUID) error {

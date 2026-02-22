@@ -2,6 +2,7 @@ package subscription
 
 import (
 	"database/sql"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -43,6 +44,22 @@ const (
 	BillingYearly  BillingPeriod = "yearly"
 )
 
+// ConsumablesConfig defines monthly replenishment for Camp 1 (Расходники).
+// These are the tangible balances issued each month per plan.
+type ConsumablesConfig struct {
+	ResponseConnects int `json:"response_connects"` // For Models: how many free response connects are given per month
+}
+
+// FeaturesConfig defines Camp 2 limits (Квоты и Фичи) — enforced by count checks, not deductions.
+type FeaturesConfig struct {
+	MaxPhotos         int  `json:"max_photos"`
+	CanChat           bool `json:"can_chat"`
+	CanSeeViewers     bool `json:"can_see_viewers"`
+	PrioritySearch    bool `json:"priority_search"`
+	MaxTeamMembers    int  `json:"max_team_members"`
+	MaxActiveCastings int  `json:"max_active_castings"` // Employer: max concurrent active castings
+}
+
 // Plan represents a subscription plan
 type Plan struct {
 	ID           PlanID          `db:"id" json:"id"`
@@ -50,19 +67,34 @@ type Plan struct {
 	Description  string          `db:"description" json:"description"`
 	PriceMonthly float64         `db:"price_monthly" json:"price_monthly"`
 	PriceYearly  sql.NullFloat64 `db:"price_yearly" json:"price_yearly,omitempty"`
+	Audience     Audience        `db:"audience" json:"audience"`
+	IsActive     bool            `db:"is_active" json:"is_active"`
+	CreatedAt    time.Time       `db:"created_at" json:"created_at"`
 
-	// Limits
-	MaxPhotos         int      `db:"max_photos" json:"max_photos"`
-	MaxResponsesMonth int      `db:"max_responses_month" json:"max_responses_month"` // -1 = unlimited
-	CanChat           bool     `db:"can_chat" json:"can_chat"`
-	CanSeeViewers     bool     `db:"can_see_viewers" json:"can_see_viewers"`
-	PrioritySearch    bool     `db:"priority_search" json:"priority_search"`
-	MaxTeamMembers    int      `db:"max_team_members" json:"max_team_members"`
-	Audience          Audience `db:"audience" json:"audience"`
+	// JSONB columns — raw DB storage
+	MonthlyConsumablesRaw []byte `db:"monthly_consumables" json:"-"`
+	FeaturesAndQuotasRaw  []byte `db:"features_and_quotas" json:"-"`
 
-	IsActive  bool      `db:"is_active" json:"is_active"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	// Parsed structs — populated after scanning
+	Consumables ConsumablesConfig `db:"-" json:"consumables"`
+	Features    FeaturesConfig    `db:"-" json:"features"`
 }
+
+// ParseJSONB parses the raw JSONB fields into typed structs. Must be called after DB scan.
+func (p *Plan) ParseJSONB() {
+	if len(p.MonthlyConsumablesRaw) > 0 {
+		_ = json.Unmarshal(p.MonthlyConsumablesRaw, &p.Consumables)
+	}
+	if len(p.FeaturesAndQuotasRaw) > 0 {
+		_ = json.Unmarshal(p.FeaturesAndQuotasRaw, &p.Features)
+	}
+}
+
+// Convenience shorthands (replaced old direct fields)
+func (p *Plan) MaxPhotos() int         { return p.Features.MaxPhotos }
+func (p *Plan) MaxResponsesMonth() int { return p.Consumables.ResponseConnects }
+func (p *Plan) CanChat() bool          { return p.Features.CanChat }
+func (p *Plan) MaxActiveCastings() int { return p.Features.MaxActiveCastings }
 
 // Subscription represents a user's subscription
 type Subscription struct {

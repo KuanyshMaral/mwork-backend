@@ -30,14 +30,19 @@ type ModelProfile struct {
 	HairColor    sql.NullString  `db:"hair_color"`
 	EyeColor     sql.NullString  `db:"eye_color"`
 	Tattoos      sql.NullString  `db:"tattoos"`
+	BustCm       sql.NullInt32   `db:"bust_cm"`
+	WaistCm      sql.NullInt32   `db:"waist_cm"`
+	HipsCm       sql.NullInt32   `db:"hips_cm"`
+	SkinTone     sql.NullString  `db:"skin_tone"`
 
 	// Professional info
-	Experience   sql.NullInt32   `db:"experience"`
-	HourlyRate   sql.NullFloat64 `db:"hourly_rate"`
-	City         sql.NullString  `db:"city"`
-	Country      sql.NullString  `db:"country"`
-	WorkingHours sql.NullString  `db:"working_hours"`
-	MinBudget    sql.NullFloat64 `db:"min_budget"`
+	Experience      sql.NullInt32   `db:"experience"`
+	HourlyRate      sql.NullFloat64 `db:"hourly_rate"`
+	City            sql.NullString  `db:"city"`
+	Country         sql.NullString  `db:"country"`
+	WorkingHours    sql.NullString  `db:"working_hours"`
+	MinBudget       sql.NullFloat64 `db:"min_budget"`
+	Specializations json.RawMessage `db:"specializations"`
 
 	// JSON arrays
 	Languages    json.RawMessage `db:"languages"`

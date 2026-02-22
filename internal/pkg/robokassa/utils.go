@@ -1,16 +1,6 @@
 package robokassa
 
-import (
-	"crypto/md5"
-	"encoding/hex"
-	"strings"
-)
-
-// generateMD5 creates MD5 hash with uppercase hex encoding
-func generateMD5(text string) string {
-	hash := md5.Sum([]byte(text))
-	return strings.ToUpper(hex.EncodeToString(hash[:]))
-}
+import "strings"
 
 // sortStrings sorts a slice of strings in place (bubble sort)
 // Used for RoboKassa parameter ordering

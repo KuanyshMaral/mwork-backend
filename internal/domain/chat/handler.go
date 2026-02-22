@@ -940,3 +940,89 @@ func (h *Handler) LeaveRoom(w http.ResponseWriter, r *http.Request) {
 
 	response.OK(w, map[string]string{"status": "ok"})
 }
+
+// DeleteRoom handles DELETE /chat/rooms/{id}
+// @Summary Удалить комнату
+// @Description Полное удаление комнаты (доступно участникам).
+// @Tags Chat
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID комнаты"
+// @Success 200 {object} response.Response
+// @Failure 400,403,404,500 {object} response.Response
+// @Router /chat/rooms/{id} [delete]
+func (h *Handler) DeleteRoom(w http.ResponseWriter, r *http.Request) {
+	roomID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		response.BadRequest(w, "Invalid room ID")
+		return
+	}
+
+	userID := middleware.GetUserID(r.Context())
+	if err := h.service.DeleteRoom(r.Context(), userID, roomID); err != nil {
+		switch err {
+		case ErrRoomNotFound:
+			response.NotFound(w, "Room not found")
+		case ErrNotRoomMember:
+			response.Forbidden(w, "You are not a member of this chat")
+		default:
+			if err.Error() == "only room admins can delete group chats" {
+				response.Forbidden(w, err.Error())
+				return
+			}
+			errorhandler.HandleError(r.Context(), w,
+				http.StatusInternalServerError,
+				"INTERNAL_ERROR",
+				"Failed to delete room",
+				err)
+		}
+		return
+	}
+
+	response.OK(w, map[string]string{"status": "ok"})
+}
+
+// DeleteMessage handles DELETE /chat/rooms/{id}/messages/{messageId}
+// @Summary Удалить сообщение
+// @Description Удалить свое сообщение в комнате.
+// @Tags Chat
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "ID комнаты"
+// @Param messageId path string true "ID сообщения"
+// @Success 200 {object} response.Response
+// @Failure 400,403,404,500 {object} response.Response
+// @Router /chat/rooms/{id}/messages/{messageId} [delete]
+func (h *Handler) DeleteMessage(w http.ResponseWriter, r *http.Request) {
+	_, err := uuid.Parse(chi.URLParam(r, "id")) // not strictly needed for deletion via repo, but good for validation
+	if err != nil {
+		response.BadRequest(w, "Invalid room ID")
+		return
+	}
+
+	messageID, err := uuid.Parse(chi.URLParam(r, "messageId"))
+	if err != nil {
+		response.BadRequest(w, "Invalid message ID")
+		return
+	}
+
+	userID := middleware.GetUserID(r.Context())
+	if err := h.service.DeleteMessage(r.Context(), userID, messageID); err != nil {
+		if err.Error() == "message not found" {
+			response.NotFound(w, "Message not found")
+			return
+		}
+		if err.Error() == "you can only delete your own messages" {
+			response.Forbidden(w, "You can only delete your own messages")
+			return
+		}
+		errorhandler.HandleError(r.Context(), w,
+			http.StatusInternalServerError,
+			"INTERNAL_ERROR",
+			"Failed to delete message",
+			err)
+		return
+	}
+
+	response.OK(w, map[string]string{"status": "ok"})
+}

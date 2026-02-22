@@ -118,6 +118,8 @@ type Casting struct {
 	ResponseCount       int           `db:"response_count"`
 	RequiredModelsCount sql.NullInt32 `db:"required_models_count"`
 	AcceptedModelsCount int           `db:"accepted_models_count"`
+	RatingScore         float64       `db:"rating_score"`
+	ReviewsCount        int           `db:"reviews_count"`
 
 	// Joined data (not in DB, populated by queries)
 	CreatorName string `db:"-"`

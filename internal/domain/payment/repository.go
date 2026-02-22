@@ -21,9 +21,11 @@ type Repository interface {
 	GetByPromotionID(ctx context.Context, promotionID string) (*Payment, error)
 	CreateRobokassaPending(ctx context.Context, payment *Payment) error
 	GetByRobokassaInvIDForUpdate(ctx context.Context, tx *sqlx.Tx, invID int64) (*Payment, error)
+	GetByInvIDForUpdate(ctx context.Context, tx *sqlx.Tx, invID string) (*Payment, error)
 	MarkRobokassaSucceeded(ctx context.Context, tx *sqlx.Tx, paymentID uuid.UUID, callbackPayload map[string]string) error
 	CreatePaymentEvent(ctx context.Context, tx *sqlx.Tx, paymentID uuid.UUID, eventType string, payload any) error
 	BeginTxx(ctx context.Context) (*sqlx.Tx, error)
+	NextRobokassaInvID(ctx context.Context) (int64, error)
 }
 
 type repository struct {
@@ -100,7 +102,21 @@ func (r *repository) UpdateStatus(ctx context.Context, id uuid.UUID, status Stat
 
 func (r *repository) ListByUser(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*Payment, error) {
 	query := `
-		SELECT * FROM payments 
+		SELECT 
+			id, user_id, plan_id, subscription_id,
+			COALESCE(type, '') AS type,
+			plan, inv_id,
+			response_package, amount, robokassa_inv_id,
+			COALESCE(currency, 'KZT') AS currency,
+			COALESCE(status, 'pending') AS status,
+			provider, external_id, description,
+			COALESCE(metadata, 'null'::jsonb) as metadata,
+			COALESCE(raw_init_payload, 'null'::jsonb) as raw_init_payload,
+			COALESCE(raw_callback_payload, 'null'::jsonb) as raw_callback_payload,
+			paid_at, failed_at, refunded_at, created_at,
+			COALESCE(updated_at, created_at) AS updated_at,
+			promotion_id
+		FROM payments 
 		WHERE user_id = $1 
 		ORDER BY created_at DESC 
 		LIMIT $2 OFFSET $3
@@ -130,12 +146,16 @@ func (r *repository) GetByPromotionID(ctx context.Context, promotionID string) (
 
 func (r *repository) CreateRobokassaPending(ctx context.Context, payment *Payment) error {
 	query := `
-		INSERT INTO payments (id, user_id, subscription_id, amount, currency, status, provider, external_id, robokassa_inv_id, description, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())`
+		INSERT INTO payments (id, user_id, subscription_id, type, plan, inv_id, response_package, amount, currency, status, provider, external_id, robokassa_inv_id, description, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW())`
 	_, err := r.db.ExecContext(ctx, query,
 		payment.ID,
 		payment.UserID,
 		payment.SubscriptionID,
+		payment.Type,
+		payment.Plan,
+		payment.InvID,
+		payment.ResponsePackage,
 		payment.Amount,
 		payment.Currency,
 		payment.Status,
@@ -160,6 +180,19 @@ func (r *repository) GetByRobokassaInvIDForUpdate(ctx context.Context, tx *sqlx.
 	return &p, nil
 }
 
+func (r *repository) GetByInvIDForUpdate(ctx context.Context, tx *sqlx.Tx, invID string) (*Payment, error) {
+	query := `SELECT * FROM payments WHERE provider = 'robokassa' AND inv_id = $1 FOR UPDATE`
+	var p Payment
+	err := tx.GetContext(ctx, &p, query, invID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &p, nil
+}
+
 func (r *repository) MarkRobokassaSucceeded(ctx context.Context, tx *sqlx.Tx, paymentID uuid.UUID, callbackPayload map[string]string) error {
 	payloadJSON, err := json.Marshal(callbackPayload)
 	if err != nil {
@@ -167,7 +200,7 @@ func (r *repository) MarkRobokassaSucceeded(ctx context.Context, tx *sqlx.Tx, pa
 	}
 	query := `
 		UPDATE payments
-		SET status = 'completed', paid_at = NOW(), updated_at = NOW(), raw_callback_payload = $2
+		SET status = 'paid', paid_at = NOW(), updated_at = NOW(), raw_callback_payload = $2
 		WHERE id = $1`
 	_, err = tx.ExecContext(ctx, query, paymentID, payloadJSON)
 	return err
@@ -181,4 +214,12 @@ func (r *repository) CreatePaymentEvent(ctx context.Context, tx *sqlx.Tx, paymen
 
 func (r *repository) BeginTxx(ctx context.Context) (*sqlx.Tx, error) {
 	return r.db.BeginTxx(ctx, nil)
+}
+
+func (r *repository) NextRobokassaInvID(ctx context.Context) (int64, error) {
+	var id int64
+	if err := r.db.QueryRowContext(ctx, `SELECT nextval('robokassa_invoice_seq')`).Scan(&id); err != nil {
+		return 0, err
+	}
+	return id, nil
 }

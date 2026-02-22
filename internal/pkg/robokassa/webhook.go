@@ -42,7 +42,7 @@ func VerifyResultSignatureWithAlgo(outSum string, invID int64, signature string,
 	}
 
 	// Case-insensitive comparison
-	return strings.EqualFold(expected, strings.TrimSpace(signature))
+	return VerifySignature(expected, signature)
 }
 
 // VerifySuccessSignature validates signature for SuccessURL
@@ -67,7 +67,7 @@ func VerifySuccessSignatureWithAlgo(outSum string, invID int64, signature string
 	}
 
 	// Case-insensitive comparison
-	return strings.EqualFold(expected, strings.TrimSpace(signature))
+	return VerifySignature(expected, signature)
 }
 
 // ParseWebhookForm parses form-encoded webhook data into structured payload
@@ -92,15 +92,14 @@ func ParseWebhookForm(formValues map[string][]string) (*WebhookPayload, error) {
 		return nil, fmt.Errorf("invalid InvId: %w", err)
 	}
 
-	// Extract custom parameters (Shp_*)
+	// Extract custom parameters (Shp_*), preserving original key casing
+	// because key casing is part of the signature base string.
 	shp := make(map[string]string)
 	for key, values := range formValues {
-		if strings.HasPrefix(strings.ToLower(key), "shp_") {
-			paramName := strings.TrimPrefix(strings.ToLower(key), "shp_")
-			if len(values) > 0 {
-				shp[paramName] = values[0]
-			}
+		if !strings.HasPrefix(strings.ToLower(key), "shp_") || len(values) == 0 {
+			continue
 		}
+		shp[key] = values[0]
 	}
 
 	return &WebhookPayload{

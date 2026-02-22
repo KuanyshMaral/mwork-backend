@@ -1,5 +1,59 @@
 basePath: /api/v1
 definitions:
+  github_com_mwork_mwork-api_internal_domain_attachment.AttachmentWithURL:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      metadata:
+        $ref: '#/definitions/github_com_mwork_mwork-api_internal_domain_attachment.Metadata'
+      mime_type:
+        type: string
+      original_name:
+        type: string
+      size_bytes:
+        type: integer
+      sort_order:
+        type: integer
+      target_id:
+        type: string
+      target_type:
+        $ref: '#/definitions/github_com_mwork_mwork-api_internal_domain_attachment.TargetType'
+      upload_id:
+        type: string
+      url:
+        type: string
+    type: object
+  github_com_mwork_mwork-api_internal_domain_attachment.Metadata:
+    properties:
+      brand:
+        type: string
+      caption:
+        description: 'For model_portfolio:'
+        type: string
+      doc_type:
+        description: 'For org_document:'
+        type: string
+      label:
+        type: string
+      project_name:
+        type: string
+      year:
+        type: integer
+    type: object
+  github_com_mwork_mwork-api_internal_domain_attachment.TargetType:
+    enum:
+    - model_portfolio
+    - casting_gallery
+    - org_document
+    - chat_attachment
+    type: string
+    x-enum-varnames:
+    - TargetModelPortfolio
+    - TargetCastingGallery
+    - TargetOrgDocument
+    - TargetChatAttachment
   github_com_mwork_mwork-api_internal_domain_subscription.LimitStatus:
     properties:
       base:
@@ -475,6 +529,8 @@ definitions:
         type: string
       pay_type:
         type: string
+      rating:
+        type: number
       requirements:
         allOf:
         - $ref: '#/definitions/internal_domain_casting.RequirementsResponse'
@@ -489,6 +545,8 @@ definitions:
         type: array
       title:
         type: string
+      total_reviews:
+        type: integer
       updated_at:
         type: string
       view_count:
@@ -830,8 +888,10 @@ definitions:
     type: object
   internal_domain_chat.MessageResponse:
     properties:
-      attachment:
-        $ref: '#/definitions/internal_domain_chat.AttachmentInfo'
+      attachments:
+        items:
+          $ref: '#/definitions/internal_domain_chat.AttachmentInfo'
+        type: array
       content:
         type: string
       created_at:
@@ -888,8 +948,10 @@ definitions:
     type: object
   internal_domain_chat.SendMessageRequest:
     properties:
-      attachment_upload_id:
-        type: string
+      attachment_upload_ids:
+        items:
+          type: string
+        type: array
       content:
         type: string
       message_type:
@@ -1495,6 +1557,8 @@ definitions:
         type: boolean
       age:
         type: integer
+      avatar_upload_id:
+        type: string
       avatar_url:
         type: string
       barter_accepted:
@@ -1540,6 +1604,10 @@ definitions:
         type: number
       name:
         type: string
+      portfolio:
+        items:
+          $ref: '#/definitions/github_com_mwork_mwork-api_internal_domain_attachment.AttachmentWithURL'
+        type: array
       profile_views:
         type: integer
       rating:
@@ -1633,11 +1701,18 @@ definitions:
         maximum: 100
         minimum: 18
         type: integer
+      avatar_upload_id:
+        type: string
       barter_accepted:
         type: boolean
       bio:
         maxLength: 2000
         type: string
+      bust_cm:
+        description: Body measurements
+        maximum: 200
+        minimum: 50
+        type: integer
       categories:
         items:
           type: string
@@ -1648,6 +1723,12 @@ definitions:
         type: string
       clothing_size:
         maxLength: 20
+        type: string
+      country:
+        maxLength: 100
+        type: string
+      description:
+        maxLength: 2000
         type: string
       experience:
         maximum: 50
@@ -1670,6 +1751,10 @@ definitions:
         maximum: 250
         minimum: 100
         type: number
+      hips_cm:
+        maximum: 200
+        minimum: 50
+        type: integer
       hourly_rate:
         minimum: 0
         type: number
@@ -1693,9 +1778,16 @@ definitions:
         items:
           type: string
         type: array
+      skin_tone:
+        maxLength: 50
+        type: string
       social_links:
         items:
           $ref: '#/definitions/internal_domain_profile.SocialLinkEntry'
+        type: array
+      specializations:
+        items:
+          type: string
         type: array
       tattoos:
         maxLength: 255
@@ -1710,6 +1802,10 @@ definitions:
         - link_only
         - hidden
         type: string
+      waist_cm:
+        maximum: 200
+        minimum: 40
+        type: integer
       weight:
         maximum: 200
         minimum: 30
@@ -2048,6 +2144,14 @@ definitions:
         type: number
       priority_search:
         type: boolean
+    type: object
+  internal_domain_subscription.PurchaseConnectsRequest:
+    properties:
+      count:
+        minimum: 1
+        type: integer
+    required:
+    - count
     type: object
   internal_domain_subscription.SubscribeRequest:
     properties:
@@ -4250,6 +4354,43 @@ paths:
       summary: Создать или получить чат-комнату
       tags:
       - Chat
+  /chat/rooms/{id}:
+    delete:
+      description: Полное удаление комнаты (доступно участникам).
+      parameters:
+      - description: ID комнаты
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Удалить комнату
+      tags:
+      - Chat
   /chat/rooms/{id}/leave:
     post:
       description: Покинуть групповую или кастинг-комнату.
@@ -4530,6 +4671,48 @@ paths:
       security:
       - BearerAuth: []
       summary: Отправить сообщение
+      tags:
+      - Chat
+  /chat/rooms/{id}/messages/{messageId}:
+    delete:
+      description: Удалить свое сообщение в комнате.
+      parameters:
+      - description: ID комнаты
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: ID сообщения
+        in: path
+        name: messageId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Удалить сообщение
       tags:
       - Chat
   /chat/rooms/{id}/read:
@@ -5804,8 +5987,6 @@ paths:
                       type: string
                   type: object
               type: object
-      security:
-      - BearerAuth: []
       summary: Страница неудачной оплаты Robokassa
       tags:
       - Payment
@@ -5829,8 +6010,6 @@ paths:
                       type: string
                   type: object
               type: object
-      security:
-      - BearerAuth: []
       summary: Страница неудачной оплаты Robokassa
       tags:
       - Payment
@@ -5901,8 +6080,6 @@ paths:
                       type: string
                   type: object
               type: object
-      security:
-      - BearerAuth: []
       summary: Страница успешной оплаты Robokassa
       tags:
       - Payment
@@ -5926,8 +6103,6 @@ paths:
                       type: string
                   type: object
               type: object
-      security:
-      - BearerAuth: []
       summary: Страница успешной оплаты Robokassa
       tags:
       - Payment
@@ -7051,6 +7226,39 @@ paths:
       security:
       - BearerAuth: []
       summary: Отмена подписки
+      tags:
+      - Subscription
+  /subscriptions/connects/purchase:
+    post:
+      parameters:
+      - description: Purchase details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_domain_subscription.PurchaseConnectsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Купить коннекты за кредиты
       tags:
       - Subscription
   /subscriptions/current:

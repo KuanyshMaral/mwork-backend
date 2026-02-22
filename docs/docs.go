@@ -3370,6 +3370,64 @@ const docTemplate = `{
                 }
             }
         },
+        "/chat/rooms/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Полное удаление комнаты (доступно участникам).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chat"
+                ],
+                "summary": "Удалить комнату",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID комнаты",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/chat/rooms/{id}/leave": {
             "post": {
                 "security": [
@@ -3803,6 +3861,71 @@ const docTemplate = `{
                     },
                     "429": {
                         "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/chat/rooms/{id}/messages/{messageId}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Удалить свое сообщение в комнате.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chat"
+                ],
+                "summary": "Удалить сообщение",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID комнаты",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ID сообщения",
+                        "name": "messageId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
                         }
@@ -5835,11 +5958,6 @@ const docTemplate = `{
         },
         "/payments/robokassa/fail": {
             "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
                 "description": "Обрабатывает редирект пользователя после неудачной оплаты (Fail URL)",
                 "produces": [
                     "application/json"
@@ -5878,11 +5996,6 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
                 "description": "Обрабатывает редирект пользователя после неудачной оплаты (Fail URL)",
                 "produces": [
                     "application/json"
@@ -5998,11 +6111,6 @@ const docTemplate = `{
         },
         "/payments/robokassa/success": {
             "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
                 "description": "Обрабатывает редирект пользователя после успешной оплаты (Success URL)",
                 "produces": [
                     "application/json"
@@ -6041,11 +6149,6 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
                 "description": "Обрабатывает редирект пользователя после успешной оплаты (Success URL)",
                 "produces": [
                     "application/json"
@@ -7912,6 +8015,59 @@ const docTemplate = `{
                 }
             }
         },
+        "/subscriptions/connects/purchase": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Subscription"
+                ],
+                "summary": "Купить коннекты за кредиты",
+                "parameters": [
+                    {
+                        "description": "Purchase details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_domain_subscription.PurchaseConnectsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/subscriptions/current": {
             "get": {
                 "security": [
@@ -8424,6 +8580,84 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "github_com_mwork_mwork-api_internal_domain_attachment.AttachmentWithURL": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "metadata": {
+                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_domain_attachment.Metadata"
+                },
+                "mime_type": {
+                    "type": "string"
+                },
+                "original_name": {
+                    "type": "string"
+                },
+                "size_bytes": {
+                    "type": "integer"
+                },
+                "sort_order": {
+                    "type": "integer"
+                },
+                "target_id": {
+                    "type": "string"
+                },
+                "target_type": {
+                    "$ref": "#/definitions/github_com_mwork_mwork-api_internal_domain_attachment.TargetType"
+                },
+                "upload_id": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_mwork_mwork-api_internal_domain_attachment.Metadata": {
+            "type": "object",
+            "properties": {
+                "brand": {
+                    "type": "string"
+                },
+                "caption": {
+                    "description": "For model_portfolio:",
+                    "type": "string"
+                },
+                "doc_type": {
+                    "description": "For org_document:",
+                    "type": "string"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "project_name": {
+                    "type": "string"
+                },
+                "year": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_mwork_mwork-api_internal_domain_attachment.TargetType": {
+            "type": "string",
+            "enum": [
+                "model_portfolio",
+                "casting_gallery",
+                "org_document",
+                "chat_attachment"
+            ],
+            "x-enum-varnames": [
+                "TargetModelPortfolio",
+                "TargetCastingGallery",
+                "TargetOrgDocument",
+                "TargetChatAttachment"
+            ]
+        },
         "github_com_mwork_mwork-api_internal_domain_subscription.LimitStatus": {
             "type": "object",
             "properties": {
@@ -9126,6 +9360,9 @@ const docTemplate = `{
                 "pay_type": {
                     "type": "string"
                 },
+                "rating": {
+                    "type": "number"
+                },
                 "requirements": {
                     "description": "Model requirements",
                     "allOf": [
@@ -9148,6 +9385,9 @@ const docTemplate = `{
                 },
                 "title": {
                     "type": "string"
+                },
+                "total_reviews": {
+                    "type": "integer"
                 },
                 "updated_at": {
                     "type": "string"
@@ -9627,8 +9867,11 @@ const docTemplate = `{
         "internal_domain_chat.MessageResponse": {
             "type": "object",
             "properties": {
-                "attachment": {
-                    "$ref": "#/definitions/internal_domain_chat.AttachmentInfo"
+                "attachments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_domain_chat.AttachmentInfo"
+                    }
                 },
                 "content": {
                     "type": "string"
@@ -9715,8 +9958,11 @@ const docTemplate = `{
         "internal_domain_chat.SendMessageRequest": {
             "type": "object",
             "properties": {
-                "attachment_upload_id": {
-                    "type": "string"
+                "attachment_upload_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "content": {
                     "type": "string"
@@ -10599,6 +10845,9 @@ const docTemplate = `{
                 "age": {
                     "type": "integer"
                 },
+                "avatar_upload_id": {
+                    "type": "string"
+                },
                 "avatar_url": {
                     "type": "string"
                 },
@@ -10665,6 +10914,12 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "portfolio": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_mwork_mwork-api_internal_domain_attachment.AttachmentWithURL"
+                    }
                 },
                 "profile_views": {
                     "type": "integer"
@@ -10800,12 +11055,21 @@ const docTemplate = `{
                     "maximum": 100,
                     "minimum": 18
                 },
+                "avatar_upload_id": {
+                    "type": "string"
+                },
                 "barter_accepted": {
                     "type": "boolean"
                 },
                 "bio": {
                     "type": "string",
                     "maxLength": 2000
+                },
+                "bust_cm": {
+                    "description": "Body measurements",
+                    "type": "integer",
+                    "maximum": 200,
+                    "minimum": 50
                 },
                 "categories": {
                     "type": "array",
@@ -10821,6 +11085,14 @@ const docTemplate = `{
                 "clothing_size": {
                     "type": "string",
                     "maxLength": 20
+                },
+                "country": {
+                    "type": "string",
+                    "maxLength": 100
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 2000
                 },
                 "experience": {
                     "type": "integer",
@@ -10848,6 +11120,11 @@ const docTemplate = `{
                     "type": "number",
                     "maximum": 250,
                     "minimum": 100
+                },
+                "hips_cm": {
+                    "type": "integer",
+                    "maximum": 200,
+                    "minimum": 50
                 },
                 "hourly_rate": {
                     "type": "number",
@@ -10881,10 +11158,20 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "skin_tone": {
+                    "type": "string",
+                    "maxLength": 50
+                },
                 "social_links": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/internal_domain_profile.SocialLinkEntry"
+                    }
+                },
+                "specializations": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
                     }
                 },
                 "tattoos": {
@@ -10904,6 +11191,11 @@ const docTemplate = `{
                         "link_only",
                         "hidden"
                     ]
+                },
+                "waist_cm": {
+                    "type": "integer",
+                    "maximum": 200,
+                    "minimum": 40
                 },
                 "weight": {
                     "type": "number",
@@ -11404,6 +11696,18 @@ const docTemplate = `{
                 },
                 "priority_search": {
                     "type": "boolean"
+                }
+            }
+        },
+        "internal_domain_subscription.PurchaseConnectsRequest": {
+            "type": "object",
+            "required": [
+                "count"
+            ],
+            "properties": {
+                "count": {
+                    "type": "integer",
+                    "minimum": 1
                 }
             }
         },

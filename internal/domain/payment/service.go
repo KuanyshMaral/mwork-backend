@@ -8,6 +8,7 @@ import (
 	"math/big"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -23,21 +24,20 @@ type Service struct {
 	subSvc          *subscription.Service
 	creditSvc       credit.Service // ✅ FIXED: Using credit.Service interface
 	robokassaConfig RobokassaConfig
+	roboSvc         RobokassaService
+	robokassaErr    error
 }
 
 // RobokassaConfig содержит настройки интеграции с платежной системой Robokassa
 type RobokassaConfig struct {
-	MerchantLogin string                  // Идентификатор магазина в Robokassa
-	Password1     string                  // Пароль #1 для формирования подписи
-	Password2     string                  // Пароль #2 для проверки результата оплаты
-	TestPassword1 string                  // Тестовый пароль #1
-	TestPassword2 string                  // Тестовый пароль #2
-	IsTest        bool                    // Режим тестирования
-	HashAlgo      robokassa.HashAlgorithm // Алгоритм хеширования (MD5, SHA256, SHA512)
-	PaymentURL    string                  // URL платежной формы Robokassa
-	ResultURL     string                  // URL для получения результата оплаты
-	SuccessURL    string                  // URL для редиректа после успешной оплаты
-	FailURL       string                  // URL для редиректа после неудачной оплаты
+	MerchantLogin string // Идентификатор магазина в Robokassa
+	Password1     string
+	Password2     string
+	TestPassword1 string // Тестовый пароль #1
+	TestPassword2 string // Тестовый пароль #2
+	IsTest        bool   // Режим тестирования
+	BaseURL       string
+	HashAlgo      string
 }
 
 // NewService создает новый экземпляр сервиса платежей
@@ -51,6 +51,19 @@ func NewService(repo Repository, subSvc *subscription.Service) *Service {
 // SetRobokassaConfig устанавливает конфигурацию Robokassa
 func (s *Service) SetRobokassaConfig(cfg RobokassaConfig) {
 	s.robokassaConfig = cfg
+	password1 := strings.TrimSpace(cfg.Password1)
+	password2 := strings.TrimSpace(cfg.Password2)
+	if cfg.IsTest {
+		password1 = strings.TrimSpace(cfg.TestPassword1)
+		password2 = strings.TrimSpace(cfg.TestPassword2)
+	}
+	algo, err := robokassa.NormalizeHashAlgorithm(cfg.HashAlgo)
+	if err != nil {
+		s.robokassaErr = fmt.Errorf("invalid robokassa hash algorithm: %w", err)
+		return
+	}
+	s.roboSvc = RobokassaService{MerchantLogin: strings.TrimSpace(cfg.MerchantLogin), Password1: password1, Password2: password2, BaseURL: strings.TrimSpace(cfg.BaseURL), HashAlgo: algo}
+	s.robokassaErr = s.validateRobokassaRuntimeConfig()
 }
 
 // InitRobokassaPaymentRequest содержит параметры для инициализации платежа через Robokassa
@@ -59,6 +72,8 @@ type InitRobokassaPaymentRequest struct {
 	SubscriptionID uuid.UUID // ID подписки
 	Amount         string    // Сумма платежа (строка для точности)
 	Description    string    // Описание платежа
+	Type           string
+	Plan           string
 }
 
 // InitRobokassaPaymentResponse содержит данные созданного платежа
@@ -73,7 +88,7 @@ type InitRobokassaPaymentResponse struct {
 // Создает запись о платеже в БД, генерирует подпись и возвращает URL для оплаты.
 //
 // Процесс:
-// 1. Генерирует уникальный InvID на основе timestamp
+// 1. Генерирует уникальный InvID через БД sequence
 // 2. Формирует подпись запроса согласно документации Robokassa
 // 3. Создает запись о платеже со статусом pending
 // 4. Возвращает URL платежной формы
@@ -83,47 +98,39 @@ type InitRobokassaPaymentResponse struct {
 //   - signing error: ошибка при генерации подписи
 //   - database error: ошибка при создании записи в БД
 func (s *Service) InitRobokassaPayment(ctx context.Context, req InitRobokassaPaymentRequest) (*InitRobokassaPaymentResponse, error) {
-	invID := time.Now().UnixNano()
-	amountRat, ok := new(big.Rat).SetString(req.Amount)
-	if !ok {
+	if s.robokassaErr != nil {
+		return nil, s.robokassaErr
+	}
+	invID, err := s.repo.NextRobokassaInvID(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate invoice id: %w", err)
+	}
+	amountRat, err := normalizeAmount(req.Amount)
+	if err != nil {
 		return nil, fmt.Errorf("invalid amount")
 	}
 	outSum := amountRat.FloatString(2)
-	shp := map[string]string{"Shp_payment_id": invIDString(invID)}
-	password1 := s.robokassaConfig.Password1
-	if s.robokassaConfig.IsTest && s.robokassaConfig.TestPassword1 != "" {
-		password1 = s.robokassaConfig.TestPassword1
-	}
-
-	base := robokassa.BuildStartSignatureBase(s.robokassaConfig.MerchantLogin, outSum, invIDString(invID), password1, nil, shp)
-	signature, err := robokassa.Sign(base, s.robokassaConfig.HashAlgo)
-	if err != nil {
-		return nil, err
-	}
-
-	initPayload := map[string]string{
-		"MerchantLogin":  s.robokassaConfig.MerchantLogin,
-		"OutSum":         outSum,
-		"InvId":          invIDString(invID),
-		"Description":    req.Description,
-		"SignatureValue": signature,
-		"ResultURL":      s.robokassaConfig.ResultURL,
-		"SuccessURL":     s.robokassaConfig.SuccessURL,
-		"FailURL":        s.robokassaConfig.FailURL,
-		"Shp_payment_id": invIDString(invID),
-	}
-	if s.robokassaConfig.IsTest {
-		initPayload["IsTest"] = "1"
-	}
+	initPayload := map[string]string{"OutSum": outSum, "InvId": invIDString(invID)}
 
 	rawInit, _ := json.Marshal(initPayload)
+	subscriptionID := uuid.NullUUID{Valid: false}
+	if req.SubscriptionID != uuid.Nil {
+		subscriptionID = uuid.NullUUID{UUID: req.SubscriptionID, Valid: true}
+	}
+	paymentType := strings.TrimSpace(req.Type)
+	if paymentType == "" {
+		paymentType = "subscription"
+	}
 	payment := &Payment{
 		ID:             uuid.New(),
 		UserID:         req.UserID,
-		SubscriptionID: uuid.NullUUID{UUID: req.SubscriptionID, Valid: true},
+		SubscriptionID: subscriptionID,
+		Type:           paymentType,
+		Plan:           sql.NullString{String: req.Plan, Valid: req.Plan != ""},
 		Amount:         ratToFloat64(amountRat),
 		Currency:       "KZT",
 		Status:         StatusPending,
+		InvID:          sql.NullString{String: invIDString(invID), Valid: true},
 		Provider:       sql.NullString{String: "robokassa", Valid: true},
 		ExternalID:     sql.NullString{String: invIDString(invID), Valid: true},
 		RobokassaInvID: sql.NullInt64{Int64: invID, Valid: true},
@@ -135,7 +142,16 @@ func (s *Service) InitRobokassaPayment(ctx context.Context, req InitRobokassaPay
 		return nil, err
 	}
 
-	paymentURL := s.robokassaConfig.PaymentURL + "?" + encodeQuery(initPayload)
+	paymentURL, err := s.roboSvc.GeneratePaymentLink(outSum, invIDString(invID))
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate robokassa payment link: %w", err)
+	}
+	if req.Description != "" {
+		paymentURL += "&Description=" + url.QueryEscape(req.Description)
+	}
+	if s.robokassaConfig.IsTest {
+		paymentURL += "&IsTest=1"
+	}
 	return &InitRobokassaPaymentResponse{PaymentID: payment.ID, InvID: invID, PaymentURL: paymentURL, Status: string(StatusPending)}, nil
 }
 
@@ -157,27 +173,16 @@ func (s *Service) InitRobokassaPayment(ctx context.Context, req InitRobokassaPay
 //   - payment not found: платеж не найден
 //   - amount mismatch: сумма не совпадает с ожидаемой
 func (s *Service) ProcessRobokassaResult(ctx context.Context, outSum, invID, signature string, shp map[string]string, rawPayload map[string]string) error {
-	password2 := s.robokassaConfig.Password2
-	if s.robokassaConfig.IsTest && s.robokassaConfig.TestPassword2 != "" {
-		password2 = s.robokassaConfig.TestPassword2
+	if s.robokassaErr != nil {
+		return s.robokassaErr
 	}
-
-	base := robokassa.BuildResultSignatureBase(outSum, invID, password2, shp)
-	expectedSignature, err := robokassa.Sign(base, s.robokassaConfig.HashAlgo)
-	if err != nil {
-		return err
-	}
-	if !robokassa.VerifySignature(expectedSignature, signature) {
+	if !s.roboSvc.ValidateResultSignature(outSum, invID, signature, shp) {
 		return fmt.Errorf("invalid signature")
 	}
 
-	invIDInt, err := strconv.ParseInt(invID, 10, 64)
+	callbackAmount, err := normalizeAmount(outSum)
 	if err != nil {
-		return fmt.Errorf("invalid inv_id: %w", err)
-	}
-	callbackAmount, err := robokassa.ParseAmount(outSum)
-	if err != nil {
-		return err
+		return fmt.Errorf("invalid amount")
 	}
 
 	tx, err := s.repo.BeginTxx(ctx)
@@ -186,27 +191,46 @@ func (s *Service) ProcessRobokassaResult(ctx context.Context, outSum, invID, sig
 	}
 	defer tx.Rollback()
 
-	payment, err := s.repo.GetByRobokassaInvIDForUpdate(ctx, tx, invIDInt)
+	payment, err := s.repo.GetByInvIDForUpdate(ctx, tx, invID)
 	if err != nil {
 		return err
 	}
 	if payment == nil {
 		return ErrPaymentNotFound
 	}
-	if payment.Status == StatusCompleted {
+	if payment.Status == StatusPaid || payment.Status == StatusCompleted {
 		return tx.Commit()
+	}
+	if payment.Status != StatusPending {
+		return fmt.Errorf("invalid payment status")
 	}
 
 	expectedAmount, err := robokassa.ParseAmount(fmt.Sprintf("%.2f", payment.Amount))
 	if err != nil {
-		return err
+		return fmt.Errorf("invalid expected amount")
 	}
 	if !robokassa.AmountsEqual(expectedAmount, callbackAmount) {
 		return fmt.Errorf("amount mismatch")
 	}
 
+	if s.robokassaConfig.IsTest {
+		if !isTestCallback(rawPayload) {
+			return fmt.Errorf("test mode callback must include IsTest=1")
+		}
+	} else if isTestCallback(rawPayload) {
+		return fmt.Errorf("test callback is not allowed in production mode")
+	}
+
 	if err := s.repo.MarkRobokassaSucceeded(ctx, tx, payment.ID, rawPayload); err != nil {
 		return err
+	}
+
+	if payment.Type == "responses" && s.creditSvc != nil && payment.ResponsePackage.Valid {
+		paymentIDStr := payment.ID.String()
+		meta := credit.TransactionMeta{RelatedEntityType: "payment", RelatedEntityID: payment.ID, Description: "responses package purchase", PaymentID: &paymentIDStr}
+		if err := s.creditSvc.Add(ctx, payment.UserID, int(payment.ResponsePackage.Int64), credit.TransactionTypePurchase, meta); err != nil {
+			return err
+		}
 	}
 
 	if payment.SubscriptionID.Valid {
@@ -224,6 +248,58 @@ func (s *Service) ProcessRobokassaResult(ctx context.Context, outSum, invID, sig
 }
 
 func invIDString(invID int64) string { return strconv.FormatInt(invID, 10) }
+
+func (s *Service) CreateSubscriptionPayment(ctx context.Context, userID uuid.UUID, plan string) (*InitRobokassaPaymentResponse, error) {
+	plan = strings.ToLower(strings.TrimSpace(plan))
+	planData, err := s.subSvc.GetPlan(ctx, subscription.PlanID(plan))
+	if err != nil || planData == nil {
+		return nil, fmt.Errorf("invalid plan")
+	}
+
+	sub, err := s.subSvc.Subscribe(ctx, userID, &subscription.SubscribeRequest{
+		PlanID:        plan,
+		BillingPeriod: string(subscription.BillingMonthly),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return s.InitRobokassaPayment(ctx, InitRobokassaPaymentRequest{
+		UserID:         userID,
+		SubscriptionID: sub.ID,
+		Amount:         fmt.Sprintf("%.2f", planData.PriceMonthly),
+		Description:    "subscription " + plan,
+		Type:           "subscription",
+		Plan:           plan,
+	})
+}
+
+func (s *Service) CreateResponsePayment(ctx context.Context, userID uuid.UUID, pack int) (*InitRobokassaPaymentResponse, error) {
+	if s.robokassaErr != nil {
+		return nil, s.robokassaErr
+	}
+	prices := map[int]float64{10: 990, 20: 1790, 50: 3990}
+	amount, ok := prices[pack]
+	if !ok {
+		return nil, fmt.Errorf("invalid package")
+	}
+	invID, err := s.repo.NextRobokassaInvID(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate invoice id: %w", err)
+	}
+	payment := &Payment{ID: uuid.New(), UserID: userID, Type: "responses", ResponsePackage: sql.NullInt64{Int64: int64(pack), Valid: true}, InvID: sql.NullString{String: invIDString(invID), Valid: true}, Amount: amount, Currency: "KZT", Status: StatusPending, Provider: sql.NullString{String: "robokassa", Valid: true}, ExternalID: sql.NullString{String: invIDString(invID), Valid: true}, RobokassaInvID: sql.NullInt64{Int64: invID, Valid: true}, Description: sql.NullString{String: fmt.Sprintf("responses package %d", pack), Valid: true}}
+	if err := s.repo.CreateRobokassaPending(ctx, payment); err != nil {
+		return nil, err
+	}
+	url, err := s.roboSvc.GeneratePaymentLink(fmt.Sprintf("%.2f", amount), invIDString(invID))
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate robokassa payment link: %w", err)
+	}
+	if s.robokassaConfig.IsTest {
+		url += "&IsTest=1"
+	}
+	return &InitRobokassaPaymentResponse{PaymentID: payment.ID, InvID: invID, PaymentURL: url, Status: string(StatusPending)}, nil
+}
 
 func encodeQuery(params map[string]string) string {
 	values := url.Values{}
@@ -452,7 +528,35 @@ func (s *Service) GetPaymentHistory(ctx context.Context, userID uuid.UUID, limit
 	return s.repo.ListByUser(ctx, userID, limit, offset)
 }
 
+func (s *Service) validateRobokassaRuntimeConfig() error {
+	if s.roboSvc.MerchantLogin == "" {
+		return fmt.Errorf("robokassa merchant login is required")
+	}
+	if s.roboSvc.Password1 == "" {
+		return fmt.Errorf("robokassa password1 is required")
+	}
+	if s.roboSvc.Password2 == "" {
+		return fmt.Errorf("robokassa password2 is required")
+	}
+	return nil
+}
+
 // Errors
 var (
 	ErrPaymentNotFound = subscription.ErrPaymentFailed
 )
+
+func normalizeAmount(raw string) (*big.Rat, error) {
+	normalized := strings.TrimSpace(strings.ReplaceAll(raw, ",", "."))
+	return robokassa.ParseAmount(normalized)
+}
+
+func isTestCallback(rawPayload map[string]string) bool {
+	for k, v := range rawPayload {
+		if strings.EqualFold(k, "IsTest") {
+			trimmed := strings.TrimSpace(strings.ToLower(v))
+			return trimmed == "1" || trimmed == "true"
+		}
+	}
+	return false
+}

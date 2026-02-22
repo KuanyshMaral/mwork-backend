@@ -16,6 +16,8 @@ var (
 	ErrGeoBlocked              = errors.New("geo blocked for urgent casting")
 	ErrCastingFullOrClosed     = errors.New("casting is full or closed")
 	ErrRequirementsNotMet      = errors.New("model does not meet casting requirements")
+	// ErrInsufficientConnects is returned when both free and purchased response connects are exhausted (HTTP 402).
+	ErrInsufficientConnects = errors.New("insufficient response connects — please top up")
 )
 
 // RequirementsError carries details about which casting requirements were not met.
