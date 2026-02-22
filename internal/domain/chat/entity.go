@@ -61,20 +61,25 @@ func (m *RoomMember) IsAdmin() bool {
 
 // Message represents a chat message
 type Message struct {
-	ID                 uuid.UUID     `db:"id" json:"id"`
-	RoomID             uuid.UUID     `db:"room_id" json:"room_id"`
-	SenderID           uuid.UUID     `db:"sender_id" json:"sender_id"`
-	Content            string        `db:"content" json:"content"`
-	MessageType        MessageType   `db:"message_type" json:"message_type"`
-	AttachmentUploadID uuid.NullUUID `db:"attachment_upload_id" json:"attachment_upload_id,omitempty"`
-	IsRead             bool          `db:"is_read" json:"is_read"`
-	ReadAt             sql.NullTime  `db:"read_at" json:"read_at,omitempty"`
-	CreatedAt          time.Time     `db:"created_at" json:"created_at"`
-	DeletedAt          sql.NullTime  `db:"deleted_at" json:"-"`
+	ID          uuid.UUID    `db:"id" json:"id"`
+	RoomID      uuid.UUID    `db:"room_id" json:"room_id"`
+	SenderID    uuid.UUID    `db:"sender_id" json:"sender_id"`
+	Content     string       `db:"content" json:"content"`
+	MessageType MessageType  `db:"message_type" json:"message_type"`
+	IsRead      bool         `db:"is_read" json:"is_read"`
+	ReadAt      sql.NullTime `db:"read_at" json:"read_at,omitempty"`
+	CreatedAt   time.Time    `db:"created_at" json:"created_at"`
+	DeletedAt   sql.NullTime `db:"deleted_at" json:"-"`
 
-	// ID-joined fields
-	AttachmentURL  sql.NullString `db:"attachment_url" json:"-"`
-	AttachmentName sql.NullString `db:"attachment_name" json:"-"`
-	AttachmentMime sql.NullString `db:"attachment_mime" json:"-"`
-	AttachmentSize sql.NullInt64  `db:"attachment_size" json:"-"`
+	// ID-joined polymorphic attachments
+	Attachments []*AttachmentInfo `json:"-"`
+}
+
+// AttachmentInfo matches the generic polymorphic attachments table DTO
+type AttachmentInfo struct {
+	UploadID uuid.UUID `json:"upload_id"`
+	URL      string    `json:"url"`
+	FileName string    `json:"file_name"`
+	MimeType string    `json:"mime_type"`
+	Size     int64     `json:"size"`
 }

@@ -38,6 +38,16 @@ func (f *fakeEmailGuardUserRepo) UpdateStatus(context.Context, uuid.UUID, user.S
 func (f *fakeEmailGuardUserRepo) UpdateLastLogin(context.Context, uuid.UUID, string) error {
 	return nil
 }
+func (f *fakeEmailGuardUserRepo) DeductModelConnect(context.Context, uuid.UUID) error { return nil }
+func (f *fakeEmailGuardUserRepo) RefreshModelConnectsIfNeeded(context.Context, uuid.UUID, int) error {
+	return nil
+}
+func (f *fakeEmailGuardUserRepo) GetConnectsBalance(context.Context, uuid.UUID) (int, int, error) {
+	return 0, 0, nil
+}
+func (f *fakeEmailGuardUserRepo) AddPurchasedModelConnects(context.Context, uuid.UUID, int) error {
+	return nil
+}
 
 func TestRequireVerifiedEmailBlocksUnverifiedProtectedEndpoint(t *testing.T) {
 	uid := uuid.New()

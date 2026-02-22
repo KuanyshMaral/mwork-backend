@@ -48,7 +48,7 @@ func (s *NotifiableService) SendMessage(ctx context.Context, userID, roomID uuid
 		if req.MessageType == "image" {
 			preview = "📷 Фото"
 		}
-		if req.AttachmentUploadID != nil {
+		if len(req.AttachmentUploadIDs) > 0 {
 			preview = "📎 Вложение"
 		}
 

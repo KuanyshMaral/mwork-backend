@@ -16,11 +16,19 @@ type NotificationService interface {
 	NotifyAgencyFollowersNewCasting(ctx context.Context, organizationID uuid.UUID, castingID uuid.UUID, castingTitle string) error
 }
 
+// PlanChecker checks subscription plan limits for casting creation.
+type PlanChecker interface {
+	// MaxActiveCastings returns the maximum number of active castings the user's plan allows.
+	// Returns 0 for unlimited.
+	MaxActiveCastings(ctx context.Context, userID uuid.UUID) (int, error)
+}
+
 // Service handles casting business logic
 type Service struct {
 	repo         Repository
 	userRepo     user.Repository
 	notifService NotificationService
+	planChecker  PlanChecker
 }
 
 // NewService creates casting service
@@ -34,6 +42,11 @@ func NewService(repo Repository, userRepo user.Repository) *Service {
 // SetNotificationService sets the notification service (optional)
 func (s *Service) SetNotificationService(notifService NotificationService) {
 	s.notifService = notifService
+}
+
+// SetPlanChecker injects the plan checker (optional, to avoid circular dependency).
+func (s *Service) SetPlanChecker(pc PlanChecker) {
+	s.planChecker = pc
 }
 
 func validateCreateCastingRequest(req *CreateCastingRequest) ValidationErrors {
@@ -230,6 +243,17 @@ func (s *Service) Create(ctx context.Context, userID uuid.UUID, req *CreateCasti
 
 	if (u.Role == user.RoleEmployer || u.Role == user.RoleAgency) && !u.IsVerificationApproved() && requestedStatus != StatusDraft {
 		return nil, ErrEmployerNotVerified
+	}
+
+	// Camp-2 Quota check: MaxActiveCastings (enforced for active castings only, not drafts)
+	if s.planChecker != nil && requestedStatus != StatusDraft {
+		maxActive, err := s.planChecker.MaxActiveCastings(ctx, userID)
+		if err == nil && maxActive > 0 {
+			currentActive, countErr := s.repo.CountActiveByCreatorID(ctx, userID.String())
+			if countErr == nil && currentActive >= maxActive {
+				return nil, ErrActiveCastingQuotaExceeded
+			}
+		}
 	}
 
 	now := time.Now()

@@ -2,7 +2,7 @@ package chat
 
 import (
 	"context"
-	"database/sql"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -82,10 +82,31 @@ func (s *Service) CreateOrGetRoom(ctx context.Context, userID uuid.UUID, req *Cr
 		if req.CastingID == nil {
 			return nil, ErrCastingRequired
 		}
-		if req.RecipientID != nil {
-			return s.CreateCastingRoom(ctx, userID, *req.CastingID, []uuid.UUID{*req.RecipientID}, req.Name)
+		if req.RecipientID == nil {
+			return nil, ErrUserNotFound
 		}
-		return s.CreateCastingRoom(ctx, userID, *req.CastingID, req.MemberIDs, req.Name)
+
+		// Variant A: Unified Direct Chat
+		// Map casting chat request to a direct chat between the employer and model
+		room, err := s.CreateDirectRoom(ctx, userID, *req.RecipientID, req.CastingID)
+		if err != nil {
+			return nil, err
+		}
+
+		// Send system message to explicitly indicate casting context
+		msgContent := req.Message
+		msgType := "text"
+		if msgContent == "" {
+			msgContent = "Отклик на кастинг" // Generic context if no explicit message was provided
+			msgType = "system"
+		}
+
+		_, _ = s.SendMessage(ctx, userID, room.ID, &SendMessageRequest{
+			Content:     msgContent,
+			MessageType: msgType,
+		})
+
+		return room, nil
 
 	case RoomTypeGroup:
 		return s.CreateGroupRoom(ctx, userID, req.MemberIDs, req.Name)
@@ -192,20 +213,22 @@ func (s *Service) SendMessage(ctx context.Context, userID, roomID uuid.UUID, req
 		}
 	}
 
-	var attachmentInfo *AttachmentInfo
-	if req.AttachmentUploadID != nil {
-		var err error
-		attachmentInfo, err = s.uploadResolver.GetAttachmentInfo(ctx, *req.AttachmentUploadID, userID)
-		if err != nil {
-			return nil, err
-		}
+	var attachments []*AttachmentInfo
+	if len(req.AttachmentUploadIDs) > 0 {
+		for _, uploadID := range req.AttachmentUploadIDs {
+			attInfo, err := s.uploadResolver.GetAttachmentInfo(ctx, uploadID, userID)
+			if err != nil {
+				return nil, err
+			}
+			attachments = append(attachments, attInfo)
 
-		if req.Content == "" {
-			req.Content = attachmentInfo.URL
-		}
-		// Auto-detect image type from mime if needed, or stick to what client sent
-		if attachmentInfo.MimeType != "" && len(attachmentInfo.MimeType) >= 6 && attachmentInfo.MimeType[:6] == "image/" {
-			msgType = MessageTypeImage
+			if req.Content == "" {
+				req.Content = attInfo.URL
+			}
+			// Auto-detect image type from mime if needed
+			if attInfo.MimeType != "" && len(attInfo.MimeType) >= 6 && attInfo.MimeType[:6] == "image/" {
+				msgType = MessageTypeImage
+			}
 		}
 	}
 
@@ -219,12 +242,8 @@ func (s *Service) SendMessage(ctx context.Context, userID, roomID uuid.UUID, req
 		CreatedAt:   time.Now(),
 	}
 
-	if attachmentInfo != nil {
-		msg.AttachmentUploadID = uuid.NullUUID{UUID: attachmentInfo.UploadID, Valid: true}
-		msg.AttachmentURL = sql.NullString{String: attachmentInfo.URL, Valid: true}
-		msg.AttachmentName = sql.NullString{String: attachmentInfo.FileName, Valid: true}
-		msg.AttachmentMime = sql.NullString{String: attachmentInfo.MimeType, Valid: true}
-		msg.AttachmentSize = sql.NullInt64{Int64: attachmentInfo.Size, Valid: true}
+	if len(attachments) > 0 {
+		msg.Attachments = attachments
 	}
 
 	if err := s.repo.CreateMessage(ctx, msg); err != nil {
@@ -258,7 +277,7 @@ func (s *Service) SendMessage(ctx context.Context, userID, roomID uuid.UUID, req
 			if req.MessageType == "image" {
 				preview = "📷 Фото"
 			}
-			if req.AttachmentUploadID != nil {
+			if len(req.AttachmentUploadIDs) > 0 {
 				preview = "📎 Вложение"
 			}
 
@@ -323,4 +342,61 @@ func (s *Service) MarkAsRead(ctx context.Context, userID, roomID uuid.UUID) erro
 // GetUnreadCount returns total unread count for user
 func (s *Service) GetUnreadCount(ctx context.Context, userID uuid.UUID) (int, error) {
 	return s.repo.CountUnreadByUser(ctx, userID)
+}
+
+// DeleteRoom hard deletes a room and its messages. Only admins or members can do this.
+func (s *Service) DeleteRoom(ctx context.Context, userID, roomID uuid.UUID) error {
+	// Verify room and access
+	room, err := s.repo.GetRoomByID(ctx, roomID)
+	if err != nil || room == nil {
+		return ErrRoomNotFound
+	}
+	isMember, err := s.repo.IsMember(ctx, roomID, userID)
+	if err != nil {
+		return err
+	}
+	if !isMember {
+		return ErrNotRoomMember
+	}
+
+	// For group chats, only admin/creator might delete it. For direct, any member can hide/delete.
+	// For simplicity, we allow any member of a direct/casting chat to delete the whole room
+	// Note: in a pure implementation, you'd hide it for one user, but hard-delete is requested.
+	if room.RoomType == RoomTypeGroup {
+		member, err := s.repo.GetMember(ctx, roomID, userID)
+		if err != nil || member == nil || !member.IsAdmin() {
+			return errors.New("only room admins can delete group chats") // Use explicit error
+		}
+	}
+
+	return s.repo.DeleteRoom(ctx, roomID)
+}
+
+// DeleteMessage soft-deletes a message. Only the original sender can do this.
+func (s *Service) DeleteMessage(ctx context.Context, userID, messageID uuid.UUID) error {
+	msg, err := s.repo.GetMessageByID(ctx, messageID)
+	if err != nil || msg == nil {
+		return errors.New("message not found")
+	}
+
+	if msg.SenderID != userID {
+		return errors.New("you can only delete your own messages")
+	}
+
+	// Soft delete in DB
+	err = s.repo.DeleteMessage(ctx, messageID)
+	if err != nil {
+		return err
+	}
+
+	// Broadcast message deletion if Hub is active
+	if s.hub != nil {
+		s.hub.BroadcastToRoom(msg.RoomID, &WSEvent{
+			Type:      EventDeleteMessage,
+			RoomID:    msg.RoomID,
+			MessageID: msg.ID,
+		})
+	}
+
+	return nil
 }

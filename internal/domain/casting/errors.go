@@ -3,15 +3,16 @@ package casting
 import "errors"
 
 var (
-	ErrCastingNotFound         = errors.New("casting not found")
-	ErrNotCastingOwner         = errors.New("you can only edit your own castings")
-	ErrCastingNotActive        = errors.New("casting is not active")
-	ErrInvalidStatus           = errors.New("invalid casting status")
-	ErrInvalidStatusTransition = errors.New("invalid casting status transition")
-	ErrCannotDeleteActive      = errors.New("cannot delete active casting, close it first")
-	ErrOnlyEmployersCanCreate  = errors.New("only employers can create castings")
-	ErrCastingFullOrClosed     = errors.New("casting is full or closed")
-	ErrEmployerNotVerified     = errors.New("employer account is pending verification")
+	ErrCastingNotFound            = errors.New("casting not found")
+	ErrNotCastingOwner            = errors.New("you can only edit your own castings")
+	ErrCastingNotActive           = errors.New("casting is not active")
+	ErrInvalidStatus              = errors.New("invalid casting status")
+	ErrInvalidStatusTransition    = errors.New("invalid casting status transition")
+	ErrCannotDeleteActive         = errors.New("cannot delete active casting, close it first")
+	ErrOnlyEmployersCanCreate     = errors.New("only employers can create castings")
+	ErrCastingFullOrClosed        = errors.New("casting is full or closed")
+	ErrEmployerNotVerified        = errors.New("employer account is pending verification")
+	ErrActiveCastingQuotaExceeded = errors.New("active casting quota exceeded for your current plan")
 
 	ErrInvalidPayRange         = errors.New("invalid pay range")
 	ErrInvalidDateRange        = errors.New("invalid date range")

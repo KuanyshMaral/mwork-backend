@@ -18,9 +18,9 @@ type CreateRoomRequest struct {
 
 // SendMessageRequest for WebSocket/POST
 type SendMessageRequest struct {
-	Content            string     `json:"content,omitempty"`
-	MessageType        string     `json:"message_type,omitempty"`
-	AttachmentUploadID *uuid.UUID `json:"attachment_upload_id,omitempty"`
+	Content             string      `json:"content,omitempty"`
+	MessageType         string      `json:"message_type,omitempty"`
+	AttachmentUploadIDs []uuid.UUID `json:"attachment_upload_ids,omitempty"`
 }
 
 // MarkReadRequest for POST /chat/rooms/{id}/read
@@ -52,24 +52,15 @@ type ParticipantInfo struct {
 
 // MessageResponse represents message in API
 type MessageResponse struct {
-	ID          uuid.UUID       `json:"id"`
-	RoomID      uuid.UUID       `json:"room_id"`
-	SenderID    uuid.UUID       `json:"sender_id"`
-	Content     string          `json:"content"`
-	MessageType string          `json:"message_type"`
-	Attachment  *AttachmentInfo `json:"attachment,omitempty"`
-	IsRead      bool            `json:"is_read"`
-	IsMine      bool            `json:"is_mine"` // Helper for client
-	CreatedAt   string          `json:"created_at"`
-}
-
-// AttachmentInfo represents file attachment metadata
-type AttachmentInfo struct {
-	UploadID uuid.UUID `json:"upload_id"`
-	URL      string    `json:"url"`
-	FileName string    `json:"file_name"`
-	MimeType string    `json:"mime_type"`
-	Size     int64     `json:"size"`
+	ID          uuid.UUID         `json:"id"`
+	RoomID      uuid.UUID         `json:"room_id"`
+	SenderID    uuid.UUID         `json:"sender_id"`
+	Content     string            `json:"content"`
+	MessageType string            `json:"message_type"`
+	Attachments []*AttachmentInfo `json:"attachments,omitempty"`
+	IsRead      bool              `json:"is_read"`
+	IsMine      bool              `json:"is_mine"` // Helper for client
+	CreatedAt   string            `json:"created_at"`
 }
 
 // MessageResponseFromEntity converts entity to response
@@ -85,14 +76,8 @@ func MessageResponseFromEntity(m *Message, currentUserID uuid.UUID) *MessageResp
 		CreatedAt:   m.CreatedAt.Format(time.RFC3339),
 	}
 
-	if m.AttachmentUploadID.Valid {
-		resp.Attachment = &AttachmentInfo{
-			UploadID: m.AttachmentUploadID.UUID,
-			URL:      m.AttachmentURL.String,
-			FileName: m.AttachmentName.String,
-			MimeType: m.AttachmentMime.String,
-			Size:     m.AttachmentSize.Int64,
-		}
+	if len(m.Attachments) > 0 {
+		resp.Attachments = m.Attachments
 	}
 
 	return resp
@@ -136,6 +121,6 @@ type AddMemberRequest struct {
 // No body needed, userId in URL
 
 type SendMessageRequestDoc struct {
-	Text               string `json:"text,omitempty" example:"optional text"`
-	AttachmentUploadID string `json:"attachment_upload_id,omitempty" example:"550e8400-e29b-41d4-a716-446655440000"`
+	Text                string      `json:"text,omitempty" example:"optional text"`
+	AttachmentUploadIDs []uuid.UUID `json:"attachment_upload_ids,omitempty" example:"[\"550e8400-e29b-41d4-a716-446655440000\"]"`
 }

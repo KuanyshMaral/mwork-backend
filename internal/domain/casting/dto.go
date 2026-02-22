@@ -141,6 +141,8 @@ type CastingResponse struct {
 	Tags             []string `json:"tags"`
 	ViewCount        int      `json:"view_count"`
 	ResponseCount    int      `json:"response_count"`
+	Rating           float64  `json:"rating"`
+	TotalReviews     int      `json:"total_reviews"`
 	CreatedAt        string   `json:"created_at"`
 	UpdatedAt        string   `json:"updated_at"`
 }
@@ -162,6 +164,8 @@ func CastingResponseFromEntity(c *Casting) *CastingResponse {
 		Tags:             []string(c.Tags),
 		ViewCount:        c.ViewCount,
 		ResponseCount:    c.ResponseCount,
+		Rating:           c.RatingScore,
+		TotalReviews:     c.ReviewsCount,
 		IsUrgent:         c.IsUrgent,
 		CreatedAt:        c.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:        c.UpdatedAt.Format(time.RFC3339),
