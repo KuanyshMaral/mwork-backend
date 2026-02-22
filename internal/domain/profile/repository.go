@@ -77,7 +77,7 @@ func (r *modelRepository) Create(ctx context.Context, profile *ModelProfile) err
 		id, user_id, name, bio, description, age, height, weight, gender,
 		clothing_size, shoe_size, experience, hourly_rate, city, country,
 		languages, categories, skills, barter_accepted, accept_remote_work,
-		travel_cities, visibility, profile_views, rating, total_reviews, is_public,
+		travel_cities, visibility, profile_views, rating_score, reviews_count, is_public,
 		hair_color, eye_color, tattoos, working_hours, min_budget, social_links,
 		bust_cm, waist_cm, hips_cm, skin_tone, specializations, avatar_upload_id,
 		created_at, updated_at
@@ -107,7 +107,7 @@ func (r *modelRepository) Create(ctx context.Context, profile *ModelProfile) err
 func (r *modelRepository) GetByID(ctx context.Context, id uuid.UUID) (*ModelProfile, error) {
 	q := `SELECT id,user_id,name,bio,description,age,height,weight,gender,clothing_size,shoe_size,experience,
 	hourly_rate,city,country,languages,categories,skills,barter_accepted,accept_remote_work,travel_cities,
-	visibility,profile_views,rating,total_reviews,is_public,
+	visibility,profile_views,rating_score,reviews_count,is_public,
 	hair_color,eye_color,tattoos,working_hours,min_budget,COALESCE(social_links,'[]'::jsonb) as social_links,
 	bust_cm,waist_cm,hips_cm,skin_tone,COALESCE(specializations,'[]'::jsonb) as specializations,
 	avatar_upload_id,created_at,updated_at
@@ -125,7 +125,7 @@ func (r *modelRepository) GetByID(ctx context.Context, id uuid.UUID) (*ModelProf
 func (r *modelRepository) GetByUserID(ctx context.Context, userID uuid.UUID) (*ModelProfile, error) {
 	q := `SELECT id,user_id,name,bio,description,age,height,weight,gender,clothing_size,shoe_size,experience,
 	hourly_rate,city,country,languages,categories,skills,barter_accepted,accept_remote_work,travel_cities,
-	visibility,profile_views,rating,total_reviews,is_public,
+	visibility,profile_views,rating_score,reviews_count,is_public,
 	hair_color,eye_color,tattoos,working_hours,min_budget,COALESCE(social_links,'[]'::jsonb) as social_links,
 	bust_cm,waist_cm,hips_cm,skin_tone,COALESCE(specializations,'[]'::jsonb) as specializations,
 	avatar_upload_id,created_at,updated_at
@@ -147,16 +147,15 @@ func (r *modelRepository) Update(ctx context.Context, p *ModelProfile) error {
 	experience=$11,hourly_rate=$12,city=$13,country=$14,languages=$15,categories=$16,skills=$17,
 	barter_accepted=$18,accept_remote_work=$19,is_public=$20,travel_cities=$21,visibility=$22,
 	hair_color=$23,eye_color=$24,tattoos=$25,working_hours=$26,min_budget=$27,social_links=$28,
-	bust_cm=$29,waist_cm=$30,hips_cm=$31,skin_tone=$32,specializations=$33,avatar_upload_id=$34,
-	updated_at=NOW()
-	WHERE id=$1`
+	bust_cm=$29,waist_cm=$30,hips_cm=$31,skin_tone=$32,specializations=$33,avatar_upload_id=$34, rating_score=$35, reviews_count=$36, updated_at=$37 WHERE id=$38`
 	_, err := r.db.ExecContext(ctx, q,
-		p.ID, p.Name, p.Bio, p.Description, p.Age, p.Height, p.Weight, p.Gender,
+		p.Name, p.Bio, p.Description, p.Age, p.Height, p.Weight, p.Gender,
 		p.ClothingSize, p.ShoeSize, p.Experience, p.HourlyRate, p.City, p.Country,
 		p.Languages, p.Categories, p.Skills, p.BarterAccepted, p.AcceptRemoteWork,
 		p.IsPublic, p.TravelCities, p.Visibility,
 		p.HairColor, p.EyeColor, p.Tattoos, p.WorkingHours, p.MinBudget, p.SocialLinks,
-		p.BustCm, p.WaistCm, p.HipsCm, p.SkinTone, p.Specializations, p.AvatarUploadID)
+		p.BustCm, p.WaistCm, p.HipsCm, p.SkinTone, p.Specializations, p.AvatarUploadID,
+		p.Rating, p.TotalReviews, p.UpdatedAt, p.ID)
 	return err
 }
 
@@ -227,8 +226,8 @@ func (r *modelRepository) List(ctx context.Context, filter *Filter, pagination *
 	offset := (pagination.Page - 1) * pagination.Limit
 	q := `SELECT id,user_id,name,bio,description,age,height,weight,gender,clothing_size,shoe_size,experience,
 	hourly_rate,city,country,languages,categories,skills,barter_accepted,accept_remote_work,travel_cities,visibility,
-	profile_views,rating,total_reviews,is_public,created_at,updated_at FROM model_profiles ` + where +
-		" ORDER BY rating DESC, created_at DESC LIMIT " + placeholder(argIndex) + " OFFSET " + placeholder(argIndex+1)
+	profile_views,rating_score,reviews_count,is_public,created_at,updated_at FROM model_profiles ` + where +
+		" ORDER BY rating_score DESC, created_at DESC LIMIT " + placeholder(argIndex) + " OFFSET " + placeholder(argIndex+1)
 	args = append(args, pagination.Limit, offset)
 
 	var profiles []*ModelProfile
@@ -246,7 +245,7 @@ func (r *modelRepository) ListPromoted(ctx context.Context, city *string, limit 
 		p.id,p.user_id,p.name,p.bio,p.description,p.age,p.height,p.weight,p.gender,p.clothing_size,p.shoe_size,p.experience,
 		p.hourly_rate,p.city,p.country,COALESCE(p.languages,'[]'::jsonb) as languages,COALESCE(p.categories,'[]'::jsonb) as categories,
 		COALESCE(p.skills,'[]'::jsonb) as skills,COALESCE(p.barter_accepted,false) as barter_accepted,COALESCE(p.accept_remote_work,false) as accept_remote_work,
-		COALESCE(p.travel_cities,'[]'::jsonb) as travel_cities,COALESCE(p.visibility,'public') as visibility,p.profile_views,p.rating,p.total_reviews,COALESCE(p.is_public,true) as is_public,
+		COALESCE(p.travel_cities,'[]'::jsonb) as travel_cities,COALESCE(p.visibility,'public') as visibility,p.profile_views,p.rating_score,p.reviews_count,COALESCE(p.is_public,true) as is_public,
 		p.created_at,p.updated_at
 	FROM model_profiles p
 	INNER JOIN profile_promotions pr ON pr.profile_id = p.id
@@ -285,13 +284,13 @@ type employerRepository struct{ db *sqlx.DB }
 func NewEmployerRepository(db *sqlx.DB) EmployerRepository { return &employerRepository{db: db} }
 
 func (r *employerRepository) Create(ctx context.Context, p *EmployerProfile) error {
-	q := `INSERT INTO employer_profiles (id,user_id,company_name,company_type,description,website,contact_person,contact_phone,city,country,rating,total_reviews,castings_posted,is_verified,verified_at,created_at,updated_at)
+	q := `INSERT INTO employer_profiles (id,user_id,company_name,company_type,description,website,contact_person,contact_phone,city,country,rating_score,reviews_count,castings_posted,is_verified,verified_at,created_at,updated_at)
 	VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`
 	_, err := r.db.ExecContext(ctx, q, p.ID, p.UserID, p.CompanyName, p.CompanyType, p.Description, p.Website, p.ContactPerson, p.ContactPhone, p.City, p.Country, p.Rating, p.TotalReviews, p.CastingsPosted, p.IsVerified, p.VerifiedAt, p.CreatedAt, p.UpdatedAt)
 	return err
 }
 func (r *employerRepository) GetByID(ctx context.Context, id uuid.UUID) (*EmployerProfile, error) {
-	q := `SELECT id,user_id,company_name,company_type,description,website,contact_person,contact_phone,city,country,rating,total_reviews,castings_posted,is_verified,verified_at,profile_views,COALESCE(social_links,'[]'::jsonb) as social_links,created_at,updated_at FROM employer_profiles WHERE id=$1`
+	q := `SELECT id,user_id,company_name,company_type,description,website,contact_person,contact_phone,city,country,rating_score,reviews_count,castings_posted,is_verified,verified_at,profile_views,COALESCE(social_links,'[]'::jsonb) as social_links,created_at,updated_at FROM employer_profiles WHERE id=$1`
 	var p EmployerProfile
 	err := r.db.GetContext(ctx, &p, q, id)
 	if err != nil {
@@ -303,7 +302,7 @@ func (r *employerRepository) GetByID(ctx context.Context, id uuid.UUID) (*Employ
 	return &p, nil
 }
 func (r *employerRepository) GetByUserID(ctx context.Context, userID uuid.UUID) (*EmployerProfile, error) {
-	q := `SELECT id,user_id,company_name,company_type,description,website,contact_person,contact_phone,city,country,rating,total_reviews,castings_posted,is_verified,verified_at,profile_views,COALESCE(social_links,'[]'::jsonb) as social_links,created_at,updated_at FROM employer_profiles WHERE user_id=$1`
+	q := `SELECT id,user_id,company_name,company_type,description,website,contact_person,contact_phone,city,country,rating_score,reviews_count,castings_posted,is_verified,verified_at,profile_views,COALESCE(social_links,'[]'::jsonb) as social_links,created_at,updated_at FROM employer_profiles WHERE user_id=$1`
 	var p EmployerProfile
 	err := r.db.GetContext(ctx, &p, q, userID)
 	if err != nil {
@@ -316,8 +315,8 @@ func (r *employerRepository) GetByUserID(ctx context.Context, userID uuid.UUID) 
 }
 
 func (r *employerRepository) Update(ctx context.Context, p *EmployerProfile) error {
-	q := `UPDATE employer_profiles SET company_name=$2,company_type=$3,description=$4,website=$5,contact_person=$6,contact_phone=$7,city=$8,country=$9,social_links=$10,updated_at=NOW() WHERE id=$1`
-	_, err := r.db.ExecContext(ctx, q, p.ID, p.CompanyName, p.CompanyType, p.Description, p.Website, p.ContactPerson, p.ContactPhone, p.City, p.Country, p.SocialLinks)
+	q := `UPDATE employer_profiles SET company_name=$2,company_type=$3,description=$4,website=$5,contact_person=$6,contact_phone=$7,city=$8,country=$9,rating_score=$10,reviews_count=$11,social_links=$12,updated_at=NOW() WHERE id=$1`
+	_, err := r.db.ExecContext(ctx, q, p.ID, p.CompanyName, p.CompanyType, p.Description, p.Website, p.ContactPerson, p.ContactPhone, p.City, p.Country, p.Rating, p.TotalReviews, p.SocialLinks)
 	return err
 }
 
