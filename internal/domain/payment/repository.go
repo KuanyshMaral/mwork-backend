@@ -102,7 +102,15 @@ func (r *repository) UpdateStatus(ctx context.Context, id uuid.UUID, status Stat
 
 func (r *repository) ListByUser(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*Payment, error) {
 	query := `
-		SELECT * FROM payments 
+		SELECT 
+			id, user_id, plan_id, subscription_id, type, plan, inv_id, 
+			response_package, amount, robokassa_inv_id, currency, status, 
+			provider, external_id, description,
+			COALESCE(metadata, 'null'::json) as metadata,
+			COALESCE(raw_init_payload, 'null'::json) as raw_init_payload,
+			COALESCE(raw_callback_payload, 'null'::json) as raw_callback_payload,
+			paid_at, failed_at, refunded_at, created_at, updated_at, promotion_id
+		FROM payments 
 		WHERE user_id = $1 
 		ORDER BY created_at DESC 
 		LIMIT $2 OFFSET $3
