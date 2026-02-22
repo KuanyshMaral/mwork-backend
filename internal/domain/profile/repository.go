@@ -147,15 +147,16 @@ func (r *modelRepository) Update(ctx context.Context, p *ModelProfile) error {
 	experience=$11,hourly_rate=$12,city=$13,country=$14,languages=$15,categories=$16,skills=$17,
 	barter_accepted=$18,accept_remote_work=$19,is_public=$20,travel_cities=$21,visibility=$22,
 	hair_color=$23,eye_color=$24,tattoos=$25,working_hours=$26,min_budget=$27,social_links=$28,
-	bust_cm=$29,waist_cm=$30,hips_cm=$31,skin_tone=$32,specializations=$33,avatar_upload_id=$34, rating_score=$35, reviews_count=$36, updated_at=$37 WHERE id=$38`
+	bust_cm=$29,waist_cm=$30,hips_cm=$31,skin_tone=$32,specializations=$33,avatar_upload_id=$34,
+	rating_score=$35,reviews_count=$36,updated_at=$37 WHERE id=$1`
 	_, err := r.db.ExecContext(ctx, q,
-		p.Name, p.Bio, p.Description, p.Age, p.Height, p.Weight, p.Gender,
+		p.ID, p.Name, p.Bio, p.Description, p.Age, p.Height, p.Weight, p.Gender,
 		p.ClothingSize, p.ShoeSize, p.Experience, p.HourlyRate, p.City, p.Country,
 		p.Languages, p.Categories, p.Skills, p.BarterAccepted, p.AcceptRemoteWork,
 		p.IsPublic, p.TravelCities, p.Visibility,
 		p.HairColor, p.EyeColor, p.Tattoos, p.WorkingHours, p.MinBudget, p.SocialLinks,
 		p.BustCm, p.WaistCm, p.HipsCm, p.SkinTone, p.Specializations, p.AvatarUploadID,
-		p.Rating, p.TotalReviews, p.UpdatedAt, p.ID)
+		p.Rating, p.TotalReviews, p.UpdatedAt)
 	return err
 }
 
