@@ -17,11 +17,12 @@ import (
 type EventType string
 
 const (
-	EventNewMessage EventType = "new_message"
-	EventTyping     EventType = "typing"
-	EventRead       EventType = "read"
-	EventOnline     EventType = "online"
-	EventOffline    EventType = "offline"
+	EventNewMessage    EventType = "new_message"
+	EventTyping        EventType = "typing"
+	EventRead          EventType = "read"
+	EventOnline        EventType = "online"
+	EventOffline       EventType = "offline"
+	EventDeleteMessage EventType = "message_deleted"
 )
 
 // Redis key prefixes
@@ -41,11 +42,12 @@ type userEventMessage struct {
 
 // WSEvent represents a WebSocket event
 type WSEvent struct {
-	Type     EventType   `json:"type"`
-	RoomID   uuid.UUID   `json:"room_id,omitempty"`
-	SenderID uuid.UUID   `json:"sender_id,omitempty"`
-	Message  *Message    `json:"message,omitempty"`
-	Data     interface{} `json:"data,omitempty"`
+	Type      EventType   `json:"type"`
+	RoomID    uuid.UUID   `json:"room_id,omitempty"`
+	SenderID  uuid.UUID   `json:"sender_id,omitempty"`
+	MessageID uuid.UUID   `json:"message_id,omitempty"`
+	Message   *Message    `json:"message,omitempty"`
+	Data      interface{} `json:"data,omitempty"`
 }
 
 // Connection represents a WebSocket connection

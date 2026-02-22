@@ -18,6 +18,11 @@ type CancelRequest struct {
 	Reason string `json:"reason,omitempty" validate:"max=500"`
 }
 
+// PurchaseConnectsRequest for POST /connects/purchase
+type PurchaseConnectsRequest struct {
+	Count int `json:"count" validate:"required,min=1"`
+}
+
 // PlanResponse represents plan in API
 type PlanResponse struct {
 	ID             string   `json:"id"`
@@ -42,12 +47,12 @@ func PlanResponseFromEntity(p *Plan) *PlanResponse {
 		Name:           p.Name,
 		Description:    p.Description,
 		PriceMonthly:   p.PriceMonthly,
-		MaxPhotos:      p.MaxPhotos,
-		MaxResponses:   p.MaxResponsesMonth,
-		CanChat:        p.CanChat,
-		CanSeeViewers:  p.CanSeeViewers,
-		PrioritySearch: p.PrioritySearch,
-		MaxTeamMembers: p.MaxTeamMembers,
+		MaxPhotos:      p.Features.MaxPhotos,
+		MaxResponses:   p.Consumables.ResponseConnects,
+		CanChat:        p.Features.CanChat,
+		CanSeeViewers:  p.Features.CanSeeViewers,
+		PrioritySearch: p.Features.PrioritySearch,
+		MaxTeamMembers: p.Features.MaxTeamMembers,
 		Audience:       string(p.Audience),
 		Features:       buildFeatureList(p),
 	}
@@ -62,31 +67,33 @@ func PlanResponseFromEntity(p *Plan) *PlanResponse {
 func buildFeatureList(p *Plan) []string {
 	features := []string{}
 
-	if p.MaxPhotos > 0 {
-		if p.MaxPhotos >= 100 {
+	if p.Features.MaxPhotos > 0 {
+		if p.Features.MaxPhotos >= 100 {
 			features = append(features, "Unlimited photos")
 		} else {
-			features = append(features, fmt.Sprintf("Up to %d photos", p.MaxPhotos))
+			features = append(features, fmt.Sprintf("Up to %d photos", p.Features.MaxPhotos))
 		}
 	}
 
-	if p.MaxResponsesMonth == -1 {
+	if p.Consumables.ResponseConnects < 0 {
 		features = append(features, "Unlimited applications")
+	} else if p.Consumables.ResponseConnects > 0 {
+		features = append(features, fmt.Sprintf("%d response connects/month", p.Consumables.ResponseConnects))
 	}
 
-	if p.CanChat {
+	if p.Features.CanChat {
 		features = append(features, "Chat with employers")
 	}
 
-	if p.CanSeeViewers {
+	if p.Features.CanSeeViewers {
 		features = append(features, "See who viewed your profile")
 	}
 
-	if p.PrioritySearch {
+	if p.Features.PrioritySearch {
 		features = append(features, "Priority in search results")
 	}
 
-	if p.MaxTeamMembers > 0 {
+	if p.Features.MaxTeamMembers > 0 {
 		features = append(features, "Team management")
 	}
 

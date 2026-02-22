@@ -68,7 +68,7 @@ func TestSubscribeAudienceMismatch(t *testing.T) {
 }
 
 func TestAdjustLimitUpdatesRemaining(t *testing.T) {
-	svc := NewService(&repoStub{plan: &Plan{ID: PlanPro, Audience: AudienceModel, MaxResponsesMonth: 20}, audience: AudienceModel}, &photoRepoStub{}, &respRepoStub{used: 7}, &castingRepoStub{}, &profileRepoStub{})
+	svc := NewService(&repoStub{plan: &Plan{ID: PlanPro, Audience: AudienceModel, Consumables: ConsumablesConfig{ResponseConnects: 20}}, audience: AudienceModel}, &photoRepoStub{}, &respRepoStub{used: 7}, &castingRepoStub{}, &profileRepoStub{})
 	status, err := svc.AdjustLimit(context.Background(), uuid.New(), uuid.New(), LimitKeyCastingResponses, 10, "bonus")
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)

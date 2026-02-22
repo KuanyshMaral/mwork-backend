@@ -162,9 +162,9 @@ func (h *Handler) GetLimits(w http.ResponseWriter, r *http.Request) {
 		ResponsesUsed:      limitsData.ResponsesUsed,
 		ResponsesRemaining: limitsData.ResponsesRemaining,
 		ResponsesResetAt:   limitsData.ResponsesResetAt.Format(time.RFC3339),
-		CanChat:            plan.CanChat,
-		CanSeeViewers:      plan.CanSeeViewers,
-		PrioritySearch:     plan.PrioritySearch,
+		CanChat:            plan.Features.CanChat,
+		CanSeeViewers:      plan.Features.CanSeeViewers,
+		PrioritySearch:     plan.Features.PrioritySearch,
 	}
 
 	response.OK(w, limits)
@@ -354,6 +354,36 @@ func (h *Handler) GetModelCastingLimits(w http.ResponseWriter, r *http.Request) 
 	response.OK(w, limits)
 }
 
+// PurchaseConnects handles POST /subscriptions/connects/purchase
+// @Summary Купить коннекты за кредиты
+// @Tags Subscription
+// @Produce json
+// @Security BearerAuth
+// @Param request body PurchaseConnectsRequest true "Purchase details"
+// @Success 200 {object} response.Response
+// @Failure 400,401,500 {object} response.Response
+// @Router /subscriptions/connects/purchase [post]
+func (h *Handler) PurchaseConnects(w http.ResponseWriter, r *http.Request) {
+	var req PurchaseConnectsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.BadRequest(w, "Invalid request body")
+		return
+	}
+
+	userID := middleware.GetUserID(r.Context())
+	if userID == uuid.Nil {
+		response.Unauthorized(w, "unauthorized")
+		return
+	}
+
+	if err := h.service.PurchaseConnects(r.Context(), userID, req.Count); err != nil {
+		response.BadRequest(w, err.Error())
+		return
+	}
+
+	response.OK(w, map[string]string{"status": "success"})
+}
+
 // Routes returns subscription router
 func (h *Handler) Routes(authMiddleware func(http.Handler) http.Handler) chi.Router {
 	r := chi.NewRouter()
@@ -369,6 +399,7 @@ func (h *Handler) Routes(authMiddleware func(http.Handler) http.Handler) chi.Rou
 		r.Get("/models/me/castings/limits", h.GetModelCastingLimits)
 		r.Post("/", h.Subscribe)
 		r.Post("/cancel", h.Cancel)
+		r.Post("/connects/purchase", h.PurchaseConnects)
 	})
 
 	return r

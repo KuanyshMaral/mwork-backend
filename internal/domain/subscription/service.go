@@ -7,16 +7,24 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/mwork/mwork-api/internal/domain/credit"
+	"github.com/mwork/mwork-api/internal/domain/user"
 	"github.com/rs/zerolog/log"
 )
 
 // Service handles subscription business logic
 type Service struct {
-	repo         Repository
-	photoRepo    PhotoRepository
-	responseRepo ResponseRepository
-	castingRepo  CastingRepository
-	profileRepo  ProfileRepository
+	repo          Repository
+	photoRepo     PhotoRepository
+	responseRepo  ResponseRepository
+	castingRepo   CastingRepository
+	profileRepo   ProfileRepository
+	userRepo      user.Repository
+	creditService CreditService
+}
+
+type CreditService interface {
+	Deduct(ctx context.Context, userID uuid.UUID, amount int, meta credit.TransactionMeta) error
 }
 
 type PhotoRepository interface {
@@ -40,15 +48,74 @@ type Profile struct {
 	UserID uuid.UUID
 }
 
+// SetUserRepo sets the user repository for the service.
+func (s *Service) SetUserRepo(userRepo user.Repository) {
+	s.userRepo = userRepo
+}
+
+// MaxActiveCastings returns the maximum number of active castings allowed by the user's plan.
+// It is used by the Casting module as a PlanChecker implementation.
+func (s *Service) MaxActiveCastings(ctx context.Context, userID uuid.UUID) (int, error) {
+	_, plan, err := s.GetCurrentSubscription(ctx, userID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get active subscription: %w", err)
+	}
+
+	return plan.Features.MaxActiveCastings, nil
+}
+
+// SetCreditService sets the credit service for the service.
+func (s *Service) SetCreditService(creditService CreditService) {
+	s.creditService = creditService
+}
+
 func NewService(repo Repository, photoRepo PhotoRepository, responseRepo ResponseRepository, castingRepo CastingRepository, profileRepo ProfileRepository) *Service {
 	return &Service{repo: repo, photoRepo: photoRepo, responseRepo: responseRepo, castingRepo: castingRepo, profileRepo: profileRepo}
 }
 
+// PurchaseConnects attempts to convert user credits to response connects
+func (s *Service) PurchaseConnects(ctx context.Context, userID uuid.UUID, count int) error {
+	if count <= 0 {
+		return fmt.Errorf("invalid connects count")
+	}
+
+	// Calculate cost (e.g. 1 connect = 100 credits, replace with config later)
+	costPerConnect := 100 // Hardcoded for now, should be env or db driven
+	totalCost := count * costPerConnect
+
+	// Deduct from wallet/credits
+	if s.creditService == nil {
+		return fmt.Errorf("credit service not configured")
+	}
+
+	err := s.creditService.Deduct(ctx, userID, totalCost, credit.TransactionMeta{
+		Description:       fmt.Sprintf("Purchased %d response connects", count),
+		RelatedEntityType: "subscription_connects",
+		RelatedEntityID:   userID,
+	})
+	if err != nil {
+		// e.g. insufficient funds
+		return fmt.Errorf("failed to deduct credits: %w", err)
+	}
+
+	// Credits validly deducted, now add to purchased connects bucket
+	if s.userRepo == nil {
+		return fmt.Errorf("user repo not configured")
+	}
+
+	return s.userRepo.AddPurchasedModelConnects(ctx, userID, count)
+}
+
 func defaultFreePlan(audience Audience) *Plan {
 	if audience == AudienceEmployer {
-		return &Plan{ID: PlanFreeEmployer, Name: "Free Employer", Description: "Базовый бесплатный план для работодателей", PriceMonthly: 0, MaxPhotos: 10, MaxResponsesMonth: 0, CanChat: true, Audience: AudienceEmployer, IsActive: true}
+		p := &Plan{ID: PlanFreeEmployer, Name: "Free Employer", Description: "Базовый бесплатный план для работодателей", PriceMonthly: 0, Audience: AudienceEmployer, IsActive: true}
+		p.Features = FeaturesConfig{MaxPhotos: 10, CanChat: true, MaxActiveCastings: 3, MaxTeamMembers: 1}
+		return p
 	}
-	return &Plan{ID: PlanFreeModel, Name: "Free Model", Description: "Базовый бесплатный план", PriceMonthly: 0, MaxPhotos: 3, MaxResponsesMonth: 20, CanChat: true, Audience: AudienceModel, IsActive: true}
+	p := &Plan{ID: PlanFreeModel, Name: "Free Model", Description: "Базовый бесплатный план", PriceMonthly: 0, Audience: AudienceModel, IsActive: true}
+	p.Consumables = ConsumablesConfig{ResponseConnects: 20}
+	p.Features = FeaturesConfig{MaxPhotos: 3, CanChat: true}
+	return p
 }
 
 func (s *Service) freePlanIDForAudience(a Audience) PlanID {
@@ -195,13 +262,13 @@ func (s *Service) GetLimitsWithUsage(ctx context.Context, userID uuid.UUID) (*Li
 	if err != nil && err != sql.ErrNoRows {
 		return nil, fmt.Errorf("failed to get profile: %w", err)
 	}
-	responsesRemaining := plan.MaxResponsesMonth
+	responsesRemaining := plan.Consumables.ResponseConnects
 	if responsesRemaining < 0 {
 		responsesRemaining = -1
 	}
 	now := time.Now()
 	responsesResetAt := time.Date(now.Year(), now.Month()+1, 1, 0, 0, 0, 0, now.Location())
-	resp := &LimitsResponseData{PlanID: string(plan.ID), PlanName: plan.Name, PhotosLimit: plan.MaxPhotos, ResponsesLimit: plan.MaxResponsesMonth, ResponsesRemaining: responsesRemaining, ResponsesResetAt: responsesResetAt, CastingsLimit: 3}
+	resp := &LimitsResponseData{PlanID: string(plan.ID), PlanName: plan.Name, PhotosLimit: plan.Features.MaxPhotos, ResponsesLimit: plan.Consumables.ResponseConnects, ResponsesRemaining: responsesRemaining, ResponsesResetAt: responsesResetAt, CastingsLimit: plan.Features.MaxActiveCastings}
 	if profile == nil || err == sql.ErrNoRows {
 		return resp, nil
 	}
@@ -236,7 +303,7 @@ func (s *Service) GetLimitStatus(ctx context.Context, userID uuid.UUID, limitKey
 	if err != nil {
 		return nil, err
 	}
-	base := plan.MaxResponsesMonth
+	base := plan.Consumables.ResponseConnects
 	remaining := -1
 	if base >= 0 {
 		final := base + override
@@ -300,7 +367,7 @@ func (s *Service) CheckLimit(ctx context.Context, userID uuid.UUID, limitType st
 	}
 	switch limitType {
 	case "photos":
-		if currentUsage >= plan.MaxPhotos {
+		if currentUsage >= plan.Features.MaxPhotos {
 			return false, plan, nil
 		}
 	case "responses":
@@ -315,7 +382,7 @@ func (s *Service) CheckLimit(ctx context.Context, userID uuid.UUID, limitType st
 			}
 		}
 	case "chat":
-		if !plan.CanChat {
+		if !plan.Features.CanChat {
 			return false, plan, nil
 		}
 	}

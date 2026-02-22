@@ -74,7 +74,7 @@ const castingSelectColumns = `
 	work_type, event_datetime, event_location, deadline_at, is_urgent,
 	status, is_promoted, view_count, response_count,
 	created_at, updated_at, moderation_status, required_models_count,
-	accepted_models_count, tags
+	accepted_models_count, tags, rating_score, reviews_count
 `
 
 // NewRepository creates new casting repository

@@ -32,7 +32,9 @@ type CreateModelProfileRequest struct {
 type UpdateModelProfileRequest struct {
 	Name             string   `json:"name" validate:"omitempty,min=2,max=100"`
 	Bio              string   `json:"bio" validate:"max=2000"`
+	Description      string   `json:"description" validate:"max=2000"`
 	City             string   `json:"city" validate:"omitempty,min=2,max=100"`
+	Country          string   `json:"country" validate:"omitempty,max=100"`
 	Age              *int     `json:"age" validate:"omitempty,gte=18,lte=100"`
 	Height           *float64 `json:"height" validate:"omitempty,gte=100,lte=250"`
 	Weight           *float64 `json:"weight" validate:"omitempty,gte=30,lte=200"`
@@ -51,13 +53,19 @@ type UpdateModelProfileRequest struct {
 	HairColor string `json:"hair_color" validate:"omitempty,max=50"`
 	EyeColor  string `json:"eye_color" validate:"omitempty,max=50"`
 	Tattoos   string `json:"tattoos" validate:"omitempty,max=255"`
+	// Body measurements
+	BustCm   *int   `json:"bust_cm" validate:"omitempty,gte=50,lte=200"`
+	WaistCm  *int   `json:"waist_cm" validate:"omitempty,gte=40,lte=200"`
+	HipsCm   *int   `json:"hips_cm" validate:"omitempty,gte=50,lte=200"`
+	SkinTone string `json:"skin_tone" validate:"omitempty,max=50"`
 	// Professional details
-	WorkingHours   string            `json:"working_hours" validate:"omitempty,max=150"`
-	MinBudget      *float64          `json:"min_budget" validate:"omitempty,gte=0"`
-	ClothingSize   string            `json:"clothing_size" validate:"omitempty,max=20"`
-	ShoeSize       string            `json:"shoe_size" validate:"omitempty,max=20"`
-	SocialLinks    []SocialLinkEntry `json:"social_links"`
-	AvatarUploadID *uuid.UUID        `json:"avatar_upload_id"`
+	WorkingHours    string            `json:"working_hours" validate:"omitempty,max=150"`
+	MinBudget       *float64          `json:"min_budget" validate:"omitempty,gte=0"`
+	ClothingSize    string            `json:"clothing_size" validate:"omitempty,max=20"`
+	ShoeSize        string            `json:"shoe_size" validate:"omitempty,max=20"`
+	SocialLinks     []SocialLinkEntry `json:"social_links"`
+	Specializations []string          `json:"specializations"`
+	AvatarUploadID  *uuid.UUID        `json:"avatar_upload_id"`
 }
 
 // CreateEmployerProfileRequest defines employer profile payload (used for service-level profile creation).

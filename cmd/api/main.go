@@ -266,6 +266,8 @@ func main() {
 
 	// Credit service initialization
 	creditService := credit.NewService(db)
+	subscriptionService.SetCreditService(creditService)
+	subscriptionService.SetUserRepo(userRepo)
 
 	featurePayProvider, err := featurepayment.NewPaymentProvider(cfg.PaymentMode, walletService, creditService)
 	if err != nil {
@@ -445,6 +447,9 @@ func main() {
 			r.Post("/rooms/{id}/members", chatHandler.AddMember)
 			r.Delete("/rooms/{id}/members/{userId}", chatHandler.RemoveMember)
 			r.Post("/rooms/{id}/leave", chatHandler.LeaveRoom)
+
+			r.Delete("/rooms/{id}", chatHandler.DeleteRoom)
+			r.Delete("/rooms/{id}/messages/{messageId}", chatHandler.DeleteMessage)
 
 			r.Get("/unread", chatHandler.GetUnreadCount)
 		})

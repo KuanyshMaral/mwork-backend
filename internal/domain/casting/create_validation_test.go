@@ -45,6 +45,16 @@ func (f *fakeUserRepo) UpdateStatus(ctx context.Context, id uuid.UUID, status us
 func (f *fakeUserRepo) UpdateLastLogin(ctx context.Context, id uuid.UUID, ip string) error {
 	return nil
 }
+func (f *fakeUserRepo) DeductModelConnect(ctx context.Context, id uuid.UUID) error { return nil }
+func (f *fakeUserRepo) RefreshModelConnectsIfNeeded(ctx context.Context, id uuid.UUID, n int) error {
+	return nil
+}
+func (f *fakeUserRepo) GetConnectsBalance(ctx context.Context, id uuid.UUID) (int, int, error) {
+	return 0, 0, nil
+}
+func (f *fakeUserRepo) AddPurchasedModelConnects(ctx context.Context, id uuid.UUID, n int) error {
+	return nil
+}
 
 type fakeCastingRepo struct{}
 
