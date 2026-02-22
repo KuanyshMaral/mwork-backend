@@ -58,7 +58,7 @@ func (j JSONRawMessage) MarshalJSON() ([]byte, error) {
 type Payment struct {
 	ID                 uuid.UUID      `db:"id" json:"id"`
 	UserID             uuid.UUID      `db:"user_id" json:"user_id"`
-	PlanID             uuid.UUID      `db:"plan_id" json:"plan_id"`
+	PlanID             uuid.NullUUID  `db:"plan_id" json:"plan_id,omitempty"`
 	SubscriptionID     uuid.NullUUID  `db:"subscription_id" json:"subscription_id,omitempty"`
 	Type               string         `db:"type" json:"type,omitempty"`
 	Plan               sql.NullString `db:"plan" json:"plan,omitempty"`
@@ -79,7 +79,7 @@ type Payment struct {
 	RefundedAt         sql.NullTime   `db:"refunded_at" json:"refunded_at,omitempty"`
 	CreatedAt          time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt          time.Time      `db:"updated_at" json:"updated_at"`
-	PromotionID        uuid.UUID      `db:"promotion_id" json:"promotion_id,omitempty"`
+	PromotionID        uuid.NullUUID  `db:"promotion_id" json:"promotion_id,omitempty"`
 }
 
 // IsPaid checks if payment is completed
