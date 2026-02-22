@@ -5835,11 +5835,6 @@ const docTemplate = `{
         },
         "/payments/robokassa/fail": {
             "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
                 "description": "Обрабатывает редирект пользователя после неудачной оплаты (Fail URL)",
                 "produces": [
                     "application/json"
@@ -5878,11 +5873,6 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
                 "description": "Обрабатывает редирект пользователя после неудачной оплаты (Fail URL)",
                 "produces": [
                     "application/json"
@@ -5998,11 +5988,6 @@ const docTemplate = `{
         },
         "/payments/robokassa/success": {
             "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
                 "description": "Обрабатывает редирект пользователя после успешной оплаты (Success URL)",
                 "produces": [
                     "application/json"
@@ -6041,11 +6026,6 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
                 "description": "Обрабатывает редирект пользователя после успешной оплаты (Success URL)",
                 "produces": [
                     "application/json"
