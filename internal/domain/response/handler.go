@@ -63,21 +63,6 @@ func (h *Handler) Apply(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID := middleware.GetUserID(r.Context())
-	if h.limitChecker != nil {
-		count, err := h.service.CountMonthlyByUserID(r.Context(), userID)
-		if err != nil {
-			errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
-			return
-		}
-
-		if err := h.limitChecker.CanApplyToResponse(r.Context(), userID, count); err != nil {
-			if middleware.WriteLimitExceeded(w, err) {
-				return
-			}
-			errorhandler.HandleError(r.Context(), w, http.StatusInternalServerError, "INTERNAL_ERROR", "An unexpected error occurred", err)
-			return
-		}
-	}
 
 	resp, err := h.service.Apply(r.Context(), userID, castingID, &req)
 	if err != nil {
@@ -93,10 +78,16 @@ func (h *Handler) Apply(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, ErrAlreadyApplied):
 			response.Conflict(w, "You have already applied to this casting")
 		case errors.Is(err, ErrGeoBlocked):
-			response.BadRequest(w, "You can’t apply to urgent castings (<24h) in a different city.")
+			response.BadRequest(w, "You can't apply to urgent castings (<24h) in a different city.")
+		case errors.Is(err, ErrRequirementsNotMet):
+			// Phase 1: 422 Unprocessable Entity with structured details
+			var reqErr *RequirementsError
+			if errors.As(err, &reqErr) {
+				response.ErrorWithDetails(w, http.StatusUnprocessableEntity, "REQUIREMENTS_NOT_MET", "Model does not meet casting requirements", reqErr.Details)
+			} else {
+				response.Error(w, http.StatusUnprocessableEntity, "REQUIREMENTS_NOT_MET", "Model does not meet casting requirements")
+			}
 		case errors.Is(err, ErrInsufficientCredits):
-			// B1: HTTP 402 Payment Required for insufficient credits
-			// ✅ FIXED: Added error code parameter
 			response.Error(w, http.StatusPaymentRequired, "INSUFFICIENT_CREDITS", "Insufficient credits to apply to this casting")
 		case errors.Is(err, ErrCreditOperationFailed):
 			response.Error(w, http.StatusServiceUnavailable, "CREDIT_SERVICE_UNAVAILABLE", "Credit operation is temporarily unavailable")
@@ -211,6 +202,8 @@ func (h *Handler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 			response.Forbidden(w, "Only the casting owner can update response status")
 		case errors.Is(err, ErrInvalidStatusTransition):
 			response.BadRequest(w, "Invalid status transition")
+		case errors.Is(err, ErrCastingNotActive):
+			response.BadRequest(w, "Cannot accept response: casting is no longer active")
 		case errors.Is(err, ErrCastingFullOrClosed):
 			response.Conflict(w, "Casting is full or closed")
 		default:

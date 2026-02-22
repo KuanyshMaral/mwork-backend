@@ -155,12 +155,13 @@ func NewHandler(service *Service, hub *Hub, redisClient *redis.Client, allowedOr
 func (h *Handler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 	var req CreateRoomRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.BadRequest(w, "Invalid JSON body")
+		errorhandler.HandleError(r.Context(), w, http.StatusBadRequest, "INVALID_JSON", "Invalid JSON body", err)
 		return
 	}
 
-	if errors := validator.Validate(&req); errors != nil {
-		response.ValidationError(w, errors)
+	if validationErrors := validator.Validate(&req); validationErrors != nil {
+		errorhandler.LogValidationError(r.Context(), validationErrors)
+		response.ErrorWithDetails(w, http.StatusBadRequest, "VALIDATION_ERROR", "Validation failed", validationErrors)
 		return
 	}
 
@@ -172,13 +173,15 @@ func (h *Handler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 		}
 		switch err {
 		case ErrCannotChatSelf:
-			response.BadRequest(w, "Cannot start chat with yourself")
+			errorhandler.HandleError(r.Context(), w, http.StatusBadRequest, "INVALID_REQUEST", "Cannot start chat with yourself", err)
 		case ErrUserNotFound:
-			response.NotFound(w, "User not found")
+			errorhandler.HandleError(r.Context(), w, http.StatusNotFound, "USER_NOT_FOUND", "User not found", err)
 		case ErrUserBlocked:
-			response.Forbidden(w, "Cannot create chat - user is blocked")
+			errorhandler.HandleError(r.Context(), w, http.StatusForbidden, "USER_BLOCKED", "Cannot create chat - user is blocked", err)
 		case ErrEmployerNotVerified:
-			response.Forbidden(w, "Employer account is pending verification")
+			errorhandler.HandleError(r.Context(), w, http.StatusForbidden, "EMPLOYER_NOT_VERIFIED", "Employer account is pending verification", err)
+		case ErrInvalidMembersCount:
+			errorhandler.HandleError(r.Context(), w, http.StatusBadRequest, "INVALID_MEMBERS_COUNT", "At least one member is required", err)
 		default:
 			errorhandler.HandleError(r.Context(), w,
 				http.StatusInternalServerError,
@@ -236,7 +239,7 @@ func (h *Handler) ListRooms(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetMessages(w http.ResponseWriter, r *http.Request) {
 	roomID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		response.BadRequest(w, "Invalid room ID")
+		errorhandler.HandleError(r.Context(), w, http.StatusBadRequest, "INVALID_ID", "Invalid room ID", err)
 		return
 	}
 
@@ -258,9 +261,9 @@ func (h *Handler) GetMessages(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch err {
 		case ErrRoomNotFound:
-			response.NotFound(w, "Room not found")
+			errorhandler.HandleError(r.Context(), w, http.StatusNotFound, "ROOM_NOT_FOUND", "Room not found", err)
 		case ErrNotRoomMember:
-			response.Forbidden(w, "You are not a member of this chat")
+			errorhandler.HandleError(r.Context(), w, http.StatusForbidden, "NOT_ROOM_MEMBER", "You are not a member of this chat", err)
 		default:
 			errorhandler.HandleError(r.Context(), w,
 				http.StatusInternalServerError,
@@ -294,7 +297,7 @@ func (h *Handler) GetMessages(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 	roomID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		response.BadRequest(w, "Invalid room ID")
+		errorhandler.HandleError(r.Context(), w, http.StatusBadRequest, "INVALID_ID", "Invalid room ID", err)
 		return
 	}
 
@@ -302,18 +305,19 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 
 	// Rate limiting
 	if !h.rateLimiter.Allow(userID) {
-		response.Error(w, http.StatusTooManyRequests, "rate_limit_exceeded", "Too many messages, please slow down")
+		errorhandler.HandleError(r.Context(), w, http.StatusTooManyRequests, "RATE_LIMIT_EXCEEDED", "Too many messages, please slow down", nil)
 		return
 	}
 
 	var req SendMessageRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.BadRequest(w, "Invalid JSON body")
+		errorhandler.HandleError(r.Context(), w, http.StatusBadRequest, "INVALID_JSON", "Invalid JSON body", err)
 		return
 	}
 
-	if errors := validator.Validate(&req); errors != nil {
-		response.ValidationError(w, errors)
+	if validationErrors := validator.Validate(&req); validationErrors != nil {
+		errorhandler.LogValidationError(r.Context(), validationErrors)
+		response.ErrorWithDetails(w, http.StatusBadRequest, "VALIDATION_ERROR", "Validation failed", validationErrors)
 		return
 	}
 
@@ -324,15 +328,15 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 		}
 		switch err {
 		case ErrRoomNotFound:
-			response.NotFound(w, "Room not found")
+			errorhandler.HandleError(r.Context(), w, http.StatusNotFound, "ROOM_NOT_FOUND", "Room not found", err)
 		case ErrNotRoomMember:
-			response.Forbidden(w, "You are not a member of this chat")
+			errorhandler.HandleError(r.Context(), w, http.StatusForbidden, "NOT_ROOM_MEMBER", "You are not a member of this chat", err)
 		case ErrUserBlocked:
-			response.Forbidden(w, "Cannot send message - user is blocked")
+			errorhandler.HandleError(r.Context(), w, http.StatusForbidden, "USER_BLOCKED", "Cannot send message - user is blocked", err)
 		case ErrInvalidImageURL:
-			response.BadRequest(w, "Invalid image URL - must be a valid HTTP(S) URL")
+			errorhandler.HandleError(r.Context(), w, http.StatusBadRequest, "INVALID_IMAGE_URL", "Invalid image URL - must be a valid HTTP(S) URL", err)
 		case ErrEmployerNotVerified:
-			response.Forbidden(w, "Employer account is pending verification")
+			errorhandler.HandleError(r.Context(), w, http.StatusForbidden, "EMPLOYER_NOT_VERIFIED", "Employer account is pending verification", err)
 		default:
 			errorhandler.HandleError(r.Context(), w,
 				http.StatusInternalServerError,
@@ -358,7 +362,7 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) MarkAsRead(w http.ResponseWriter, r *http.Request) {
 	roomID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		response.BadRequest(w, "Invalid room ID")
+		errorhandler.HandleError(r.Context(), w, http.StatusBadRequest, "INVALID_ID", "Invalid room ID", err)
 		return
 	}
 
@@ -366,9 +370,9 @@ func (h *Handler) MarkAsRead(w http.ResponseWriter, r *http.Request) {
 	if err := h.service.MarkAsRead(r.Context(), userID, roomID); err != nil {
 		switch err {
 		case ErrRoomNotFound:
-			response.NotFound(w, "Room not found")
+			errorhandler.HandleError(r.Context(), w, http.StatusNotFound, "ROOM_NOT_FOUND", "Room not found", err)
 		case ErrNotRoomMember:
-			response.Forbidden(w, "You are not a member of this chat")
+			errorhandler.HandleError(r.Context(), w, http.StatusForbidden, "NOT_ROOM_MEMBER", "You are not a member of this chat", err)
 		default:
 			errorhandler.HandleError(r.Context(), w,
 				http.StatusInternalServerError,
@@ -399,7 +403,7 @@ func (h *Handler) GetUnreadCount(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) WebSocket(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 	if userID == uuid.Nil {
-		response.Unauthorized(w, "Authentication required")
+		errorhandler.HandleError(r.Context(), w, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required", nil)
 		return
 	}
 
@@ -772,9 +776,9 @@ func (h *Handler) GetMembers(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch err {
 		case ErrRoomNotFound:
-			response.NotFound(w, "Room not found")
+			errorhandler.HandleError(r.Context(), w, http.StatusNotFound, "ROOM_NOT_FOUND", "Room not found", err)
 		case ErrNotRoomMember:
-			response.Forbidden(w, "You are not a member of this chat")
+			errorhandler.HandleError(r.Context(), w, http.StatusForbidden, "NOT_ROOM_MEMBER", "You are not a member of this chat", err)
 		default:
 			errorhandler.HandleError(r.Context(), w,
 				http.StatusInternalServerError,
