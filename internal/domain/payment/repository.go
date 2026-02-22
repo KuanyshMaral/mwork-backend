@@ -110,9 +110,9 @@ func (r *repository) ListByUser(ctx context.Context, userID uuid.UUID, limit, of
 			COALESCE(currency, 'KZT') AS currency,
 			COALESCE(status, 'pending') AS status,
 			provider, external_id, description,
-			COALESCE(metadata, 'null'::json) as metadata,
-			COALESCE(raw_init_payload, 'null'::json) as raw_init_payload,
-			COALESCE(raw_callback_payload, 'null'::json) as raw_callback_payload,
+			COALESCE(metadata, 'null'::jsonb) as metadata,
+			COALESCE(raw_init_payload, 'null'::jsonb) as raw_init_payload,
+			COALESCE(raw_callback_payload, 'null'::jsonb) as raw_callback_payload,
 			paid_at, failed_at, refunded_at, created_at,
 			COALESCE(updated_at, created_at) AS updated_at,
 			promotion_id
