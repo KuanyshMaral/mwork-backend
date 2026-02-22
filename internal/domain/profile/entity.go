@@ -57,8 +57,8 @@ type ModelProfile struct {
 
 	// Stats
 	ProfileViews int            `db:"profile_views"`
-	Rating       float64        `db:"rating"`
-	TotalReviews int            `db:"total_reviews"`
+	Rating       float64        `db:"rating_score"`
+	TotalReviews int            `db:"reviews_count"`
 	IsPublic     bool           `db:"is_public"`
 	Visibility   sql.NullString `db:"visibility"`
 
@@ -92,8 +92,8 @@ type EmployerProfile struct {
 	Country sql.NullString `db:"country"`
 
 	// Stats & verification
-	Rating         float64      `db:"rating"`
-	TotalReviews   int          `db:"total_reviews"`
+	Rating         float64      `db:"rating_score"`
+	TotalReviews   int          `db:"reviews_count"`
 	CastingsPosted int          `db:"castings_posted"`
 	IsVerified     bool         `db:"is_verified"`
 	VerifiedAt     sql.NullTime `db:"verified_at"`
