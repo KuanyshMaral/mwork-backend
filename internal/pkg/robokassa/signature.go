@@ -21,7 +21,9 @@ const (
 func NormalizeHashAlgorithm(raw string) (HashAlgorithm, error) {
 	algo := HashAlgorithm(strings.ToUpper(strings.TrimSpace(raw)))
 	switch algo {
-	case HashMD5, HashSHA256:
+	case HashMD5:
+		return algo, nil
+	case HashSHA256:
 		return algo, nil
 	default:
 		return "", fmt.Errorf("unsupported hash algorithm: %s", raw)

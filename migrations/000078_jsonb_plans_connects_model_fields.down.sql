@@ -1,4 +1,4 @@
--- Rollback for migration 000075
+-- Rollback for migration 000078
 
 -- Restore model_profiles columns
 ALTER TABLE model_profiles

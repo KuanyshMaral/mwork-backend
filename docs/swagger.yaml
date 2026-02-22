@@ -5987,8 +5987,6 @@ paths:
                       type: string
                   type: object
               type: object
-      security:
-      - BearerAuth: []
       summary: Страница неудачной оплаты Robokassa
       tags:
       - Payment
@@ -6012,8 +6010,6 @@ paths:
                       type: string
                   type: object
               type: object
-      security:
-      - BearerAuth: []
       summary: Страница неудачной оплаты Robokassa
       tags:
       - Payment
@@ -6084,8 +6080,6 @@ paths:
                       type: string
                   type: object
               type: object
-      security:
-      - BearerAuth: []
       summary: Страница успешной оплаты Robokassa
       tags:
       - Payment
@@ -6109,8 +6103,6 @@ paths:
                       type: string
                   type: object
               type: object
-      security:
-      - BearerAuth: []
       summary: Страница успешной оплаты Robokassa
       tags:
       - Payment

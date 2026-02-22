@@ -132,6 +132,10 @@ func (u *testUploadResolver) GetAttachmentInfo(ctx context.Context, uploadID, us
 	}, nil
 }
 
+func (u *testUploadResolver) CommitUpload(ctx context.Context, uploadID, userID uuid.UUID) (*AttachmentInfo, error) {
+	return &AttachmentInfo{URL: "https://example.com/file.jpg", UploadID: uploadID}, nil
+}
+
 func TestCreateOrGetRoom_AllowsFreePlanWithResponseAccess(t *testing.T) {
 	senderID := uuid.New()
 	recipientID := uuid.New()

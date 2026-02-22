@@ -5951,11 +5951,6 @@
         },
         "/payments/robokassa/fail": {
             "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
                 "description": "Обрабатывает редирект пользователя после неудачной оплаты (Fail URL)",
                 "produces": [
                     "application/json"
@@ -5994,11 +5989,6 @@
                 }
             },
             "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
                 "description": "Обрабатывает редирект пользователя после неудачной оплаты (Fail URL)",
                 "produces": [
                     "application/json"
@@ -6114,11 +6104,6 @@
         },
         "/payments/robokassa/success": {
             "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
                 "description": "Обрабатывает редирект пользователя после успешной оплаты (Success URL)",
                 "produces": [
                     "application/json"
@@ -6157,11 +6142,6 @@
                 }
             },
             "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
                 "description": "Обрабатывает редирект пользователя после успешной оплаты (Success URL)",
                 "produces": [
                     "application/json"

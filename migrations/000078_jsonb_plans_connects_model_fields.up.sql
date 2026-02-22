@@ -1,4 +1,4 @@
--- Migration 000075: Refactor `plans` table to use JSONB for extensibility
+-- Migration 000078: Refactor `plans` table to use JSONB for extensibility
 -- and add model profile fields + model connects to users.
 
 -- ============================================================
