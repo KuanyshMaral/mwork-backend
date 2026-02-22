@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
@@ -217,9 +218,38 @@ func (r *repository) BeginTxx(ctx context.Context) (*sqlx.Tx, error) {
 }
 
 func (r *repository) NextRobokassaInvID(ctx context.Context) (int64, error) {
+	id, err := r.nextRobokassaInvID(ctx)
+	if err == nil {
+		return id, nil
+	}
+	if !isMissingRobokassaSequenceErr(err) {
+		return 0, err
+	}
+	if createErr := r.createRobokassaSequenceIfMissing(ctx); createErr != nil {
+		return 0, createErr
+	}
+	return r.nextRobokassaInvID(ctx)
+}
+
+func (r *repository) nextRobokassaInvID(ctx context.Context) (int64, error) {
 	var id int64
 	if err := r.db.QueryRowContext(ctx, `SELECT nextval('robokassa_invoice_seq')`).Scan(&id); err != nil {
 		return 0, err
 	}
 	return id, nil
+}
+func (r *repository) createRobokassaSequenceIfMissing(ctx context.Context) error {
+	_, err := r.db.ExecContext(ctx, `CREATE SEQUENCE IF NOT EXISTS robokassa_invoice_seq START WITH 1000 INCREMENT BY 1 NO MAXVALUE NO MINVALUE CACHE 1`)
+	if err != nil {
+		return fmt.Errorf("failed to auto-create robokassa sequence: %w", err)
+	}
+	return nil
+}
+
+func isMissingRobokassaSequenceErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	errText := strings.ToLower(err.Error())
+	return strings.Contains(errText, "robokassa_invoice_seq") && strings.Contains(errText, "does not exist")
 }

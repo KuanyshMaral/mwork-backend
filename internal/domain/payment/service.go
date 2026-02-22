@@ -54,8 +54,8 @@ func (s *Service) SetRobokassaConfig(cfg RobokassaConfig) {
 	password1 := strings.TrimSpace(cfg.Password1)
 	password2 := strings.TrimSpace(cfg.Password2)
 	if cfg.IsTest {
-		password1 = strings.TrimSpace(cfg.TestPassword1)
-		password2 = strings.TrimSpace(cfg.TestPassword2)
+		password1 = firstNonEmptyTrimmed(cfg.TestPassword1, cfg.Password1)
+		password2 = firstNonEmptyTrimmed(cfg.TestPassword2, cfg.Password2)
 	}
 	algo, err := robokassa.NormalizeHashAlgorithm(cfg.HashAlgo)
 	if err != nil {
@@ -64,6 +64,15 @@ func (s *Service) SetRobokassaConfig(cfg RobokassaConfig) {
 	}
 	s.roboSvc = RobokassaService{MerchantLogin: strings.TrimSpace(cfg.MerchantLogin), Password1: password1, Password2: password2, BaseURL: strings.TrimSpace(cfg.BaseURL), HashAlgo: algo}
 	s.robokassaErr = s.validateRobokassaRuntimeConfig()
+}
+func firstNonEmptyTrimmed(values ...string) string {
+	for _, v := range values {
+		trimmed := strings.TrimSpace(v)
+		if trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
 }
 
 // InitRobokassaPaymentRequest содержит параметры для инициализации платежа через Robokassa
