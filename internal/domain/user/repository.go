@@ -23,6 +23,17 @@ type Repository interface {
 	UpdatePassword(ctx context.Context, id uuid.UUID, passwordHash string) error
 	UpdateStatus(ctx context.Context, id uuid.UUID, status Status) error
 	UpdateLastLogin(ctx context.Context, id uuid.UUID, ip string) error
+
+	// Connects (Two-Buckets) — Model response connects
+	// DeductModelConnect atomically deducts 1 from free_response_connects first,
+	// then purchased_response_connects if free is 0. Returns ErrInsufficientConnects if both are 0.
+	DeductModelConnect(ctx context.Context, userID uuid.UUID) error
+	// RefreshModelConnectsIfNeeded resets free connects if the last reset was before this month.
+	RefreshModelConnectsIfNeeded(ctx context.Context, userID uuid.UUID, freeLimit int) error
+	// GetConnectsBalance returns current free+purchased connect amounts.
+	GetConnectsBalance(ctx context.Context, userID uuid.UUID) (free int, purchased int, err error)
+	// AddPurchasedModelConnects adds to the purchased (permanent) connects bucket.
+	AddPurchasedModelConnects(ctx context.Context, userID uuid.UUID, amount int) error
 }
 
 // repository implements Repository
@@ -164,5 +175,78 @@ func (r *repository) UpdateLastLogin(ctx context.Context, id uuid.UUID, ip strin
 func (r *repository) Delete(ctx context.Context, id uuid.UUID) error {
 	query := `UPDATE users SET is_banned = true, updated_at = NOW() WHERE id = $1`
 	_, err := r.db.ExecContext(ctx, query, id)
+	return err
+}
+
+// ErrInsufficientConnects is returned when both free and purchased balances are 0.
+var ErrInsufficientConnects = errors.New("insufficient connects")
+
+// DeductModelConnect atomically deducts 1 connect using the Two-Buckets pattern:
+// 1. Try to deduct from model_free_response_connects.
+// 2. If 0, try to deduct from model_purchased_response_connects.
+// 3. If both 0, return ErrInsufficientConnects.
+func (r *repository) DeductModelConnect(ctx context.Context, userID uuid.UUID) error {
+	// Try free bucket first
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE users SET model_free_response_connects = model_free_response_connects - 1
+		 WHERE id = $1 AND model_free_response_connects > 0`,
+		userID,
+	)
+	if err != nil {
+		return fmt.Errorf("deduct free connect: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		return nil // deducted from free bucket
+	}
+
+	// Free is empty — try purchased bucket
+	res, err = r.db.ExecContext(ctx,
+		`UPDATE users SET model_purchased_response_connects = model_purchased_response_connects - 1
+		 WHERE id = $1 AND model_purchased_response_connects > 0`,
+		userID,
+	)
+	if err != nil {
+		return fmt.Errorf("deduct purchased connect: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		return nil // deducted from purchased bucket
+	}
+
+	return ErrInsufficientConnects
+}
+
+// RefreshModelConnectsIfNeeded lazily refreshes free connects at the start of each calendar month.
+func (r *repository) RefreshModelConnectsIfNeeded(ctx context.Context, userID uuid.UUID, freeLimit int) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE users
+		 SET model_free_response_connects = $2,
+		     model_connects_reset_at = NOW()
+		 WHERE id = $1
+		   AND (model_connects_reset_at IS NULL
+		        OR model_connects_reset_at < DATE_TRUNC('month', NOW()))`,
+		userID, freeLimit,
+	)
+	return err
+}
+
+// GetConnectsBalance returns current free and purchased connect balances.
+func (r *repository) GetConnectsBalance(ctx context.Context, userID uuid.UUID) (int, int, error) {
+	var free, purchased int
+	err := r.db.QueryRowContext(ctx,
+		`SELECT model_free_response_connects, model_purchased_response_connects FROM users WHERE id = $1`,
+		userID,
+	).Scan(&free, &purchased)
+	if err != nil {
+		return 0, 0, err
+	}
+	return free, purchased, nil
+}
+
+// AddPurchasedModelConnects adds connects to the permanent purchased bucket.
+func (r *repository) AddPurchasedModelConnects(ctx context.Context, userID uuid.UUID, amount int) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE users SET model_purchased_response_connects = model_purchased_response_connects + $2 WHERE id = $1`,
+		userID, amount,
+	)
 	return err
 }

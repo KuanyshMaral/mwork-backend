@@ -45,8 +45,8 @@ func (r *repository) GetPlanByID(ctx context.Context, id PlanID) (*Plan, error) 
 	query := `
 		SELECT
 			id, name, description, price_monthly, price_yearly,
-			max_photos, max_responses_month, can_chat, can_see_viewers,
-			priority_search, max_team_members, audience, is_active, created_at
+			audience, is_active, created_at,
+			monthly_consumables, features_and_quotas
 		FROM plans
 		WHERE id = $1 AND is_active = true
 	`
@@ -58,6 +58,7 @@ func (r *repository) GetPlanByID(ctx context.Context, id PlanID) (*Plan, error) 
 		}
 		return nil, err
 	}
+	plan.ParseJSONB()
 	return &plan, nil
 }
 
@@ -65,15 +66,20 @@ func (r *repository) ListPlans(ctx context.Context) ([]*Plan, error) {
 	query := `
 		SELECT
 			id, name, description, price_monthly, price_yearly,
-			max_photos, max_responses_month, can_chat, can_see_viewers,
-			priority_search, max_team_members, audience, is_active, created_at
+			audience, is_active, created_at,
+			monthly_consumables, features_and_quotas
 		FROM plans
 		WHERE is_active = true
 		ORDER BY price_monthly
 	`
 	var plans []*Plan
-	err := r.db.SelectContext(ctx, &plans, query)
-	return plans, err
+	if err := r.db.SelectContext(ctx, &plans, query); err != nil {
+		return nil, err
+	}
+	for _, p := range plans {
+		p.ParseJSONB()
+	}
+	return plans, nil
 }
 
 // Subscriptions

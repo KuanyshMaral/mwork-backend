@@ -91,6 +91,16 @@ func (r *testUserRepo) UpdateStatus(ctx context.Context, id uuid.UUID, status us
 func (r *testUserRepo) UpdateLastLogin(ctx context.Context, id uuid.UUID, ip string) error {
 	return nil
 }
+func (r *testUserRepo) DeductModelConnect(ctx context.Context, id uuid.UUID) error { return nil }
+func (r *testUserRepo) RefreshModelConnectsIfNeeded(ctx context.Context, id uuid.UUID, n int) error {
+	return nil
+}
+func (r *testUserRepo) GetConnectsBalance(ctx context.Context, id uuid.UUID) (int, int, error) {
+	return 0, 0, nil
+}
+func (r *testUserRepo) AddPurchasedModelConnects(ctx context.Context, id uuid.UUID, n int) error {
+	return nil
+}
 
 type testLimitChecker struct {
 	calls int

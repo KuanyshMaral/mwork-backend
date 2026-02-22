@@ -3,8 +3,10 @@ package profile
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -42,16 +44,23 @@ func NewHandler(service *Service, attachmentService *attachmentDomain.Service) *
 func (h *Handler) GetMe(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 
+	var fetchErrors []string
+
 	// Fetch user to get credit balance
 	user, err := h.service.userRepo.GetByID(r.Context(), userID)
 	creditBalance := 0
-	if err == nil && user != nil {
+	if err != nil {
+		fetchErrors = append(fetchErrors, fmt.Sprintf("userRepo.GetByID: %v", err))
+	} else if user != nil {
 		creditBalance = user.CreditBalance
 	}
 
 	// Try to get model profile first
 	modelProfile, err := h.service.GetModelProfileByUserID(r.Context(), userID)
-	if err == nil && modelProfile != nil {
+	if err != nil {
+		fetchErrors = append(fetchErrors, fmt.Sprintf("GetModelProfile: %v", err))
+	}
+	if modelProfile != nil {
 		resp := ModelProfileResponseFromEntity(modelProfile)
 		resp.CreditBalance = creditBalance
 
@@ -72,7 +81,10 @@ func (h *Handler) GetMe(w http.ResponseWriter, r *http.Request) {
 
 	// Try employer profile
 	employerProfile, err := h.service.GetEmployerProfileByUserID(r.Context(), userID)
-	if err == nil && employerProfile != nil {
+	if err != nil {
+		fetchErrors = append(fetchErrors, fmt.Sprintf("GetEmployerProfile: %v", err))
+	}
+	if employerProfile != nil {
 		resp := EmployerProfileResponseFromEntity(employerProfile)
 		resp.CreditBalance = creditBalance
 		response.OK(w, resp)
@@ -80,12 +92,19 @@ func (h *Handler) GetMe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	adminProfile, err := h.service.GetAdminProfileByUserID(r.Context(), userID)
-	if err == nil && adminProfile != nil {
+	if err != nil {
+		fetchErrors = append(fetchErrors, fmt.Sprintf("GetAdminProfile: %v", err))
+	}
+	if adminProfile != nil {
 		response.OK(w, AdminProfileResponseFromEntity(adminProfile))
 		return
 	}
 
-	response.NotFound(w, "Profile not found")
+	msg := "Profile not found"
+	if len(fetchErrors) > 0 {
+		msg = fmt.Sprintf("Profile not found. Errors: %s", strings.Join(fetchErrors, " | "))
+	}
+	response.NotFound(w, msg)
 }
 
 // GetModelByID handles GET /profiles/models/{id}

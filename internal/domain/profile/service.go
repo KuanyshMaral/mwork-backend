@@ -3,6 +3,7 @@ package profile
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -286,8 +287,14 @@ func (s *Service) UpdateModelProfile(ctx context.Context, userID uuid.UUID, req 
 	if req.Bio != "" {
 		profile.Bio = sql.NullString{String: req.Bio, Valid: true}
 	}
+	if req.Description != "" {
+		profile.Description = sql.NullString{String: req.Description, Valid: true}
+	}
 	if req.City != "" {
 		profile.City = sql.NullString{String: req.City, Valid: true}
+	}
+	if req.Country != "" {
+		profile.Country = sql.NullString{String: req.Country, Valid: true}
 	}
 	if req.Age != nil {
 		profile.Age = sql.NullInt32{Int32: int32(*req.Age), Valid: true}
@@ -356,6 +363,24 @@ func (s *Service) UpdateModelProfile(ctx context.Context, userID uuid.UUID, req 
 	}
 	if req.SocialLinks != nil {
 		profile.SetSocialLinks(req.SocialLinks)
+	}
+	// New body measurements
+	if req.BustCm != nil {
+		profile.BustCm = sql.NullInt32{Int32: int32(*req.BustCm), Valid: true}
+	}
+	if req.WaistCm != nil {
+		profile.WaistCm = sql.NullInt32{Int32: int32(*req.WaistCm), Valid: true}
+	}
+	if req.HipsCm != nil {
+		profile.HipsCm = sql.NullInt32{Int32: int32(*req.HipsCm), Valid: true}
+	}
+	if req.SkinTone != "" {
+		profile.SkinTone = sql.NullString{String: req.SkinTone, Valid: true}
+	}
+	if req.Specializations != nil {
+		if b, err := json.Marshal(req.Specializations); err == nil {
+			profile.Specializations = json.RawMessage(b)
+		}
 	}
 
 	if req.AvatarUploadID != nil {

@@ -54,6 +54,12 @@ type Service struct {
 	paymentProvider featurepayment.PaymentProvider
 	chatSvc         ChatServiceInterface
 	limitChecker    SubLimitChecker
+	userRepo        UserRepository
+}
+
+// UserRepository is the subset of user.Repository methods the response service needs.
+type UserRepository interface {
+	DeductModelConnect(ctx context.Context, userID uuid.UUID) error
 }
 
 // NewService creates response service
@@ -97,12 +103,16 @@ func (s *Service) SetLimitChecker(lc SubLimitChecker) {
 	s.limitChecker = lc
 }
 
-// Apply applies to a casting with hybrid billing:
-//  1. Validate requirements (BEFORE billing)
-//  2. Check monthly subscription limit
-//  3. If within limit → create response (non-tx)
-//  4. If limit exhausted → open tx, DeductTx (FOR UPDATE), CreateTx, Commit
-//  5. Any failure → Rollback
+// SetUserRepo injects user repository for connect deduction.
+func (s *Service) SetUserRepo(repo UserRepository) {
+	s.userRepo = repo
+}
+
+// Apply applies to a casting using the Two-Buckets connect system:
+//  1. Validate casting requirements (BEFORE billing)
+//  2. Deduct 1 connect (free bucket first, then purchased bucket)
+//  3. If both are 0, return 402 ErrInsufficientConnects
+//  4. Create the response record
 func (s *Service) Apply(ctx context.Context, userID uuid.UUID, castingID uuid.UUID, req *ApplyRequest) (*Response, error) {
 	// Get user's model profile
 	prof, err := s.modelRepo.GetByUserID(ctx, userID)
@@ -155,63 +165,22 @@ func (s *Service) Apply(ctx context.Context, userID uuid.UUID, castingID uuid.UU
 		resp.ProposedRate = sql.NullFloat64{Float64: *req.ProposedRate, Valid: true}
 	}
 
-	// Phase 2: Hybrid billing — subscription first, then credits
-	usedCredit := false
-	withinLimit := true
-
-	if s.limitChecker != nil {
-		count, err := s.repo.CountMonthlyByUserID(ctx, userID)
-		if err != nil {
-			return nil, err
-		}
-		if err := s.limitChecker.CanApplyToResponse(ctx, userID, count); err != nil {
-			// Subscription limit exhausted — will try credits
-			withinLimit = false
-		}
-	}
-
-	if withinLimit {
-		// Within subscription limit → simple non-transactional create
-		if err := s.repo.Create(ctx, resp); err != nil {
-			return nil, err
-		}
-	} else {
-		// Subscription limit exhausted → use credits atomically
-		if s.creditSvc == nil {
-			return nil, ErrInsufficientCredits
-		}
-
-		tx, err := s.repo.BeginTx(ctx)
-		if err != nil {
-			return nil, ErrCreditOperationFailed
-		}
-		defer tx.Rollback()
-
-		// DeductTx uses FOR UPDATE row lock on users.credit_balance
-		creditMeta := credit.TransactionMeta{
-			RelatedEntityType: "casting",
-			RelatedEntityID:   castingID,
-			Description:       "apply to casting: " + cast.Title,
-		}
-		if err := s.creditSvc.DeductTx(ctx, tx, userID, 1, creditMeta); err != nil {
-			if errors.Is(err, credit.ErrInsufficientCredits) {
-				return nil, ErrInsufficientCredits
+	// Phase 2: Two-Buckets connect deduction
+	// Deducts 1 from free_response_connects first, then purchased_response_connects.
+	// Returns ErrInsufficientConnects if both buckets are empty (→ 402)
+	if s.userRepo != nil {
+		if err := s.userRepo.DeductModelConnect(ctx, userID); err != nil {
+			if errors.Is(err, ErrInsufficientConnects) {
+				return nil, ErrInsufficientConnects
 			}
-			return nil, ErrCreditOperationFailed
+			return nil, fmt.Errorf("connect deduction failed: %w", err)
 		}
-
-		// Create response within same transaction
-		if err := s.repo.CreateTx(ctx, tx, resp); err != nil {
-			return nil, err
-		}
-
-		if err := tx.Commit(); err != nil {
-			return nil, ErrCreditOperationFailed
-		}
-		usedCredit = true
 	}
 
-	_ = usedCredit // future: can be used for analytics or response metadata
+	// Phase 3: Create response record
+	if err := s.repo.Create(ctx, resp); err != nil {
+		return nil, err
+	}
 
 	// Send notification to employer about new response (async with panic guard)
 	if s.notifService != nil {

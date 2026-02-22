@@ -34,7 +34,7 @@ func (c *LimitChecker) CanUploadPhoto(ctx context.Context, userID uuid.UUID, cur
 		return &LimitError{
 			Err:       ErrPhotoLimitReached,
 			Current:   currentPhotoCount,
-			Limit:     plan.MaxPhotos,
+			Limit:     plan.Features.MaxPhotos,
 			PlanName:  string(plan.ID),
 			UpgradeTo: c.getUpgradePlan(plan.ID),
 		}
@@ -52,7 +52,7 @@ func (c *LimitChecker) CanApplyToResponse(ctx context.Context, userID uuid.UUID,
 		return &LimitError{
 			Err:       ErrResponseLimitReached,
 			Current:   monthlyApplications,
-			Limit:     plan.MaxResponsesMonth,
+			Limit:     plan.Consumables.ResponseConnects,
 			PlanName:  string(plan.ID),
 			UpgradeTo: c.getUpgradePlan(plan.ID),
 		}
@@ -86,11 +86,11 @@ func (c *LimitChecker) GetLimitsStatus(ctx context.Context, userID uuid.UUID) (*
 	return &LimitsStatus{
 		PlanID:            string(plan.ID),
 		PlanName:          plan.Name,
-		MaxPhotos:         plan.MaxPhotos,
-		MaxResponsesMonth: plan.MaxResponsesMonth,
-		CanChat:           plan.CanChat,
-		CanSeeViewers:     plan.CanSeeViewers,
-		PrioritySearch:    plan.PrioritySearch,
+		MaxPhotos:         plan.Features.MaxPhotos,
+		MaxResponsesMonth: plan.Consumables.ResponseConnects,
+		CanChat:           plan.Features.CanChat,
+		CanSeeViewers:     plan.Features.CanSeeViewers,
+		PrioritySearch:    plan.Features.PrioritySearch,
 	}, nil
 }
 
