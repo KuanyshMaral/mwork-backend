@@ -493,6 +493,8 @@ definitions:
         type: string
       city:
         type: string
+      cover_image:
+        type: string
       cover_image_url:
         type: string
       created_at:
@@ -1426,16 +1428,20 @@ definitions:
         $ref: '#/definitions/sql.NullTime'
       id:
         type: string
+      inv_id:
+        $ref: '#/definitions/sql.NullString'
       metadata:
         items:
           type: integer
         type: array
       paid_at:
         $ref: '#/definitions/sql.NullTime'
+      plan:
+        $ref: '#/definitions/sql.NullString'
       plan_id:
-        type: string
+        $ref: '#/definitions/uuid.NullUUID'
       promotion_id:
-        type: string
+        $ref: '#/definitions/uuid.NullUUID'
       provider:
         $ref: '#/definitions/sql.NullString'
       raw_callback_payload:
@@ -1448,12 +1454,16 @@ definitions:
         type: array
       refunded_at:
         $ref: '#/definitions/sql.NullTime'
+      response_package:
+        $ref: '#/definitions/sql.NullInt64'
       robokassa_inv_id:
         $ref: '#/definitions/sql.NullInt64'
       status:
         $ref: '#/definitions/internal_domain_payment.Status'
       subscription_id:
         $ref: '#/definitions/uuid.NullUUID'
+      type:
+        type: string
       updated_at:
         type: string
       user_id:
@@ -1462,12 +1472,14 @@ definitions:
   internal_domain_payment.Status:
     enum:
     - pending
+    - paid
     - completed
     - failed
     - refunded
     type: string
     x-enum-varnames:
     - StatusPending
+    - StatusPaid
     - StatusCompleted
     - StatusFailed
     - StatusRefunded
