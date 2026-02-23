@@ -238,9 +238,21 @@ func (r *repository) NextRobokassaInvID(ctx context.Context) (int64, error) {
 		return 0, err
 	}
 	if createErr := r.createRobokassaSequenceIfMissing(ctx); createErr != nil {
-		return 0, createErr
+		fallbackID, fallbackErr := r.nextRobokassaInvIDFromPayments(ctx)
+		if fallbackErr != nil {
+			return 0, fmt.Errorf("%w; fallback invoice id generation failed: %v", createErr, fallbackErr)
+		}
+		return fallbackID, nil
 	}
-	return r.nextRobokassaInvID(ctx)
+	id, err = r.nextRobokassaInvID(ctx)
+	if err == nil {
+		return id, nil
+	}
+	fallbackID, fallbackErr := r.nextRobokassaInvIDFromPayments(ctx)
+	if fallbackErr != nil {
+		return 0, fmt.Errorf("%w; fallback invoice id generation failed: %v", err, fallbackErr)
+	}
+	return fallbackID, nil
 }
 
 func (r *repository) nextRobokassaInvID(ctx context.Context) (int64, error) {
@@ -256,6 +268,17 @@ func (r *repository) createRobokassaSequenceIfMissing(ctx context.Context) error
 		return fmt.Errorf("failed to auto-create robokassa sequence: %w", err)
 	}
 	return nil
+}
+
+func (r *repository) nextRobokassaInvIDFromPayments(ctx context.Context) (int64, error) {
+	var id int64
+	if err := r.db.QueryRowContext(ctx, `SELECT COALESCE(MAX(robokassa_inv_id), 999) + 1 FROM payments`).Scan(&id); err != nil {
+		return 0, err
+	}
+	if id <= 0 {
+		return 1000, nil
+	}
+	return id, nil
 }
 
 func isMissingRobokassaSequenceErr(err error) bool {
