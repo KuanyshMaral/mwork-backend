@@ -121,7 +121,13 @@ func (r *Repository) updateCachedStats(ctx context.Context, tx *sqlx.Tx, targetT
 // GetByID returns a review by ID.
 func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (*Review, error) {
 	var review Review
-	err := r.db.GetContext(ctx, &review, `SELECT * FROM reviews WHERE id = $1`, id)
+	query := `
+		SELECT r.*, u.full_name as author_name
+		FROM reviews r
+		LEFT JOIN users u ON r.author_id = u.id
+		WHERE r.id = $1
+	`
+	err := r.db.GetContext(ctx, &review, query, id)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -131,9 +137,11 @@ func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (*Review, error)
 // GetByTarget returns paginated public reviews for a target entity.
 func (r *Repository) GetByTarget(ctx context.Context, targetType TargetType, targetID uuid.UUID, limit, offset int) ([]Review, error) {
 	query := `
-		SELECT * FROM reviews
-		WHERE target_type = $1 AND target_id = $2 AND is_public = true
-		ORDER BY created_at DESC
+		SELECT r.*, u.full_name as author_name
+		FROM reviews r
+		LEFT JOIN users u ON r.author_id = u.id
+		WHERE r.target_type = $1 AND r.target_id = $2 AND r.is_public = true
+		ORDER BY r.created_at DESC
 		LIMIT $3 OFFSET $4
 	`
 	var reviews []Review
