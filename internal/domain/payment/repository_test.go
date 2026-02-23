@@ -15,12 +15,17 @@ func TestIsUndefinedColumnErr(t *testing.T) {
 func TestIsUndefinedPaymentsColumnErr(t *testing.T) {
 	err := "pq: column payments.raw_init_payload does not exist"
 	if !isUndefinedPaymentsColumnErr(assertErr(err)) {
-		t.Fatal("expected payments undefined column error to match")
+		t.Fatal("expected undefined column error to match")
 	}
 
 	nonPaymentsErr := "pq: column users.status does not exist"
-	if isUndefinedPaymentsColumnErr(assertErr(nonPaymentsErr)) {
-		t.Fatal("did not expect non-payments column error to match")
+	if !isUndefinedPaymentsColumnErr(assertErr(nonPaymentsErr)) {
+		t.Fatal("expected undefined column errors from joined tables to match")
+	}
+
+	notUndefinedErr := "pq: relation payments does not exist"
+	if isUndefinedPaymentsColumnErr(assertErr(notUndefinedErr)) {
+		t.Fatal("did not expect non-column errors to match")
 	}
 }
 

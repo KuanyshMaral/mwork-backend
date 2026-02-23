@@ -377,10 +377,7 @@ func isUndefinedPaymentsColumnErr(err error) bool {
 		return false
 	}
 	errText := strings.ToLower(err.Error())
-	if !(strings.Contains(errText, "column") && strings.Contains(errText, "does not exist")) {
-		return false
-	}
-	return strings.Contains(errText, "payments")
+	return strings.Contains(errText, "column") && strings.Contains(errText, "does not exist")
 }
 
 func isUndefinedColumnErr(err error, column string) bool {
