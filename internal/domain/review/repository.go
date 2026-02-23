@@ -122,9 +122,12 @@ func (r *Repository) updateCachedStats(ctx context.Context, tx *sqlx.Tx, targetT
 func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (*Review, error) {
 	var review Review
 	query := `
-		SELECT r.*, u.full_name as author_name
+		SELECT r.*,
+			COALESCE(mp.name, ep.company_name, ap.name, 'Пользователь') as author_name
 		FROM reviews r
-		LEFT JOIN users u ON r.author_id = u.id
+		LEFT JOIN model_profiles mp ON r.author_id = mp.user_id
+		LEFT JOIN employer_profiles ep ON r.author_id = ep.user_id
+		LEFT JOIN admin_profiles ap ON r.author_id = ap.user_id
 		WHERE r.id = $1
 	`
 	err := r.db.GetContext(ctx, &review, query, id)
@@ -137,9 +140,12 @@ func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (*Review, error)
 // GetByTarget returns paginated public reviews for a target entity.
 func (r *Repository) GetByTarget(ctx context.Context, targetType TargetType, targetID uuid.UUID, limit, offset int) ([]Review, error) {
 	query := `
-		SELECT r.*, u.full_name as author_name
+		SELECT r.*,
+			COALESCE(mp.name, ep.company_name, ap.name, 'Пользователь') as author_name
 		FROM reviews r
-		LEFT JOIN users u ON r.author_id = u.id
+		LEFT JOIN model_profiles mp ON r.author_id = mp.user_id
+		LEFT JOIN employer_profiles ep ON r.author_id = ep.user_id
+		LEFT JOIN admin_profiles ap ON r.author_id = ap.user_id
 		WHERE r.target_type = $1 AND r.target_id = $2 AND r.is_public = true
 		ORDER BY r.created_at DESC
 		LIMIT $3 OFFSET $4
