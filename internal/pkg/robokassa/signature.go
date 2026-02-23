@@ -88,7 +88,7 @@ func sortedShpPairs(shp map[string]string) []string {
 
 	pairs := make([]string, 0, len(keys))
 	for _, key := range keys {
-		pairs = append(pairs, fmt.Sprintf("%s=%s", key, url.QueryEscape(shp[key])))
+		pairs = append(pairs, fmt.Sprintf("%s=%s", key, shp[key]))
 	}
 	return pairs
 }

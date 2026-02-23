@@ -111,16 +111,13 @@ func (h *Handler) RobokassaResult(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	shp := map[string]string{}
+	shp := extractShpFromForm(r.Form)
 	raw := map[string]string{}
 	for key, values := range r.Form {
 		if len(values) == 0 {
 			continue
 		}
 		raw[key] = values[0]
-		if strings.HasPrefix(strings.ToLower(key), "shp_") {
-			shp[key] = values[0]
-		}
 	}
 
 	err := h.service.ProcessRobokassaResult(r.Context(), outSum, invID, signature, shp, raw)
@@ -173,8 +170,28 @@ func (h *Handler) CreateRobokassaResponsePayment(w http.ResponseWriter, r *http.
 // @Router /payments/robokassa/success [get]
 // @Router /payments/robokassa/success [post]
 func (h *Handler) RobokassaSuccess(w http.ResponseWriter, r *http.Request) {
-	// Redirect to frontend success page
-	// HTTP 302 Found is appropriate for temporary redirect after POST/GET
+	if err := r.ParseForm(); err != nil {
+		response.BadRequest(w, "invalid query")
+		return
+	}
+	outSum := r.Form.Get("OutSum")
+	invID := r.Form.Get("InvId")
+	signature := r.Form.Get("SignatureValue")
+	if outSum == "" || invID == "" || signature == "" {
+		response.BadRequest(w, "missing signature parameters")
+		return
+	}
+	shp := extractShpFromForm(r.Form)
+	if err := h.service.VerifyRobokassaSuccessRedirect(outSum, invID, signature, shp); err != nil {
+		log.Warn().Err(err).Str("inv_id", invID).Msg("robokassa success redirect validation failed")
+		response.BadRequest(w, "invalid signature")
+		return
+	}
+	if !isSafeRedirectTarget(h.config.RobokassaFrontendSuccessURL) {
+		log.Error().Msg("invalid robokassa success frontend url")
+		response.InternalError(w)
+		return
+	}
 	http.Redirect(w, r, h.config.RobokassaFrontendSuccessURL, http.StatusFound)
 }
 
@@ -187,7 +204,11 @@ func (h *Handler) RobokassaSuccess(w http.ResponseWriter, r *http.Request) {
 // @Router /payments/robokassa/fail [get]
 // @Router /payments/robokassa/fail [post]
 func (h *Handler) RobokassaFail(w http.ResponseWriter, r *http.Request) {
-	// Redirect to frontend fail page
+	if !isSafeRedirectTarget(h.config.RobokassaFrontendFailURL) {
+		log.Error().Msg("invalid robokassa fail frontend url")
+		response.InternalError(w)
+		return
+	}
 	http.Redirect(w, r, h.config.RobokassaFrontendFailURL, http.StatusFound)
 }
 
@@ -269,8 +290,8 @@ func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.service.HandleWebhook(r.Context(), provider, externalID, data.Status); err != nil {
-		// Don't expose internal errors to webhook caller
-		response.OK(w, map[string]string{"status": "error", "message": "payment not found"})
+		// Do not expose internal details to webhook caller.
+		response.BadRequest(w, "webhook rejected")
 		return
 	}
 
@@ -310,4 +331,28 @@ func (h *Handler) WebhookRoutes() chi.Router {
 
 func parseUUID(raw string) (uuid.UUID, error) {
 	return uuid.Parse(raw)
+}
+
+func extractShpFromForm(form map[string][]string) map[string]string {
+	shp := map[string]string{}
+	for key, values := range form {
+		if len(values) == 0 {
+			continue
+		}
+		if strings.HasPrefix(strings.ToLower(key), "shp_") {
+			shp[key] = values[0]
+		}
+	}
+	return shp
+}
+
+func isSafeRedirectTarget(rawURL string) bool {
+	target := strings.TrimSpace(rawURL)
+	if target == "" {
+		return false
+	}
+	if strings.HasPrefix(strings.ToLower(target), "javascript:") {
+		return false
+	}
+	return strings.HasPrefix(target, "http://") || strings.HasPrefix(target, "https://")
 }

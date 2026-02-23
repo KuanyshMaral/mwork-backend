@@ -119,9 +119,13 @@ func (s *Service) InitRobokassaPayment(ctx context.Context, req InitRobokassaPay
 		return nil, fmt.Errorf("invalid amount")
 	}
 	outSum := amountRat.FloatString(2)
-	initPayload := map[string]string{"OutSum": outSum, "InvId": invIDString(invID)}
+	shp := buildRobokassaShp(req.UserID, invID)
+	initPayload := map[string]string{"OutSum": outSum, "InvId": invIDString(invID), "IncCurrLabel": "KZT", "Shp_user": shp["Shp_user"], "Shp_nonce": shp["Shp_nonce"]}
 
-	rawInit, _ := json.Marshal(initPayload)
+	rawInit, err := json.Marshal(initPayload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal init payload: %w", err)
+	}
 	subscriptionID := uuid.NullUUID{Valid: false}
 	if req.SubscriptionID != uuid.Nil {
 		subscriptionID = uuid.NullUUID{UUID: req.SubscriptionID, Valid: true}
@@ -145,21 +149,29 @@ func (s *Service) InitRobokassaPayment(ctx context.Context, req InitRobokassaPay
 		RobokassaInvID: sql.NullInt64{Int64: invID, Valid: true},
 		Description:    sql.NullString{String: req.Description, Valid: req.Description != ""},
 		RawInitPayload: rawInit,
+		Metadata:       JSONRawMessage(rawInit),
 	}
 
 	if err := s.repo.CreateRobokassaPending(ctx, payment); err != nil {
 		return nil, err
 	}
 
-	paymentURL, err := s.roboSvc.GeneratePaymentLink(outSum, invIDString(invID))
+	paymentURL, err := s.roboSvc.GeneratePaymentLink(outSum, invIDString(invID), shp)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate robokassa payment link: %w", err)
 	}
-	if req.Description != "" {
-		paymentURL += "&Description=" + url.QueryEscape(req.Description)
+	paymentURL, err = appendQueryParams(paymentURL, map[string]string{
+		"IncCurrLabel": "KZT",
+		"Description":  strings.TrimSpace(req.Description),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to build robokassa payment link: %w", err)
 	}
 	if s.robokassaConfig.IsTest {
-		paymentURL += "&IsTest=1"
+		paymentURL, err = appendQueryParams(paymentURL, map[string]string{"IsTest": "1"})
+		if err != nil {
+			return nil, fmt.Errorf("failed to build robokassa test payment link: %w", err)
+		}
 	}
 	return &InitRobokassaPaymentResponse{PaymentID: payment.ID, InvID: invID, PaymentURL: paymentURL, Status: string(StatusPending)}, nil
 }
@@ -182,16 +194,20 @@ func (s *Service) InitRobokassaPayment(ctx context.Context, req InitRobokassaPay
 //   - payment not found: платеж не найден
 //   - amount mismatch: сумма не совпадает с ожидаемой
 func (s *Service) ProcessRobokassaResult(ctx context.Context, outSum, invID, signature string, shp map[string]string, rawPayload map[string]string) error {
+	outSum = strings.TrimSpace(outSum)
+	invID = strings.TrimSpace(invID)
+	signature = strings.TrimSpace(signature)
+	log.Info().Str("inv_id", invID).Msg("processing robokassa result callback")
 	if s.robokassaErr != nil {
 		return s.robokassaErr
 	}
-	if !s.roboSvc.ValidateResultSignature(outSum, invID, signature, shp) {
-		return fmt.Errorf("invalid signature")
-	}
-
 	callbackAmount, err := normalizeAmount(outSum)
 	if err != nil {
 		return fmt.Errorf("invalid amount")
+	}
+	parsedInvID, err := strconv.ParseInt(invID, 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid inv_id")
 	}
 
 	tx, err := s.repo.BeginTxx(ctx)
@@ -200,12 +216,28 @@ func (s *Service) ProcessRobokassaResult(ctx context.Context, outSum, invID, sig
 	}
 	defer tx.Rollback()
 
-	payment, err := s.repo.GetByInvIDForUpdate(ctx, tx, invID)
+	payment, err := s.repo.GetByRobokassaInvIDForUpdate(ctx, tx, parsedInvID)
+	if err != nil {
+		return err
+	}
+	if payment == nil {
+		// Backward compatibility for rows where textual inv_id was filled but numeric column might be absent.
+		payment, err = s.repo.GetByInvIDForUpdate(ctx, tx, invID)
+	}
 	if err != nil {
 		return err
 	}
 	if payment == nil {
 		return ErrPaymentNotFound
+	}
+	if payment.RobokassaInvID.Valid && payment.RobokassaInvID.Int64 != parsedInvID {
+		return fmt.Errorf("inv_id mismatch")
+	}
+	if !s.roboSvc.ValidateResultSignature(callbackAmount.FloatString(2), invID, signature, shp) {
+		return fmt.Errorf("invalid signature")
+	}
+	if err := s.validateRobokassaReplayProtection(payment, shp); err != nil {
+		return err
 	}
 	if payment.Status == StatusPaid || payment.Status == StatusCompleted {
 		return tx.Commit()
@@ -230,7 +262,14 @@ func (s *Service) ProcessRobokassaResult(ctx context.Context, outSum, invID, sig
 		return fmt.Errorf("test callback is not allowed in production mode")
 	}
 
+	if currency, ok := rawPayload["IncCurrLabel"]; ok && !strings.EqualFold(strings.TrimSpace(currency), "KZT") {
+		return fmt.Errorf("invalid currency")
+	}
+
 	if err := s.repo.MarkRobokassaSucceeded(ctx, tx, payment.ID, rawPayload); err != nil {
+		if err == sql.ErrNoRows {
+			return tx.Commit()
+		}
 		return err
 	}
 
@@ -248,15 +287,36 @@ func (s *Service) ProcessRobokassaResult(ctx context.Context, outSum, invID, sig
 		}
 	}
 
-	rawEvent, _ := json.Marshal(rawPayload)
+	rawEvent, err := json.Marshal(rawPayload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal callback payload: %w", err)
+	}
 	if err := s.repo.CreatePaymentEvent(ctx, tx, payment.ID, "robokassa.result.succeeded", rawEvent); err != nil {
 		return err
 	}
 
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	log.Info().Str("inv_id", invID).Str("payment_id", payment.ID.String()).Msg("robokassa payment callback processed")
+	return nil
 }
 
 func invIDString(invID int64) string { return strconv.FormatInt(invID, 10) }
+
+func (s *Service) VerifyRobokassaSuccessRedirect(outSum, invID, signature string, shp map[string]string) error {
+	if s.robokassaErr != nil {
+		return s.robokassaErr
+	}
+	normalizedAmount, err := normalizeAmount(outSum)
+	if err != nil {
+		return fmt.Errorf("invalid amount")
+	}
+	if !s.roboSvc.ValidateSuccessSignature(normalizedAmount.FloatString(2), invID, signature, shp) {
+		return fmt.Errorf("invalid signature")
+	}
+	return nil
+}
 
 func (s *Service) CreateSubscriptionPayment(ctx context.Context, userID uuid.UUID, plan string) (*InitRobokassaPaymentResponse, error) {
 	plan = strings.ToLower(strings.TrimSpace(plan))
@@ -296,26 +356,56 @@ func (s *Service) CreateResponsePayment(ctx context.Context, userID uuid.UUID, p
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate invoice id: %w", err)
 	}
+	shp := buildRobokassaShp(userID, invID)
+	initPayload := map[string]string{
+		"OutSum":       fmt.Sprintf("%.2f", amount),
+		"InvId":        invIDString(invID),
+		"IncCurrLabel": "KZT",
+		"Shp_user":     shp["Shp_user"],
+		"Shp_nonce":    shp["Shp_nonce"],
+	}
+	rawInit, err := json.Marshal(initPayload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal init payload: %w", err)
+	}
 	payment := &Payment{ID: uuid.New(), UserID: userID, Type: "responses", ResponsePackage: sql.NullInt64{Int64: int64(pack), Valid: true}, InvID: sql.NullString{String: invIDString(invID), Valid: true}, Amount: amount, Currency: "KZT", Status: StatusPending, Provider: sql.NullString{String: "robokassa", Valid: true}, ExternalID: sql.NullString{String: invIDString(invID), Valid: true}, RobokassaInvID: sql.NullInt64{Int64: invID, Valid: true}, Description: sql.NullString{String: fmt.Sprintf("responses package %d", pack), Valid: true}}
+	payment.RawInitPayload = rawInit
+	payment.Metadata = JSONRawMessage(rawInit)
 	if err := s.repo.CreateRobokassaPending(ctx, payment); err != nil {
 		return nil, err
 	}
-	url, err := s.roboSvc.GeneratePaymentLink(fmt.Sprintf("%.2f", amount), invIDString(invID))
+	url, err := s.roboSvc.GeneratePaymentLink(fmt.Sprintf("%.2f", amount), invIDString(invID), shp)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate robokassa payment link: %w", err)
 	}
+	url, err = appendQueryParams(url, map[string]string{"IncCurrLabel": "KZT"})
+	if err != nil {
+		return nil, fmt.Errorf("failed to build robokassa payment link: %w", err)
+	}
 	if s.robokassaConfig.IsTest {
-		url += "&IsTest=1"
+		url, err = appendQueryParams(url, map[string]string{"IsTest": "1"})
+		if err != nil {
+			return nil, fmt.Errorf("failed to build robokassa test payment link: %w", err)
+		}
 	}
 	return &InitRobokassaPaymentResponse{PaymentID: payment.ID, InvID: invID, PaymentURL: url, Status: string(StatusPending)}, nil
 }
 
-func encodeQuery(params map[string]string) string {
-	values := url.Values{}
-	for k, v := range params {
-		values.Set(k, v)
+func appendQueryParams(rawURL string, params map[string]string) (string, error) {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return "", err
 	}
-	return values.Encode()
+	query := parsed.Query()
+	for k, v := range params {
+		trimmed := strings.TrimSpace(v)
+		if trimmed == "" {
+			continue
+		}
+		query.Set(k, trimmed)
+	}
+	parsed.RawQuery = query.Encode()
+	return parsed.String(), nil
 }
 
 func ratToFloat64(v *big.Rat) float64 {
@@ -557,7 +647,78 @@ var (
 
 func normalizeAmount(raw string) (*big.Rat, error) {
 	normalized := strings.TrimSpace(strings.ReplaceAll(raw, ",", "."))
-	return robokassa.ParseAmount(normalized)
+	amount, err := robokassa.ParseAmount(normalized)
+	if err != nil {
+		return nil, err
+	}
+	if amount.Sign() <= 0 {
+		return nil, fmt.Errorf("amount must be greater than zero")
+	}
+	return amount, nil
+}
+
+func buildRobokassaShp(userID uuid.UUID, invID int64) map[string]string {
+	return map[string]string{
+		"Shp_user":  userID.String(),
+		"Shp_nonce": fmt.Sprintf("%s-%d-%s", userID.String(), invID, uuid.NewString()),
+	}
+}
+
+func (s *Service) validateRobokassaReplayProtection(payment *Payment, shp map[string]string) error {
+	if payment == nil {
+		return fmt.Errorf("payment is nil")
+	}
+	expectedShp := expectedShpFromPayment(payment)
+	if len(expectedShp) == 0 {
+		// Legacy payment rows might not have SHP correlation saved.
+		// Keep backward compatibility and rely on signature+amount+inv_id checks.
+		return nil
+	}
+	if len(shp) == 0 {
+		return fmt.Errorf("missing shp parameters")
+	}
+	for key, expectedValue := range expectedShp {
+		actualValue, ok := shpValue(shp, key)
+		if !ok || strings.TrimSpace(actualValue) == "" {
+			return fmt.Errorf("missing %s", key)
+		}
+		if actualValue != expectedValue {
+			return fmt.Errorf("%s mismatch", key)
+		}
+	}
+	return nil
+}
+
+func expectedShpFromPayment(payment *Payment) map[string]string {
+	expected := map[string]string{}
+	if payment == nil {
+		return expected
+	}
+	if len(payment.RawInitPayload) == 0 {
+		return expected
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(payment.RawInitPayload, &payload); err != nil {
+		return expected
+	}
+	for k, v := range payload {
+		if !strings.HasPrefix(strings.ToLower(strings.TrimSpace(k)), "shp_") {
+			continue
+		}
+		if str, ok := v.(string); ok && strings.TrimSpace(str) != "" {
+			expected[k] = str
+		}
+	}
+	return expected
+}
+
+func shpValue(shp map[string]string, key string) (string, bool) {
+	for k, v := range shp {
+		if strings.EqualFold(strings.TrimSpace(k), strings.TrimSpace(key)) {
+			return v, true
+		}
+	}
+	return "", false
 }
 
 func isTestCallback(rawPayload map[string]string) bool {
