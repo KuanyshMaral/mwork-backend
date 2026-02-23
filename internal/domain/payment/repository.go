@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
@@ -167,7 +168,32 @@ func (r *repository) CreateRobokassaPending(ctx context.Context, payment *Paymen
 		payment.Metadata,
 		payment.RawInitPayload,
 	)
+	if err != nil && isUndefinedPaymentsColumnErr(err) {
+		return r.createRobokassaPendingLegacy(ctx, payment)
+	}
 	return err
+}
+
+func (r *repository) createRobokassaPendingLegacy(ctx context.Context, payment *Payment) error {
+	query := `
+		INSERT INTO payments (id, user_id, subscription_id, amount, currency, status, provider, external_id, description, metadata, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())`
+	_, err := r.db.ExecContext(ctx, query,
+		payment.ID,
+		payment.UserID,
+		payment.SubscriptionID,
+		payment.Amount,
+		payment.Currency,
+		payment.Status,
+		payment.Provider,
+		payment.ExternalID,
+		payment.Description,
+		payment.Metadata,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create robokassa payment using legacy schema: %w", err)
+	}
+	return nil
 }
 
 func (r *repository) GetByRobokassaInvIDForUpdate(ctx context.Context, tx *sqlx.Tx, invID int64) (*Payment, error) {
@@ -250,7 +276,7 @@ func (r *repository) NextRobokassaInvID(ctx context.Context) (int64, error) {
 	}
 	fallbackID, fallbackErr := r.nextRobokassaInvIDFromPayments(ctx)
 	if fallbackErr != nil {
-		return 0, fmt.Errorf("%w; fallback invoice id generation failed: %v", err, fallbackErr)
+		return generateFallbackRobokassaInvID(), nil
 	}
 	return fallbackID, nil
 }
@@ -273,6 +299,12 @@ func (r *repository) createRobokassaSequenceIfMissing(ctx context.Context) error
 func (r *repository) nextRobokassaInvIDFromPayments(ctx context.Context) (int64, error) {
 	var id int64
 	if err := r.db.QueryRowContext(ctx, `SELECT COALESCE(MAX(robokassa_inv_id), 999) + 1 FROM payments`).Scan(&id); err != nil {
+		if isUndefinedColumnErr(err, "robokassa_inv_id") {
+			if legacyID, legacyErr := r.nextRobokassaInvIDFromLegacyInvID(ctx); legacyErr == nil {
+				return legacyID, nil
+			}
+			return generateFallbackRobokassaInvID(), nil
+		}
 		return 0, err
 	}
 	if id <= 0 {
@@ -281,10 +313,68 @@ func (r *repository) nextRobokassaInvIDFromPayments(ctx context.Context) (int64,
 	return id, nil
 }
 
+func (r *repository) nextRobokassaInvIDFromLegacyInvID(ctx context.Context) (int64, error) {
+	var id int64
+	query := `SELECT COALESCE(MAX(CASE WHEN inv_id ~ '^[0-9]+$' THEN inv_id::bigint ELSE NULL END), 999) + 1 FROM payments`
+	if err := r.db.QueryRowContext(ctx, query).Scan(&id); err != nil {
+		if isUndefinedColumnErr(err, "inv_id") {
+			return 0, err
+		}
+		return 0, err
+	}
+	if id <= 0 {
+		return 1000, nil
+	}
+	return id, nil
+}
+
+func generateFallbackRobokassaInvID() int64 {
+	// Millisecond timestamp keeps the value positive and practically unique for degraded mode.
+	return time.Now().UnixMilli()
+}
+
 func isMissingRobokassaSequenceErr(err error) bool {
 	if err == nil {
 		return false
 	}
 	errText := strings.ToLower(err.Error())
 	return strings.Contains(errText, "robokassa_invoice_seq") && strings.Contains(errText, "does not exist")
+}
+
+func isUndefinedPaymentsColumnErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	errText := strings.ToLower(err.Error())
+	if !(strings.Contains(errText, "column") && strings.Contains(errText, "does not exist")) {
+		return false
+	}
+	return strings.Contains(errText, "payments")
+}
+
+func isUndefinedColumnErr(err error, column string) bool {
+	if err == nil {
+		return false
+	}
+	errText := strings.ToLower(err.Error())
+	if !strings.Contains(errText, "column") || !strings.Contains(errText, "does not exist") {
+		return false
+	}
+	column = strings.ToLower(strings.TrimSpace(column))
+	if column == "" {
+		return false
+	}
+
+	columnPatterns := []string{
+		"." + column,
+		"\"" + column + "\"",
+		" " + column + " ",
+		" " + column + " does not exist",
+	}
+	for _, pattern := range columnPatterns {
+		if strings.Contains(errText, pattern) {
+			return true
+		}
+	}
+	return false
 }
