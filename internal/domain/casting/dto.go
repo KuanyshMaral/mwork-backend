@@ -124,6 +124,7 @@ type CastingResponse struct {
 	DateTo   *string `json:"date_to,omitempty"`
 
 	CoverImageURL *string `json:"cover_image_url,omitempty"`
+	CoverImage    *string `json:"cover_image,omitempty"`
 
 	// Model requirements
 	Requirements *RequirementsResponse `json:"requirements,omitempty"`
@@ -188,8 +189,12 @@ func CastingResponseFromEntity(c *Casting) *CastingResponse {
 		s := c.DateTo.Time.Format(time.RFC3339)
 		resp.DateTo = &s
 	}
-	if c.CoverImageURL.Valid {
+	if c.CoverURL != "" {
+		resp.CoverImageURL = &c.CoverURL
+		resp.CoverImage = &c.CoverURL
+	} else if c.CoverImageURL.Valid {
 		resp.CoverImageURL = &c.CoverImageURL.String
+		resp.CoverImage = &c.CoverImageURL.String
 	}
 	if c.WorkType.Valid {
 		resp.WorkType = &c.WorkType.String
