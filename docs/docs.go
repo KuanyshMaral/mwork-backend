@@ -9306,6 +9306,9 @@ const docTemplate = `{
                 "city": {
                     "type": "string"
                 },
+                "cover_image": {
+                    "type": "string"
+                },
                 "cover_image_url": {
                     "type": "string"
                 },
@@ -10652,6 +10655,9 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
+                "inv_id": {
+                    "$ref": "#/definitions/sql.NullString"
+                },
                 "metadata": {
                     "type": "array",
                     "items": {
@@ -10661,11 +10667,14 @@ const docTemplate = `{
                 "paid_at": {
                     "$ref": "#/definitions/sql.NullTime"
                 },
+                "plan": {
+                    "$ref": "#/definitions/sql.NullString"
+                },
                 "plan_id": {
-                    "type": "string"
+                    "$ref": "#/definitions/uuid.NullUUID"
                 },
                 "promotion_id": {
-                    "type": "string"
+                    "$ref": "#/definitions/uuid.NullUUID"
                 },
                 "provider": {
                     "$ref": "#/definitions/sql.NullString"
@@ -10685,6 +10694,9 @@ const docTemplate = `{
                 "refunded_at": {
                     "$ref": "#/definitions/sql.NullTime"
                 },
+                "response_package": {
+                    "$ref": "#/definitions/sql.NullInt64"
+                },
                 "robokassa_inv_id": {
                     "$ref": "#/definitions/sql.NullInt64"
                 },
@@ -10693,6 +10705,9 @@ const docTemplate = `{
                 },
                 "subscription_id": {
                     "$ref": "#/definitions/uuid.NullUUID"
+                },
+                "type": {
+                    "type": "string"
                 },
                 "updated_at": {
                     "type": "string"
@@ -10706,12 +10721,14 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "pending",
+                "paid",
                 "completed",
                 "failed",
                 "refunded"
             ],
             "x-enum-varnames": [
                 "StatusPending",
+                "StatusPaid",
                 "StatusCompleted",
                 "StatusFailed",
                 "StatusRefunded"

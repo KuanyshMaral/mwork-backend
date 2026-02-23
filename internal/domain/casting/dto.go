@@ -17,7 +17,7 @@ type CreateCastingRequest struct {
 	PayType       string   `json:"pay_type" validate:"omitempty,oneof=fixed hourly negotiable free"`
 	DateFrom      *string  `json:"date_from" validate:"omitempty"`
 	DateTo        *string  `json:"date_to" validate:"omitempty"`
-	CoverImageURL string   `json:"cover_image_url" validate:"omitempty,url,startswith=https://"`
+	CoverImageURL string   `json:"cover_image_url" validate:"omitempty,url"`
 
 	// Model requirements
 	RequiredGender     string   `json:"required_gender" validate:"omitempty,oneof=male female other"`
@@ -56,7 +56,7 @@ type UpdateCastingRequest struct {
 	PayType       string   `json:"pay_type" validate:"omitempty,oneof=fixed hourly negotiable free"`
 	DateFrom      *string  `json:"date_from"`
 	DateTo        *string  `json:"date_to"`
-	CoverImageURL string   `json:"cover_image_url" validate:"omitempty,url,startswith=https://"`
+	CoverImageURL string   `json:"cover_image_url" validate:"omitempty,url"`
 
 	// Model requirements
 	RequiredGender     string   `json:"required_gender" validate:"omitempty,oneof=male female other"`

@@ -20,6 +20,7 @@ const (
 type Review struct {
 	ID          uuid.UUID      `db:"id"`
 	AuthorID    uuid.UUID      `db:"author_id"`
+	AuthorName  sql.NullString `db:"author_name"`
 	TargetType  TargetType     `db:"target_type"`
 	TargetID    uuid.UUID      `db:"target_id"`
 	ContextType sql.NullString `db:"context_type"`
@@ -59,6 +60,9 @@ func (r *Review) ToResponse() *ReviewResponse {
 		Rating:     r.Rating,
 		IsVerified: r.IsVerified,
 		CreatedAt:  r.CreatedAt.Format(time.RFC3339),
+	}
+	if r.AuthorName.Valid {
+		resp.AuthorName = r.AuthorName.String
 	}
 	if r.Comment.Valid {
 		resp.Comment = r.Comment.String
