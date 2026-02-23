@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 	"encoding/json"
+	"expvar"
 	"fmt"
 	"sync"
 	"time"
@@ -31,6 +32,12 @@ const (
 	presenceKey       = "chat:presence:online"
 	presenceChannel   = "chat:presence"
 	userEventsChannel = "ws:user_events"
+)
+
+var (
+	wsConnectionsGauge   = expvar.NewInt("websocket_connections")
+	wsEventsSentTotal    = expvar.NewInt("websocket_events_sent_total")
+	wsEventsDroppedTotal = expvar.NewInt("websocket_events_dropped_total")
 )
 
 type userEventMessage struct {
@@ -135,6 +142,7 @@ func (h *Hub) Run() {
 			}
 			h.connections[conn.UserID][conn] = true
 			h.mu.Unlock()
+			wsConnectionsGauge.Add(1)
 
 			// Publish online status to all servers
 			h.publishPresence(conn.UserID, true)
@@ -147,6 +155,7 @@ func (h *Hub) Run() {
 				if _, exists := conns[conn]; exists {
 					delete(conns, conn)
 					close(conn.Send)
+					wsConnectionsGauge.Add(-1)
 				}
 				if len(conns) == 0 {
 					delete(h.connections, conn.UserID)
@@ -253,8 +262,10 @@ func (h *Hub) broadcastLocal(roomID uuid.UUID, event *WSEvent) {
 			for conn := range conns {
 				select {
 				case conn.Send <- data:
+					wsEventsSentTotal.Add(1)
 				default:
 					// Buffer full, skip this message
+					wsEventsDroppedTotal.Add(1)
 					log.Warn().Str("user_id", userID.String()).Msg("WebSocket send buffer full")
 				}
 			}
@@ -298,6 +309,9 @@ func (h *Hub) UnsubscribeFromRoom(roomID, userID uuid.UUID) {
 
 // BroadcastToRoom sends event to ALL users in room across ALL servers via Redis
 func (h *Hub) BroadcastToRoom(roomID uuid.UUID, event *WSEvent) {
+	if event != nil {
+		log.Debug().Str("room_id", roomID.String()).Str("event_type", string(event.Type)).Msg("Broadcasting WebSocket event")
+	}
 	data, err := json.Marshal(event)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to marshal WebSocket event")
@@ -352,8 +366,10 @@ func (h *Hub) sendLocalToUserJSON(userID uuid.UUID, data []byte) {
 	for conn := range conns {
 		select {
 		case conn.Send <- data:
+			wsEventsSentTotal.Add(1)
 		default:
 			// Buffer full
+			wsEventsDroppedTotal.Add(1)
 		}
 	}
 
@@ -451,7 +467,29 @@ func (h *Hub) GetOnlineUsers(userIDs []uuid.UUID) []uuid.UUID {
 func (h *Hub) GetConnectionCount() int {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
-	return len(h.connections)
+	total := 0
+	for _, conns := range h.connections {
+		total += len(conns)
+	}
+	return total
+}
+
+// LocalRoomUserCount returns number of users subscribed locally to room.
+func (h *Hub) LocalRoomUserCount(roomID uuid.UUID) int {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return len(h.localRooms[roomID])
+}
+
+// IsUserSubscribedToRoom reports whether user is subscribed locally to room.
+func (h *Hub) IsUserSubscribedToRoom(roomID, userID uuid.UUID) bool {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	users := h.localRooms[roomID]
+	if users == nil {
+		return false
+	}
+	return users[userID]
 }
 
 // Shutdown gracefully shuts down the hub

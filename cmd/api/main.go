@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"expvar"
 	"net/http"
 	"os"
 	"os/signal"
@@ -376,7 +377,7 @@ func main() {
 		if token != "" {
 			r.Header.Set("Authorization", "Bearer "+token)
 		}
-		authWithVerifiedEmailMiddleware(http.HandlerFunc(chatHandler.WebSocket)).ServeHTTP(w, r)
+		authMiddleware(http.HandlerFunc(chatHandler.WebSocket)).ServeHTTP(w, r)
 	})
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -385,6 +386,8 @@ func main() {
 			"version": "1.0.0",
 		})
 	})
+
+	r.Handle("/debug/vars", expvar.Handler())
 
 	// Serve uploaded files from local disk
 	r.Handle(filesBaseURL+"/*", http.StripPrefix(filesBaseURL+"/", http.FileServer(http.Dir(uploadLocalPath))))

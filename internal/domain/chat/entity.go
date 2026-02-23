@@ -72,7 +72,7 @@ type Message struct {
 	DeletedAt   sql.NullTime `db:"deleted_at" json:"-"`
 
 	// ID-joined polymorphic attachments
-	Attachments []*AttachmentInfo `json:"-"`
+	Attachments []*AttachmentInfo `json:"attachments,omitempty"`
 }
 
 // AttachmentInfo matches the generic polymorphic attachments table DTO
