@@ -125,7 +125,38 @@ func (r *repository) ListByUser(ctx context.Context, userID uuid.UUID, limit, of
 	`
 	var payments []*Payment
 	err := r.db.SelectContext(ctx, &payments, query, userID, limit, offset)
+	if err != nil && isUndefinedPaymentsColumnErr(err) {
+		return r.listByUserLegacy(ctx, userID, limit, offset)
+	}
 	return payments, err
+}
+
+func (r *repository) listByUserLegacy(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*Payment, error) {
+	query := `
+		SELECT 
+			id, user_id,
+			amount,
+			COALESCE(currency, 'KZT') AS currency,
+			COALESCE(status, 'pending') AS status,
+			provider, external_id, description,
+			COALESCE(metadata, 'null'::jsonb) as metadata,
+			paid_at, failed_at, refunded_at, created_at
+		FROM payments 
+		WHERE user_id = $1 
+		ORDER BY created_at DESC 
+		LIMIT $2 OFFSET $3
+	`
+	var payments []*Payment
+	err := r.db.SelectContext(ctx, &payments, query, userID, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list user payments using legacy schema: %w", err)
+	}
+	for _, payment := range payments {
+		if payment != nil {
+			payment.UpdatedAt = payment.CreatedAt
+		}
+	}
+	return payments, nil
 }
 
 func (r *repository) GetByPromotionID(ctx context.Context, promotionID string) (*Payment, error) {
