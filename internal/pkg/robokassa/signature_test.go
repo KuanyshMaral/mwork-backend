@@ -16,7 +16,7 @@ func TestBuildStartSignatureBase_SortedShpAndEncoded(t *testing.T) {
 		},
 	)
 
-	expected := "merchant:100.50:42:%7B%22items%22%3A%5B%7B%22name%22%3A%22Plan+Pro%22%7D%5D%7D:pass1:Shp_pay=p%2F42:Shp_user=user%2B1"
+	expected := "merchant:100.50:42:%7B%22items%22%3A%5B%7B%22name%22%3A%22Plan+Pro%22%7D%5D%7D:pass1:Shp_pay=p/42:Shp_user=user+1"
 	if base != expected {
 		t.Fatalf("unexpected base string:\nwant %s\ngot  %s", expected, base)
 	}

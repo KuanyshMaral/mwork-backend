@@ -113,8 +113,8 @@ func Load() *Config {
 		RobokassaIsTest:             parseRobokassaTestFlag(firstNonEmpty(getEnv("ROBOKASSA_IS_TEST", ""), getEnv("ROBOKASSA_TEST_MODE", "0"))),
 		RobokassaHashAlgorithm:      strings.ToUpper(strings.TrimSpace(getEnv("ROBOKASSA_HASH_ALGORITHM", "SHA256"))),
 		RobokassaBaseURL:            getEnv("ROBOKASSA_BASE_URL", "https://auth.robokassa.kz/Merchant/Index.aspx"),
-		RobokassaFrontendSuccessURL: getEnv("ROBOKASSA_FRONTEND_SUCCESS_URL", "http://89.35.125.136/profile?payment=success"),
-		RobokassaFrontendFailURL:    getEnv("ROBOKASSA_FRONTEND_FAIL_URL", "http://89.35.125.136/payment-error"),
+		RobokassaFrontendSuccessURL: getEnv("ROBOKASSA_FRONTEND_SUCCESS_URL", ""),
+		RobokassaFrontendFailURL:    getEnv("ROBOKASSA_FRONTEND_FAIL_URL", ""),
 
 		// PhotoStudio
 		PhotoStudioBaseURL:        getEnv("PHOTOSTUDIO_BASE_URL", ""),

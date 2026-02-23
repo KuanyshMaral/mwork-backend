@@ -16,12 +16,12 @@ type RobokassaService struct {
 	HashAlgo      robokassa.HashAlgorithm
 }
 
-func (s RobokassaService) GeneratePaymentLink(outSum string, invID string) (string, error) {
+func (s RobokassaService) GeneratePaymentLink(outSum string, invID string, shp map[string]string) (string, error) {
 	algo := s.HashAlgo
 	if algo == "" {
 		algo = robokassa.HashSHA256
 	}
-	base := robokassa.BuildStartSignatureBase(s.MerchantLogin, outSum, invID, s.Password1, nil, nil)
+	base := robokassa.BuildStartSignatureBase(s.MerchantLogin, outSum, invID, s.Password1, nil, shp)
 	signature, err := robokassa.Sign(base, algo)
 	if err != nil {
 		return "", err
@@ -31,6 +31,9 @@ func (s RobokassaService) GeneratePaymentLink(outSum string, invID string) (stri
 	params.Set("OutSum", outSum)
 	params.Set("InvId", invID)
 	params.Set("SignatureValue", signature)
+	for k, v := range shp {
+		params.Set(k, v)
+	}
 	baseURL := strings.TrimSpace(s.BaseURL)
 	if baseURL == "" {
 		baseURL = "https://auth.robokassa.kz/Merchant/Index.aspx"
@@ -48,4 +51,16 @@ func (s RobokassaService) ValidateResultSignature(outSum, invID, signature strin
 		return false
 	}
 	return robokassa.VerifyResultSignatureWithAlgo(outSum, parsedInvID, signature, s.Password2, shp, algo)
+}
+
+func (s RobokassaService) ValidateSuccessSignature(outSum, invID, signature string, shp map[string]string) bool {
+	algo := s.HashAlgo
+	if algo == "" {
+		algo = robokassa.HashSHA256
+	}
+	parsedInvID, err := strconv.ParseInt(strings.TrimSpace(invID), 10, 64)
+	if err != nil {
+		return false
+	}
+	return robokassa.VerifySuccessSignatureWithAlgo(outSum, parsedInvID, signature, s.Password1, shp, algo)
 }

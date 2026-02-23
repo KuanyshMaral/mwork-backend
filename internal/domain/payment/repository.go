@@ -147,8 +147,8 @@ func (r *repository) GetByPromotionID(ctx context.Context, promotionID string) (
 
 func (r *repository) CreateRobokassaPending(ctx context.Context, payment *Payment) error {
 	query := `
-		INSERT INTO payments (id, user_id, subscription_id, type, plan, inv_id, response_package, amount, currency, status, provider, external_id, robokassa_inv_id, description, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW())`
+		INSERT INTO payments (id, user_id, subscription_id, type, plan, inv_id, response_package, amount, currency, status, provider, external_id, robokassa_inv_id, description, metadata, raw_init_payload, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW(), NOW())`
 	_, err := r.db.ExecContext(ctx, query,
 		payment.ID,
 		payment.UserID,
@@ -164,6 +164,8 @@ func (r *repository) CreateRobokassaPending(ctx context.Context, payment *Paymen
 		payment.ExternalID,
 		payment.RobokassaInvID,
 		payment.Description,
+		payment.Metadata,
+		payment.RawInitPayload,
 	)
 	return err
 }
@@ -202,9 +204,19 @@ func (r *repository) MarkRobokassaSucceeded(ctx context.Context, tx *sqlx.Tx, pa
 	query := `
 		UPDATE payments
 		SET status = 'paid', paid_at = NOW(), updated_at = NOW(), raw_callback_payload = $2
-		WHERE id = $1`
-	_, err = tx.ExecContext(ctx, query, paymentID, payloadJSON)
-	return err
+		WHERE id = $1 AND status = 'pending'`
+	result, err := tx.ExecContext(ctx, query, paymentID, payloadJSON)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
 }
 
 func (r *repository) CreatePaymentEvent(ctx context.Context, tx *sqlx.Tx, paymentID uuid.UUID, eventType string, payload any) error {
