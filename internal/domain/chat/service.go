@@ -333,6 +333,10 @@ func (s *Service) MarkAsRead(ctx context.Context, userID, roomID uuid.UUID) erro
 			Type:     EventRead,
 			RoomID:   roomID,
 			SenderID: userID,
+			Data: map[string]any{
+				"room_id":   roomID,
+				"sender_id": userID,
+			},
 		})
 	}
 

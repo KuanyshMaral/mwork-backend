@@ -402,14 +402,19 @@ func (h *Handler) GetUnreadCount(w http.ResponseWriter, r *http.Request) {
 // WebSocket handles WS /ws
 func (h *Handler) WebSocket(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
+	requestID := middleware.GetRequestID(r.Context())
+	origin := r.Header.Get("Origin")
+	logger := log.With().Str("user_id", userID.String()).Str("request_id", requestID).Str("path", r.URL.Path).Str("origin", origin).Logger()
+
 	if userID == uuid.Nil {
+		logger.Warn().Msg("WebSocket upgrade rejected: unauthorized")
 		errorhandler.HandleError(r.Context(), w, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required", nil)
 		return
 	}
 
 	conn, err := h.upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Error().Err(err).Msg("WebSocket upgrade failed")
+		logger.Error().Err(err).Msg("WebSocket upgrade failed")
 		return
 	}
 
@@ -422,9 +427,14 @@ func (h *Handler) WebSocket(w http.ResponseWriter, r *http.Request) {
 	h.hub.Register(client)
 
 	// Subscribe to user's rooms
-	rooms, _ := h.service.ListRooms(r.Context(), userID)
-	for _, room := range rooms {
-		h.hub.SubscribeToRoom(room.ID, userID)
+	rooms, err := h.service.ListRooms(r.Context(), userID)
+	if err != nil {
+		logger.Warn().Err(err).Msg("Failed to pre-subscribe user to rooms")
+	} else {
+		for _, room := range rooms {
+			h.hub.SubscribeToRoom(room.ID, userID)
+		}
+		logger.Info().Int("rooms", len(rooms)).Int("connections", h.hub.GetConnectionCount()).Msg("WebSocket connected")
 	}
 
 	h.sendInitialNotificationSync(userID, client)
@@ -438,6 +448,7 @@ func (h *Handler) wsReader(client *Connection) {
 	defer func() {
 		h.hub.Unregister(client)
 		client.Conn.Close()
+		log.Info().Str("user_id", client.UserID.String()).Int("connections", h.hub.GetConnectionCount()).Msg("WebSocket disconnected")
 	}()
 
 	client.Conn.SetReadLimit(maxMessageSize)
@@ -463,9 +474,12 @@ func (h *Handler) wsReader(client *Connection) {
 
 		// Parse incoming message
 		var event struct {
-			Type   string          `json:"type"`
-			RoomID uuid.UUID       `json:"room_id"`
-			Data   json.RawMessage `json:"data"`
+			Type                string          `json:"type"`
+			RoomID              uuid.UUID       `json:"room_id"`
+			Data                json.RawMessage `json:"data"`
+			Content             string          `json:"content"`
+			MessageType         string          `json:"message_type"`
+			AttachmentUploadIDs []uuid.UUID     `json:"attachment_upload_ids"`
 		}
 		if err := json.Unmarshal(message, &event); err != nil {
 			continue
@@ -473,19 +487,30 @@ func (h *Handler) wsReader(client *Connection) {
 
 		// Handle events
 		switch event.Type {
+		case "join", "subscribe":
+			if event.RoomID == uuid.Nil {
+				continue
+			}
+			h.hub.SubscribeToRoom(event.RoomID, client.UserID)
+			log.Debug().Str("user_id", client.UserID.String()).Str("room_id", event.RoomID.String()).Int("local_subscribers", h.hub.LocalRoomUserCount(event.RoomID)).Msg("WS room subscribed")
+		case "leave", "unsubscribe":
+			if event.RoomID == uuid.Nil {
+				continue
+			}
+			h.hub.UnsubscribeFromRoom(event.RoomID, client.UserID)
+			log.Debug().Str("user_id", client.UserID.String()).Str("room_id", event.RoomID.String()).Int("local_subscribers", h.hub.LocalRoomUserCount(event.RoomID)).Msg("WS room unsubscribed")
 		case "typing":
-			h.hub.BroadcastToRoom(event.RoomID, &WSEvent{
-				Type:     EventTyping,
-				RoomID:   event.RoomID,
-				SenderID: client.UserID,
-			})
-		case "read":
+			h.hub.BroadcastToRoom(event.RoomID, &WSEvent{Type: EventTyping, RoomID: event.RoomID, SenderID: client.UserID})
+		case "read", "mark_read":
+			if event.RoomID == uuid.Nil {
+				continue
+			}
 			_ = h.service.MarkAsRead(context.Background(), client.UserID, event.RoomID)
-			h.hub.BroadcastToRoom(event.RoomID, &WSEvent{
-				Type:     EventRead,
-				RoomID:   event.RoomID,
-				SenderID: client.UserID,
-			})
+		case "message":
+			if event.RoomID == uuid.Nil {
+				continue
+			}
+			_, _ = h.service.SendMessage(context.Background(), client.UserID, event.RoomID, &SendMessageRequest{Content: event.Content, MessageType: event.MessageType, AttachmentUploadIDs: event.AttachmentUploadIDs})
 		case "notification:sync":
 			h.processNotificationSyncCommand(client, event.Data)
 		case "notification:read":
@@ -691,7 +716,9 @@ func (h *Handler) sendWSJSON(client *Connection, payload any) {
 
 	select {
 	case client.Send <- data:
+		wsEventsSentTotal.Add(1)
 	default:
+		wsEventsDroppedTotal.Add(1)
 		log.Warn().Str("user_id", client.UserID.String()).Msg("WebSocket send buffer full")
 	}
 }
