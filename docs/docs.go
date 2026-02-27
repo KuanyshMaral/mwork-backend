@@ -4154,7 +4154,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Отправка сообщения в комнату. Для файлов используйте attachment_upload_id (должен быть committed с purpose=chat_file).",
+                "description": "Отправка сообщения в комнату. Для файлов используйте attachment_upload_ids (или legacy attachment_upload_id), upload должен быть committed с purpose=chat_file.",
                 "consumes": [
                     "application/json"
                 ],

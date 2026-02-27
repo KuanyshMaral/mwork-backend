@@ -20,6 +20,7 @@ type CreateRoomRequest struct {
 type SendMessageRequest struct {
 	Content             string      `json:"content,omitempty"`
 	MessageType         string      `json:"message_type,omitempty"`
+	AttachmentUploadID  *uuid.UUID  `json:"attachment_upload_id,omitempty"`
 	AttachmentUploadIDs []uuid.UUID `json:"attachment_upload_ids,omitempty"`
 }
 

@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -74,11 +75,15 @@ func logEventByStatus(statusCode int) *zerolog.Event {
 func addErrorDetails(event *zerolog.Event, status int, wrapped *responseWriter) {
 	event.Str("status_text", http.StatusText(status))
 	event.Str("error_reason", errorReason(status))
-	
+
 	// Log full response body for errors
 	bodyStr := wrapped.bodyPreview()
 	if bodyStr != "" {
-		event.RawJSON("response_body", []byte(bodyStr))
+		if json.Valid([]byte(bodyStr)) {
+			event.RawJSON("response_body", []byte(bodyStr))
+		} else {
+			event.Str("response_body", bodyStr)
+		}
 	}
 }
 

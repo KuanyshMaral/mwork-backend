@@ -119,7 +119,7 @@ func NewHandler(service *Service, hub *Hub, redisClient *redis.Client, allowedOr
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
 			CheckOrigin: func(r *http.Request) bool {
-				origin := strings.TrimSuffix(r.Header.Get("Origin"), "/")
+				origin := strings.TrimSuffix(strings.TrimSpace(r.Header.Get("Origin")), "/")
 
 				// Allow all in development
 				if len(allowedOrigins) == 0 {
@@ -127,7 +127,7 @@ func NewHandler(service *Service, hub *Hub, redisClient *redis.Client, allowedOr
 				}
 
 				for _, allowed := range allowedOrigins {
-					if origin == strings.TrimSuffix(allowed, "/") {
+					if origin == strings.TrimSuffix(strings.TrimSpace(allowed), "/") {
 						return true
 					}
 				}
@@ -285,7 +285,7 @@ func (h *Handler) GetMessages(w http.ResponseWriter, r *http.Request) {
 
 // SendMessage handles POST /chat/rooms/{id}/messages
 // @Summary Отправить сообщение
-// @Description Отправка сообщения в комнату. Для файлов используйте attachment_upload_id (должен быть committed с purpose=chat_file).
+// @Description Отправка сообщения в комнату. Для файлов используйте attachment_upload_ids (или legacy attachment_upload_id), upload должен быть committed с purpose=chat_file.
 // @Tags Chat
 // @Accept json
 // @Produce json
@@ -314,6 +314,9 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		errorhandler.HandleError(r.Context(), w, http.StatusBadRequest, "INVALID_JSON", "Invalid JSON body", err)
 		return
+	}
+	if req.AttachmentUploadID != nil {
+		req.AttachmentUploadIDs = append(req.AttachmentUploadIDs, *req.AttachmentUploadID)
 	}
 
 	if validationErrors := validator.Validate(&req); validationErrors != nil {

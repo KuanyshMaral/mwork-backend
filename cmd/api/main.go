@@ -398,6 +398,7 @@ func main() {
 	})
 
 	r.Handle("/debug/vars", expvar.Handler())
+	r.Handle("/api/v1/debug/vars", expvar.Handler())
 
 	// Serve uploaded files from local disk
 	r.Handle(filesBaseURL+"/*", http.StripPrefix(filesBaseURL+"/", http.FileServer(http.Dir(uploadLocalPath))))
