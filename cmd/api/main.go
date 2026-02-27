@@ -317,6 +317,8 @@ func main() {
 
 	dashboardHandler := dashboard.NewHandler(dashboardRepo, dashboardSvc)
 	promotionHandler := promotion.NewHandler(promotionRepo)
+	castingPromotionRepo := promotion.NewCastingRepository(db)
+	castingPromotionHandler := promotion.NewCastingPromotionHandler(castingPromotionRepo, creditService)
 	favoriteHandler := favorite.NewHandler(favoriteRepo)
 	walletHandler := wallet.NewHandler(walletService)
 
@@ -458,6 +460,7 @@ func main() {
 
 		r.Mount("/dashboard", dashboard.Routes(dashboardHandler, authWithVerifiedEmailMiddleware))
 		r.Mount("/promotions", promotion.Routes(promotionHandler, authWithVerifiedEmailMiddleware))
+		r.Mount("/casting-promotions", promotion.CastingPromotionRoutes(castingPromotionHandler, authWithVerifiedEmailMiddleware))
 		r.Mount("/favorites", favorite.Routes(favoriteHandler, authWithVerifiedEmailMiddleware))
 		r.Mount("/demo/wallet", walletHandler.Routes(authWithVerifiedEmailMiddleware))
 		r.Mount("/reviews", review.Routes(reviewHandler, authWithVerifiedEmailMiddleware))

@@ -1826,6 +1826,65 @@ definitions:
         maxLength: 150
         type: string
     type: object
+  internal_domain_promotion.CastingPromotionResponse:
+    properties:
+      budget_amount:
+        type: integer
+      casting_id:
+        type: string
+      clicks:
+        type: integer
+      created_at:
+        type: string
+      ctr:
+        type: number
+      custom_title:
+        type: string
+      daily_budget:
+        type: integer
+      duration_days:
+        type: integer
+      employer_id:
+        type: string
+      ends_at:
+        type: string
+      id:
+        type: string
+      impressions:
+        type: integer
+      responses:
+        type: integer
+      spent_amount:
+        type: integer
+      starts_at:
+        type: string
+      status:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  internal_domain_promotion.CreateCastingPromotionRequest:
+    properties:
+      budget_amount:
+        minimum: 1000
+        type: integer
+      casting_id:
+        type: string
+      custom_title:
+        maxLength: 255
+        type: string
+      daily_budget:
+        minimum: 500
+        type: integer
+      duration_days:
+        maximum: 90
+        minimum: 1
+        type: integer
+    required:
+    - budget_amount
+    - casting_id
+    - duration_days
+    type: object
   internal_domain_promotion.CreateRequest:
     properties:
       budget_amount:
@@ -3844,6 +3903,231 @@ paths:
       summary: Запрос кода верификации (public)
       tags:
       - Auth
+  /casting-promotions:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Список продвижений кастингов работодателя
+      tags:
+      - CastingPromotion
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Данные продвижения
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_domain_promotion.CreateCastingPromotionRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_domain_promotion.CastingPromotionResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Создать продвижение кастинга
+      tags:
+      - CastingPromotion
+  /casting-promotions/{id}:
+    get:
+      parameters:
+      - description: ID продвижения
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_domain_promotion.CastingPromotionResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      summary: Получить продвижение кастинга
+      tags:
+      - CastingPromotion
+  /casting-promotions/{id}/activate:
+    post:
+      parameters:
+      - description: ID продвижения
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_domain_promotion.CastingPromotionResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "402":
+          description: Payment Required
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Активировать продвижение кастинга (списывает кредиты)
+      tags:
+      - CastingPromotion
+  /casting-promotions/{id}/pause:
+    post:
+      parameters:
+      - description: ID продвижения
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Приостановить продвижение кастинга
+      tags:
+      - CastingPromotion
+  /casting-promotions/{id}/stats:
+    get:
+      parameters:
+      - description: ID продвижения
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Статистика продвижения кастинга
+      tags:
+      - CastingPromotion
   /castings:
     get:
       description: Поиск кастингов по фильтрам.

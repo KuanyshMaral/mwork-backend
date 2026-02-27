@@ -11,4 +11,5 @@ var (
 	ErrCannotModifyActive = errors.New("cannot modify active promotion")
 	ErrPlanRequired       = errors.New("subscription plan required for promotions")
 	ErrProfileNotFound    = errors.New("profile not found")
+	ErrNotPromotionOwner  = errors.New("you do not own this resource")
 )
