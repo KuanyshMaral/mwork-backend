@@ -258,12 +258,13 @@ func (s *Service) SendMessage(ctx context.Context, userID, roomID uuid.UUID, req
 		members, membersErr := s.repo.GetMembers(ctx, roomID)
 		if membersErr != nil || len(members) == 0 {
 			// Fallback for degraded mode (membership query failed)
-			s.hub.BroadcastToRoom(roomID, &WSEvent{Type: EventNewMessage, RoomID: roomID, SenderID: userID, Message: msg})
-			s.hub.BroadcastToRoom(roomID, &WSEvent{Type: EventMessageCreate, RoomID: roomID, SenderID: userID, Message: msg})
+			s.hub.BroadcastToRoom(roomID, &WSEvent{Type: EventNewMessage, RoomID: roomID, SenderID: userID, MessageID: msg.ID, Message: msg})
+			s.hub.BroadcastToRoom(roomID, &WSEvent{Type: EventMessageCreate, RoomID: roomID, SenderID: userID, MessageID: msg.ID, Message: msg})
 			s.hub.BroadcastToRoom(roomID, &WSEvent{
-				Type:     EventRoomUpdated,
-				RoomID:   roomID,
-				SenderID: userID,
+				Type:      EventRoomUpdated,
+				RoomID:    roomID,
+				SenderID:  userID,
+				MessageID: msg.ID,
 				Data: map[string]any{
 					"last_message_preview": req.Content,
 					"last_message_at":      msg.CreatedAt,
@@ -274,16 +275,18 @@ func (s *Service) SendMessage(ctx context.Context, userID, roomID uuid.UUID, req
 				recipientID := member.UserID
 
 				_ = s.hub.SendToUserJSON(recipientID, &WSEvent{
-					Type:     EventNewMessage,
-					RoomID:   roomID,
-					SenderID: userID,
-					Message:  msg,
+					Type:      EventNewMessage,
+					RoomID:    roomID,
+					SenderID:  userID,
+					MessageID: msg.ID,
+					Message:   msg,
 				})
 				_ = s.hub.SendToUserJSON(recipientID, &WSEvent{
-					Type:     EventMessageCreate,
-					RoomID:   roomID,
-					SenderID: userID,
-					Message:  msg,
+					Type:      EventMessageCreate,
+					RoomID:    roomID,
+					SenderID:  userID,
+					MessageID: msg.ID,
+					Message:   msg,
 				})
 
 				roomData := map[string]any{
@@ -295,10 +298,11 @@ func (s *Service) SendMessage(ctx context.Context, userID, roomID uuid.UUID, req
 				}
 
 				_ = s.hub.SendToUserJSON(recipientID, &WSEvent{
-					Type:     EventRoomUpdated,
-					RoomID:   roomID,
-					SenderID: userID,
-					Data:     roomData,
+					Type:      EventRoomUpdated,
+					RoomID:    roomID,
+					SenderID:  userID,
+					MessageID: msg.ID,
+					Data:      roomData,
 				})
 			}
 		}
