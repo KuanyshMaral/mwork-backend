@@ -61,15 +61,16 @@ func (m *RoomMember) IsAdmin() bool {
 
 // Message represents a chat message
 type Message struct {
-	ID          uuid.UUID    `db:"id" json:"id"`
-	RoomID      uuid.UUID    `db:"room_id" json:"room_id"`
-	SenderID    uuid.UUID    `db:"sender_id" json:"sender_id"`
-	Content     string       `db:"content" json:"content"`
-	MessageType MessageType  `db:"message_type" json:"message_type"`
-	IsRead      bool         `db:"is_read" json:"is_read"`
-	ReadAt      sql.NullTime `db:"read_at" json:"read_at,omitempty"`
-	CreatedAt   time.Time    `db:"created_at" json:"created_at"`
-	DeletedAt   sql.NullTime `db:"deleted_at" json:"-"`
+	ID                 uuid.UUID    `db:"id" json:"id"`
+	RoomID             uuid.UUID    `db:"room_id" json:"room_id"`
+	SenderID           uuid.UUID    `db:"sender_id" json:"sender_id"`
+	Content            string       `db:"content" json:"content"`
+	MessageType        MessageType  `db:"message_type" json:"message_type"`
+	IsRead             bool         `db:"is_read" json:"is_read"`
+	ReadAt             sql.NullTime `db:"read_at" json:"read_at,omitempty"`
+	CreatedAt          time.Time    `db:"created_at" json:"created_at"`
+	DeletedAt          sql.NullTime `db:"deleted_at" json:"-"`
+	AttachmentUploadID *uuid.UUID   `db:"attachment_upload_id" json:"attachment_upload_id,omitempty"`
 
 	// ID-joined polymorphic attachments
 	Attachments []*AttachmentInfo `json:"attachments,omitempty"`
