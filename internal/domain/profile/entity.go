@@ -65,7 +65,8 @@ type ModelProfile struct {
 
 	// Avatar (Phase 4: direct FK to uploads, replaces photos.is_avatar pattern)
 	// NULL means no avatar is set. When set, the upload provides the file URL.
-	AvatarUploadID uuid.NullUUID `db:"avatar_upload_id"`
+	AvatarUploadID uuid.NullUUID  `db:"avatar_upload_id"`
+	AvatarFilePath sql.NullString `db:"avatar_file_path"`
 
 	// AvatarURL is NOT a DB column — populated by service layer from upload.GetURL().
 	AvatarURL string `db:"-" json:"avatar_url,omitempty"`
@@ -102,6 +103,11 @@ type EmployerProfile struct {
 
 	// JSON arrays
 	SocialLinks json.RawMessage `db:"social_links"`
+
+	// Avatar
+	AvatarUploadID uuid.NullUUID  `db:"avatar_upload_id"`
+	AvatarFilePath sql.NullString `db:"avatar_file_path"`
+	AvatarURL      string         `db:"-" json:"avatar_url,omitempty"`
 }
 
 // AdminProfile represents an admin profile (matches admin_profiles table)
