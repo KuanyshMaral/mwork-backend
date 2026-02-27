@@ -45,10 +45,11 @@ type RoomResponse struct {
 
 // ParticipantInfo for room response
 type ParticipantInfo struct {
-	ID        uuid.UUID `json:"id"`
-	FirstName string    `json:"first_name"`
-	LastName  string    `json:"last_name"`
-	AvatarURL *string   `json:"avatar_url,omitempty"`
+	ID        uuid.UUID  `json:"id"`
+	ProfileID *uuid.UUID `json:"profile_id,omitempty"`
+	FirstName string     `json:"first_name"`
+	LastName  string     `json:"last_name"`
+	AvatarURL *string    `json:"avatar_url,omitempty"`
 }
 
 // MessageResponse represents message in API

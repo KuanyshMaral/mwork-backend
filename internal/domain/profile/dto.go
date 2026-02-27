@@ -158,6 +158,7 @@ type EmployerProfileResponse struct {
 	IsVerified     bool              `json:"is_verified"`
 	ProfileViews   int               `json:"profile_views"`
 	SocialLinks    []SocialLinkEntry `json:"social_links"`
+	AvatarURL      string            `json:"avatar_url,omitempty"`
 	CreatedAt      string            `json:"created_at"`
 	UpdatedAt      string            `json:"updated_at"`
 	CreditBalance  int               `json:"credit_balance"`
@@ -189,6 +190,7 @@ func ModelProfileResponseFromEntity(p *ModelProfile) *ModelProfileResponse {
 		AcceptRemoteWork: p.AcceptRemoteWork,
 		TravelCities:     p.GetTravelCities(),
 		SocialLinks:      p.GetSocialLinks(),
+		AvatarURL:        p.AvatarURL,
 	}
 
 	if p.Name.Valid {
@@ -266,6 +268,7 @@ func EmployerProfileResponseFromEntity(p *EmployerProfile) *EmployerProfileRespo
 		IsVerified:     p.IsVerified,
 		ProfileViews:   p.ProfileViews,
 		SocialLinks:    p.GetSocialLinks(),
+		AvatarURL:      p.AvatarURL,
 		CreatedAt:      p.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:      p.UpdatedAt.Format(time.RFC3339),
 	}

@@ -13,20 +13,35 @@ import (
 
 // Service handles profile business logic
 type Service struct {
-	modelRepo    ModelRepository
-	employerRepo EmployerRepository
-	adminRepo    AdminRepository
-	userRepo     user.Repository
+	modelRepo     ModelRepository
+	employerRepo  EmployerRepository
+	adminRepo     AdminRepository
+	userRepo      user.Repository
+	uploadBaseURL string
 }
 
 // NewService creates profile service
-func NewService(modelRepo ModelRepository, employerRepo EmployerRepository, adminRepo AdminRepository, userRepo user.Repository) *Service {
+func NewService(modelRepo ModelRepository, employerRepo EmployerRepository, adminRepo AdminRepository, userRepo user.Repository, uploadBaseURL string) *Service {
 	return &Service{
-		modelRepo:    modelRepo,
-		employerRepo: employerRepo,
-		adminRepo:    adminRepo,
-		userRepo:     userRepo,
+		modelRepo:     modelRepo,
+		employerRepo:  employerRepo,
+		adminRepo:     adminRepo,
+		userRepo:      userRepo,
+		uploadBaseURL: uploadBaseURL,
 	}
+}
+
+func (s *Service) buildAvatarURL(filePath sql.NullString) string {
+	if !filePath.Valid || filePath.String == "" {
+		return ""
+	}
+	// Assuming storage.GetURL logic is basically concatenating base + path,
+	// but since we only have baseURL here, we construct it. This aligns with standard upload usage.
+	// If the file path already starts with http, return it directly.
+	if len(filePath.String) >= 4 && filePath.String[:4] == "http" {
+		return filePath.String
+	}
+	return s.uploadBaseURL + "/" + filePath.String
 }
 
 // CreateModelProfile creates a new model profile
@@ -234,6 +249,7 @@ func (s *Service) GetModelProfileByID(ctx context.Context, id uuid.UUID) (*Model
 	if profile == nil {
 		return nil, ErrProfileNotFound
 	}
+	profile.AvatarURL = s.buildAvatarURL(profile.AvatarFilePath)
 	return profile, nil
 }
 
@@ -246,6 +262,7 @@ func (s *Service) GetModelProfileByUserID(ctx context.Context, userID uuid.UUID)
 	if profile == nil {
 		return nil, ErrProfileNotFound
 	}
+	profile.AvatarURL = s.buildAvatarURL(profile.AvatarFilePath)
 	return profile, nil
 }
 
@@ -258,6 +275,7 @@ func (s *Service) GetEmployerProfileByID(ctx context.Context, id uuid.UUID) (*Em
 	if profile == nil {
 		return nil, ErrProfileNotFound
 	}
+	profile.AvatarURL = s.buildAvatarURL(profile.AvatarFilePath)
 	return profile, nil
 }
 
@@ -270,6 +288,7 @@ func (s *Service) GetEmployerProfileByUserID(ctx context.Context, userID uuid.UU
 	if profile == nil {
 		return nil, ErrProfileNotFound
 	}
+	profile.AvatarURL = s.buildAvatarURL(profile.AvatarFilePath)
 	return profile, nil
 }
 
@@ -392,6 +411,7 @@ func (s *Service) UpdateModelProfile(ctx context.Context, userID uuid.UUID, req 
 	if err := s.modelRepo.Update(ctx, profile); err != nil {
 		return nil, err
 	}
+	profile.AvatarURL = s.buildAvatarURL(profile.AvatarFilePath)
 
 	return profile, nil
 }
@@ -433,18 +453,31 @@ func (s *Service) UpdateEmployerProfile(ctx context.Context, userID uuid.UUID, r
 	if err := s.employerRepo.Update(ctx, profile); err != nil {
 		return nil, err
 	}
+	profile.AvatarURL = s.buildAvatarURL(profile.AvatarFilePath)
 
 	return profile, nil
 }
 
 // ListModels returns model profiles with filters
 func (s *Service) ListModels(ctx context.Context, filter *Filter, pagination *Pagination) ([]*ModelProfile, int, error) {
-	return s.modelRepo.List(ctx, filter, pagination)
+	profiles, total, err := s.modelRepo.List(ctx, filter, pagination)
+	if err == nil {
+		for _, p := range profiles {
+			p.AvatarURL = s.buildAvatarURL(p.AvatarFilePath)
+		}
+	}
+	return profiles, total, err
 }
 
 // ListPromotedModels returns promoted model profiles
 func (s *Service) ListPromotedModels(ctx context.Context, city *string, limit int) ([]*ModelProfile, error) {
-	return s.modelRepo.ListPromoted(ctx, city, limit)
+	profiles, err := s.modelRepo.ListPromoted(ctx, city, limit)
+	if err == nil {
+		for _, p := range profiles {
+			p.AvatarURL = s.buildAvatarURL(p.AvatarFilePath)
+		}
+	}
+	return profiles, err
 }
 
 // IncrementModelViewCount increments mo view count

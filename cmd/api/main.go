@@ -164,7 +164,7 @@ func main() {
 	}
 
 	// ---------- Services ----------
-	profileService := profile.NewService(modelRepo, employerRepo, adminProfRepo, userRepo)
+	profileService := profile.NewService(modelRepo, employerRepo, adminProfRepo, userRepo, cfg.UploadPublicURL)
 	castingService := casting.NewService(castingRepo, userRepo)
 	responseService := response.NewService(responseRepo, castingRepo, modelRepo, employerRepo)
 	attachmentService := attachmentDomain.NewService(attachmentRepo, uploadService)
@@ -928,17 +928,27 @@ func (f *chatProfileFetcher) GetParticipantInfo(ctx context.Context, userID uuid
 
 	if u.IsModel() {
 		prof, _ := f.profileService.GetModelProfileByUserID(ctx, userID)
-		if prof != nil && prof.Name.Valid {
-			// Split name for display
-			parts := strings.SplitN(prof.Name.String, " ", 2)
-			info.FirstName = parts[0]
-			if len(parts) > 1 {
-				info.LastName = parts[1]
+		if prof != nil {
+			info.ProfileID = &prof.ID
+			if prof.AvatarURL != "" {
+				info.AvatarURL = &prof.AvatarURL
+			}
+			if prof.Name.Valid {
+				// Split name for display
+				parts := strings.SplitN(prof.Name.String, " ", 2)
+				info.FirstName = parts[0]
+				if len(parts) > 1 {
+					info.LastName = parts[1]
+				}
 			}
 		}
 	} else if u.IsEmployer() {
 		prof, _ := f.profileService.GetEmployerProfileByUserID(ctx, userID)
 		if prof != nil {
+			info.ProfileID = &prof.ID
+			if prof.AvatarURL != "" {
+				info.AvatarURL = &prof.AvatarURL
+			}
 			info.FirstName = prof.CompanyName
 			if prof.ContactPerson.Valid {
 				info.LastName = "(" + prof.ContactPerson.String + ")"

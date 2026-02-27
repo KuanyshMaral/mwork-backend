@@ -10283,6 +10283,9 @@ const docTemplate = `{
                 },
                 "last_name": {
                     "type": "string"
+                },
+                "profile_id": {
+                    "type": "string"
                 }
             }
         },
@@ -11157,6 +11160,9 @@ const docTemplate = `{
         "internal_domain_profile.EmployerProfileResponse": {
             "type": "object",
             "properties": {
+                "avatar_url": {
+                    "type": "string"
+                },
                 "castings_posted": {
                     "type": "integer"
                 },

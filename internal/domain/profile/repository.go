@@ -105,13 +105,13 @@ func (r *modelRepository) Create(ctx context.Context, profile *ModelProfile) err
 }
 
 func (r *modelRepository) GetByID(ctx context.Context, id uuid.UUID) (*ModelProfile, error) {
-	q := `SELECT id,user_id,name,bio,description,age,height,weight,gender,clothing_size,shoe_size,experience,
-	hourly_rate,city,country,languages,categories,skills,barter_accepted,accept_remote_work,travel_cities,
-	visibility,profile_views,rating_score,reviews_count,is_public,is_promoted,
-	hair_color,eye_color,tattoos,working_hours,min_budget,COALESCE(social_links,'[]'::jsonb) as social_links,
-	bust_cm,waist_cm,hips_cm,skin_tone,COALESCE(specializations,'[]'::jsonb) as specializations,
-	avatar_upload_id,created_at,updated_at
-	FROM model_profiles WHERE id=$1`
+	q := `SELECT p.id,p.user_id,p.name,p.bio,p.description,p.age,p.height,p.weight,p.gender,p.clothing_size,p.shoe_size,p.experience,
+	p.hourly_rate,p.city,p.country,p.languages,p.categories,p.skills,p.barter_accepted,p.accept_remote_work,p.travel_cities,
+	p.visibility,p.profile_views,p.rating_score,p.reviews_count,p.is_public,p.is_promoted,
+	p.hair_color,p.eye_color,p.tattoos,p.working_hours,p.min_budget,COALESCE(p.social_links,'[]'::jsonb) as social_links,
+	p.bust_cm,p.waist_cm,p.hips_cm,p.skin_tone,COALESCE(p.specializations,'[]'::jsonb) as specializations,
+	p.avatar_upload_id,u.file_path as avatar_file_path,p.created_at,p.updated_at
+	FROM model_profiles p LEFT JOIN uploads u ON p.avatar_upload_id = u.id WHERE p.id=$1`
 	var p ModelProfile
 	err := r.db.GetContext(ctx, &p, q, id)
 	if err != nil {
@@ -123,13 +123,13 @@ func (r *modelRepository) GetByID(ctx context.Context, id uuid.UUID) (*ModelProf
 	return &p, nil
 }
 func (r *modelRepository) GetByUserID(ctx context.Context, userID uuid.UUID) (*ModelProfile, error) {
-	q := `SELECT id,user_id,name,bio,description,age,height,weight,gender,clothing_size,shoe_size,experience,
-	hourly_rate,city,country,languages,categories,skills,barter_accepted,accept_remote_work,travel_cities,
-	visibility,profile_views,rating_score,reviews_count,is_public,is_promoted,
-	hair_color,eye_color,tattoos,working_hours,min_budget,COALESCE(social_links,'[]'::jsonb) as social_links,
-	bust_cm,waist_cm,hips_cm,skin_tone,COALESCE(specializations,'[]'::jsonb) as specializations,
-	avatar_upload_id,created_at,updated_at
-	FROM model_profiles WHERE user_id=$1`
+	q := `SELECT p.id,p.user_id,p.name,p.bio,p.description,p.age,p.height,p.weight,p.gender,p.clothing_size,p.shoe_size,p.experience,
+	p.hourly_rate,p.city,p.country,p.languages,p.categories,p.skills,p.barter_accepted,p.accept_remote_work,p.travel_cities,
+	p.visibility,p.profile_views,p.rating_score,p.reviews_count,p.is_public,p.is_promoted,
+	p.hair_color,p.eye_color,p.tattoos,p.working_hours,p.min_budget,COALESCE(p.social_links,'[]'::jsonb) as social_links,
+	p.bust_cm,p.waist_cm,p.hips_cm,p.skin_tone,COALESCE(p.specializations,'[]'::jsonb) as specializations,
+	p.avatar_upload_id,u.file_path as avatar_file_path,p.created_at,p.updated_at
+	FROM model_profiles p LEFT JOIN uploads u ON p.avatar_upload_id = u.id WHERE p.user_id=$1`
 	var p ModelProfile
 	err := r.db.GetContext(ctx, &p, q, userID)
 	if err != nil {
@@ -174,50 +174,50 @@ func (r *modelRepository) List(ctx context.Context, filter *Filter, pagination *
 		pagination.Limit = 20
 	}
 
-	conditions := []string{"is_public = true"}
+	conditions := []string{"p.is_public = true"}
 	args := []interface{}{}
 	argIndex := 1
 	placeholder := func(i int) string { return "$" + strconv.Itoa(i) }
 
 	if filter.City != nil && *filter.City != "" {
-		conditions = append(conditions, "city ILIKE "+placeholder(argIndex))
+		conditions = append(conditions, "p.city ILIKE "+placeholder(argIndex))
 		args = append(args, "%"+*filter.City+"%")
 		argIndex++
 	}
 	if filter.Gender != nil && *filter.Gender != "" {
-		conditions = append(conditions, "gender="+placeholder(argIndex))
+		conditions = append(conditions, "p.gender="+placeholder(argIndex))
 		args = append(args, *filter.Gender)
 		argIndex++
 	}
 	if filter.AgeMin != nil {
-		conditions = append(conditions, "age >= "+placeholder(argIndex))
+		conditions = append(conditions, "p.age >= "+placeholder(argIndex))
 		args = append(args, *filter.AgeMin)
 		argIndex++
 	}
 	if filter.AgeMax != nil {
-		conditions = append(conditions, "age <= "+placeholder(argIndex))
+		conditions = append(conditions, "p.age <= "+placeholder(argIndex))
 		args = append(args, *filter.AgeMax)
 		argIndex++
 	}
 	if filter.HeightMin != nil {
-		conditions = append(conditions, "height >= "+placeholder(argIndex))
+		conditions = append(conditions, "p.height >= "+placeholder(argIndex))
 		args = append(args, *filter.HeightMin)
 		argIndex++
 	}
 	if filter.HeightMax != nil {
-		conditions = append(conditions, "height <= "+placeholder(argIndex))
+		conditions = append(conditions, "p.height <= "+placeholder(argIndex))
 		args = append(args, *filter.HeightMax)
 		argIndex++
 	}
 	if filter.Query != nil && *filter.Query != "" {
-		p := placeholder(argIndex)
-		conditions = append(conditions, "(name ILIKE "+p+" OR bio ILIKE "+p+")")
+		p_alias := placeholder(argIndex)
+		conditions = append(conditions, "(p.name ILIKE "+p_alias+" OR p.bio ILIKE "+p_alias+")")
 		args = append(args, "%"+*filter.Query+"%")
 		argIndex++
 	}
 
 	where := "WHERE " + strings.Join(conditions, " AND ")
-	countQ := "SELECT COUNT(*) FROM model_profiles " + where
+	countQ := "SELECT COUNT(*) FROM model_profiles p " + where
 
 	var total int
 	if err := r.db.GetContext(ctx, &total, countQ, args...); err != nil {
@@ -225,10 +225,11 @@ func (r *modelRepository) List(ctx context.Context, filter *Filter, pagination *
 	}
 
 	offset := (pagination.Page - 1) * pagination.Limit
-	q := `SELECT id,user_id,name,bio,description,age,height,weight,gender,clothing_size,shoe_size,experience,
-	hourly_rate,city,country,languages,categories,skills,barter_accepted,accept_remote_work,travel_cities,visibility,
-	profile_views,rating_score,reviews_count,is_public,is_promoted,created_at,updated_at FROM model_profiles ` + where +
-		" ORDER BY is_promoted DESC, rating_score DESC, created_at DESC LIMIT " + placeholder(argIndex) + " OFFSET " + placeholder(argIndex+1)
+	q := `SELECT p.id,p.user_id,p.name,p.bio,p.description,p.age,p.height,p.weight,p.gender,p.clothing_size,p.shoe_size,p.experience,
+	p.hourly_rate,p.city,p.country,p.languages,p.categories,p.skills,p.barter_accepted,p.accept_remote_work,p.travel_cities,p.visibility,
+	p.profile_views,p.rating_score,p.reviews_count,p.is_public,p.is_promoted,
+	p.avatar_upload_id,u.file_path as avatar_file_path,p.created_at,p.updated_at FROM model_profiles p LEFT JOIN uploads u ON p.avatar_upload_id = u.id ` + where +
+		" ORDER BY p.is_promoted DESC, p.rating_score DESC, p.created_at DESC LIMIT " + placeholder(argIndex) + " OFFSET " + placeholder(argIndex+1)
 	args = append(args, pagination.Limit, offset)
 
 	var profiles []*ModelProfile
@@ -247,8 +248,9 @@ func (r *modelRepository) ListPromoted(ctx context.Context, city *string, limit 
 		p.hourly_rate,p.city,p.country,COALESCE(p.languages,'[]'::jsonb) as languages,COALESCE(p.categories,'[]'::jsonb) as categories,
 		COALESCE(p.skills,'[]'::jsonb) as skills,COALESCE(p.barter_accepted,false) as barter_accepted,COALESCE(p.accept_remote_work,false) as accept_remote_work,
 		COALESCE(p.travel_cities,'[]'::jsonb) as travel_cities,COALESCE(p.visibility,'public') as visibility,p.profile_views,p.rating_score,p.reviews_count,COALESCE(p.is_public,true) as is_public,
-		p.created_at,p.updated_at
+		p.avatar_upload_id,u.file_path as avatar_file_path,p.created_at,p.updated_at
 	FROM model_profiles p
+	LEFT JOIN uploads u ON p.avatar_upload_id = u.id
 	INNER JOIN profile_promotions pr ON pr.profile_id = p.id
 	WHERE p.is_public = true AND pr.status='active' AND pr.starts_at <= NOW() AND pr.ends_at >= NOW()`
 
@@ -291,7 +293,7 @@ func (r *employerRepository) Create(ctx context.Context, p *EmployerProfile) err
 	return err
 }
 func (r *employerRepository) GetByID(ctx context.Context, id uuid.UUID) (*EmployerProfile, error) {
-	q := `SELECT id,user_id,company_name,company_type,description,website,contact_person,contact_phone,city,country,rating_score,reviews_count,castings_posted,is_verified,verified_at,profile_views,COALESCE(social_links,'[]'::jsonb) as social_links,created_at,updated_at FROM employer_profiles WHERE id=$1`
+	q := `SELECT p.id,p.user_id,p.company_name,p.company_type,p.description,p.website,p.contact_person,p.contact_phone,p.city,p.country,p.rating_score,p.reviews_count,p.castings_posted,p.is_verified,p.verified_at,p.profile_views,COALESCE(p.social_links,'[]'::jsonb) as social_links,p.avatar_upload_id,u.file_path as avatar_file_path,p.created_at,p.updated_at FROM employer_profiles p LEFT JOIN uploads u ON p.avatar_upload_id = u.id WHERE p.id=$1`
 	var p EmployerProfile
 	err := r.db.GetContext(ctx, &p, q, id)
 	if err != nil {
@@ -303,7 +305,7 @@ func (r *employerRepository) GetByID(ctx context.Context, id uuid.UUID) (*Employ
 	return &p, nil
 }
 func (r *employerRepository) GetByUserID(ctx context.Context, userID uuid.UUID) (*EmployerProfile, error) {
-	q := `SELECT id,user_id,company_name,company_type,description,website,contact_person,contact_phone,city,country,rating_score,reviews_count,castings_posted,is_verified,verified_at,profile_views,COALESCE(social_links,'[]'::jsonb) as social_links,created_at,updated_at FROM employer_profiles WHERE user_id=$1`
+	q := `SELECT p.id,p.user_id,p.company_name,p.company_type,p.description,p.website,p.contact_person,p.contact_phone,p.city,p.country,p.rating_score,p.reviews_count,p.castings_posted,p.is_verified,p.verified_at,p.profile_views,COALESCE(p.social_links,'[]'::jsonb) as social_links,p.avatar_upload_id,u.file_path as avatar_file_path,p.created_at,p.updated_at FROM employer_profiles p LEFT JOIN uploads u ON p.avatar_upload_id = u.id WHERE p.user_id=$1`
 	var p EmployerProfile
 	err := r.db.GetContext(ctx, &p, q, userID)
 	if err != nil {

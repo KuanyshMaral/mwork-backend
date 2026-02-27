@@ -921,6 +921,8 @@ definitions:
         type: string
       last_name:
         type: string
+      profile_id:
+        type: string
     type: object
   internal_domain_chat.RoomResponse:
     properties:
@@ -1521,6 +1523,8 @@ definitions:
     type: object
   internal_domain_profile.EmployerProfileResponse:
     properties:
+      avatar_url:
+        type: string
       castings_posted:
         type: integer
       city:
