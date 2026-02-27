@@ -255,31 +255,53 @@ func (s *Service) SendMessage(ctx context.Context, userID, roomID uuid.UUID, req
 
 	// Broadcast to WebSocket clients
 	if s.hub != nil {
-		// Backward-compatible event for existing clients
-		s.hub.BroadcastToRoom(roomID, &WSEvent{
-			Type:    EventNewMessage,
-			RoomID:  roomID,
-			Message: msg,
-		})
-		// Canonical event names expected by newer clients
-		s.hub.BroadcastToRoom(roomID, &WSEvent{
-			Type:    EventMessageCreate,
-			RoomID:  roomID,
-			Message: msg,
-		})
+		members, membersErr := s.repo.GetMembers(ctx, roomID)
+		if membersErr != nil || len(members) == 0 {
+			// Fallback for degraded mode (membership query failed)
+			s.hub.BroadcastToRoom(roomID, &WSEvent{Type: EventNewMessage, RoomID: roomID, SenderID: userID, Message: msg})
+			s.hub.BroadcastToRoom(roomID, &WSEvent{Type: EventMessageCreate, RoomID: roomID, SenderID: userID, Message: msg})
+			s.hub.BroadcastToRoom(roomID, &WSEvent{
+				Type:     EventRoomUpdated,
+				RoomID:   roomID,
+				SenderID: userID,
+				Data: map[string]any{
+					"last_message_preview": req.Content,
+					"last_message_at":      msg.CreatedAt,
+				},
+			})
+		} else {
+			for _, member := range members {
+				recipientID := member.UserID
 
-		roomData := map[string]any{
-			"last_message_preview": req.Content,
-			"last_message_at":      msg.CreatedAt,
+				_ = s.hub.SendToUserJSON(recipientID, &WSEvent{
+					Type:     EventNewMessage,
+					RoomID:   roomID,
+					SenderID: userID,
+					Message:  msg,
+				})
+				_ = s.hub.SendToUserJSON(recipientID, &WSEvent{
+					Type:     EventMessageCreate,
+					RoomID:   roomID,
+					SenderID: userID,
+					Message:  msg,
+				})
+
+				roomData := map[string]any{
+					"last_message_preview": req.Content,
+					"last_message_at":      msg.CreatedAt,
+				}
+				if unreadCount, err := s.repo.CountUnreadByRoom(ctx, roomID, recipientID); err == nil {
+					roomData["unread_count"] = unreadCount
+				}
+
+				_ = s.hub.SendToUserJSON(recipientID, &WSEvent{
+					Type:     EventRoomUpdated,
+					RoomID:   roomID,
+					SenderID: userID,
+					Data:     roomData,
+				})
+			}
 		}
-		if unreadCount, err := s.repo.CountUnreadByRoom(ctx, roomID, userID); err == nil {
-			roomData["unread_count"] = unreadCount
-		}
-		s.hub.BroadcastToRoom(roomID, &WSEvent{
-			Type:   EventRoomUpdated,
-			RoomID: roomID,
-			Data:   roomData,
-		})
 	}
 
 	if s.notifService != nil {
