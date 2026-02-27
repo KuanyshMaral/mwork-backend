@@ -193,6 +193,9 @@ func (r *CastingRepository) Activate(ctx context.Context, id uuid.UUID, startsAt
 	if rows == 0 {
 		return ErrPromotionNotFound
 	}
+
+	// Sync the is_promoted flag on the target casting
+	r.db.ExecContext(ctx, `UPDATE castings SET is_promoted = true WHERE id = (SELECT casting_id FROM casting_promotions WHERE id = $1)`, id)
 	return nil
 }
 
@@ -206,6 +209,21 @@ func (r *CastingRepository) UpdateStatus(ctx context.Context, id uuid.UUID, stat
 	rows, _ := result.RowsAffected()
 	if rows == 0 {
 		return ErrPromotionNotFound
+	}
+
+	// Sync the is_promoted flag on the target casting
+	if status == StatusActive {
+		r.db.ExecContext(ctx, `UPDATE castings SET is_promoted = true WHERE id = (SELECT casting_id FROM casting_promotions WHERE id = $1)`, id)
+	} else if status == StatusPaused || status == StatusCompleted || status == StatusCancelled {
+		r.db.ExecContext(ctx, `
+			UPDATE castings
+			SET is_promoted = EXISTS(
+				SELECT 1 FROM casting_promotions
+				WHERE casting_id = (SELECT casting_id FROM casting_promotions WHERE id = $1)
+				  AND status = 'active' AND id != $1
+			)
+			WHERE id = (SELECT casting_id FROM casting_promotions WHERE id = $1)
+		`, id)
 	}
 	return nil
 }
@@ -234,5 +252,19 @@ func (r *CastingRepository) ExpireCompleted(ctx context.Context) (int64, error) 
 		return 0, err
 	}
 	count, _ := result.RowsAffected()
+
+	if count > 0 {
+		// Sync is_promoted for any castings whose only active promotion just expired
+		r.db.ExecContext(ctx, `
+			UPDATE castings c
+			SET is_promoted = false
+			WHERE c.is_promoted = true
+			  AND NOT EXISTS (
+				  SELECT 1 FROM casting_promotions cp
+				  WHERE cp.casting_id = c.id AND cp.status = 'active'
+			  )
+		`)
+	}
+
 	return count, nil
 }

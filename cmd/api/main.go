@@ -319,6 +319,11 @@ func main() {
 	promotionHandler := promotion.NewHandler(promotionRepo)
 	castingPromotionRepo := promotion.NewCastingRepository(db)
 	castingPromotionHandler := promotion.NewCastingPromotionHandler(castingPromotionRepo, creditService)
+
+	// Start promotion background expiration worker (runs every hour)
+	promoWorker := promotion.NewWorker(promotionRepo, castingPromotionRepo, 1*time.Hour)
+	promoWorker.Start()
+
 	favoriteHandler := favorite.NewHandler(favoriteRepo)
 	walletHandler := wallet.NewHandler(walletService)
 
@@ -506,6 +511,7 @@ func main() {
 	<-quit
 
 	log.Info().Msg("Shutting down server...")
+	promoWorker.Stop()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()

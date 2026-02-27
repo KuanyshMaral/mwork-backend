@@ -11283,6 +11283,9 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
+                "is_promoted": {
+                    "type": "boolean"
+                },
                 "is_public": {
                     "type": "boolean"
                 },

@@ -80,7 +80,7 @@ func (r *modelRepository) Create(ctx context.Context, profile *ModelProfile) err
 		travel_cities, visibility, profile_views, rating_score, reviews_count, is_public,
 		hair_color, eye_color, tattoos, working_hours, min_budget, social_links,
 		bust_cm, waist_cm, hips_cm, skin_tone, specializations, avatar_upload_id,
-		created_at, updated_at
+		is_promoted, created_at, updated_at
 	) VALUES (
 		$1,$2,$3,$4,$5,$6,$7,$8,$9,
 		$10,$11,$12,$13,$14,$15,
@@ -88,7 +88,7 @@ func (r *modelRepository) Create(ctx context.Context, profile *ModelProfile) err
 		$21,$22,$23,$24,$25,$26,
 		$27,$28,$29,$30,$31,$32,
 		$33,$34,$35,$36,$37,$38,
-		$39,$40
+		$39,$40,$41
 	)`
 	_, err := r.db.ExecContext(ctx, q,
 		profile.ID, profile.UserID, profile.Name, profile.Bio, profile.Description,
@@ -96,7 +96,7 @@ func (r *modelRepository) Create(ctx context.Context, profile *ModelProfile) err
 		profile.ClothingSize, profile.ShoeSize, profile.Experience, profile.HourlyRate,
 		profile.City, profile.Country, profile.Languages, profile.Categories, profile.Skills,
 		profile.BarterAccepted, profile.AcceptRemoteWork, profile.TravelCities, profile.Visibility,
-		profile.ProfileViews, profile.Rating, profile.TotalReviews, profile.IsPublic,
+		profile.ProfileViews, profile.Rating, profile.TotalReviews, profile.IsPublic, profile.IsPromoted,
 		profile.HairColor, profile.EyeColor, profile.Tattoos, profile.WorkingHours, profile.MinBudget, profile.SocialLinks,
 		profile.BustCm, profile.WaistCm, profile.HipsCm, profile.SkinTone, profile.Specializations, profile.AvatarUploadID,
 		profile.CreatedAt, profile.UpdatedAt,
@@ -107,7 +107,7 @@ func (r *modelRepository) Create(ctx context.Context, profile *ModelProfile) err
 func (r *modelRepository) GetByID(ctx context.Context, id uuid.UUID) (*ModelProfile, error) {
 	q := `SELECT id,user_id,name,bio,description,age,height,weight,gender,clothing_size,shoe_size,experience,
 	hourly_rate,city,country,languages,categories,skills,barter_accepted,accept_remote_work,travel_cities,
-	visibility,profile_views,rating_score,reviews_count,is_public,
+	visibility,profile_views,rating_score,reviews_count,is_public,is_promoted,
 	hair_color,eye_color,tattoos,working_hours,min_budget,COALESCE(social_links,'[]'::jsonb) as social_links,
 	bust_cm,waist_cm,hips_cm,skin_tone,COALESCE(specializations,'[]'::jsonb) as specializations,
 	avatar_upload_id,created_at,updated_at
@@ -125,7 +125,7 @@ func (r *modelRepository) GetByID(ctx context.Context, id uuid.UUID) (*ModelProf
 func (r *modelRepository) GetByUserID(ctx context.Context, userID uuid.UUID) (*ModelProfile, error) {
 	q := `SELECT id,user_id,name,bio,description,age,height,weight,gender,clothing_size,shoe_size,experience,
 	hourly_rate,city,country,languages,categories,skills,barter_accepted,accept_remote_work,travel_cities,
-	visibility,profile_views,rating_score,reviews_count,is_public,
+	visibility,profile_views,rating_score,reviews_count,is_public,is_promoted,
 	hair_color,eye_color,tattoos,working_hours,min_budget,COALESCE(social_links,'[]'::jsonb) as social_links,
 	bust_cm,waist_cm,hips_cm,skin_tone,COALESCE(specializations,'[]'::jsonb) as specializations,
 	avatar_upload_id,created_at,updated_at
@@ -148,7 +148,7 @@ func (r *modelRepository) Update(ctx context.Context, p *ModelProfile) error {
 	barter_accepted=$18,accept_remote_work=$19,is_public=$20,travel_cities=$21,visibility=$22,
 	hair_color=$23,eye_color=$24,tattoos=$25,working_hours=$26,min_budget=$27,social_links=$28,
 	bust_cm=$29,waist_cm=$30,hips_cm=$31,skin_tone=$32,specializations=$33,avatar_upload_id=$34,
-	rating_score=$35,reviews_count=$36,updated_at=$37 WHERE id=$1`
+	rating_score=$35,reviews_count=$36,is_promoted=$37,updated_at=$38 WHERE id=$1`
 	_, err := r.db.ExecContext(ctx, q,
 		p.ID, p.Name, p.Bio, p.Description, p.Age, p.Height, p.Weight, p.Gender,
 		p.ClothingSize, p.ShoeSize, p.Experience, p.HourlyRate, p.City, p.Country,
@@ -156,7 +156,7 @@ func (r *modelRepository) Update(ctx context.Context, p *ModelProfile) error {
 		p.IsPublic, p.TravelCities, p.Visibility,
 		p.HairColor, p.EyeColor, p.Tattoos, p.WorkingHours, p.MinBudget, p.SocialLinks,
 		p.BustCm, p.WaistCm, p.HipsCm, p.SkinTone, p.Specializations, p.AvatarUploadID,
-		p.Rating, p.TotalReviews, p.UpdatedAt)
+		p.Rating, p.TotalReviews, p.IsPromoted, p.UpdatedAt)
 	return err
 }
 
@@ -227,8 +227,8 @@ func (r *modelRepository) List(ctx context.Context, filter *Filter, pagination *
 	offset := (pagination.Page - 1) * pagination.Limit
 	q := `SELECT id,user_id,name,bio,description,age,height,weight,gender,clothing_size,shoe_size,experience,
 	hourly_rate,city,country,languages,categories,skills,barter_accepted,accept_remote_work,travel_cities,visibility,
-	profile_views,rating_score,reviews_count,is_public,created_at,updated_at FROM model_profiles ` + where +
-		" ORDER BY rating_score DESC, created_at DESC LIMIT " + placeholder(argIndex) + " OFFSET " + placeholder(argIndex+1)
+	profile_views,rating_score,reviews_count,is_public,is_promoted,created_at,updated_at FROM model_profiles ` + where +
+		" ORDER BY is_promoted DESC, rating_score DESC, created_at DESC LIMIT " + placeholder(argIndex) + " OFFSET " + placeholder(argIndex+1)
 	args = append(args, pagination.Limit, offset)
 
 	var profiles []*ModelProfile

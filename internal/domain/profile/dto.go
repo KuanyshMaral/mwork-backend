@@ -114,6 +114,7 @@ type ModelProfileResponse struct {
 	Categories       []string  `json:"categories,omitempty"`
 	Skills           []string  `json:"skills,omitempty"`
 	IsPublic         bool      `json:"is_public"`
+	IsPromoted       bool      `json:"is_promoted"`
 	Visibility       *string   `json:"visibility,omitempty"`
 	ProfileViews     int       `json:"profile_views"`
 	Rating           float64   `json:"rating"`
@@ -178,6 +179,7 @@ func ModelProfileResponseFromEntity(p *ModelProfile) *ModelProfileResponse {
 		Categories:       p.GetCategories(),
 		Skills:           p.GetSkills(),
 		IsPublic:         p.IsPublic,
+		IsPromoted:       p.IsPromoted,
 		ProfileViews:     p.ProfileViews,
 		Rating:           p.Rating,
 		TotalReviews:     p.TotalReviews,
