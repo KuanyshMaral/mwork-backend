@@ -117,8 +117,8 @@ func (h *CastingPromotionHandler) Create(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Ensure employer owns this casting
-	if err := h.repo.VerifyCastingOwner(r.Context(), castingID, employerID); err != nil {
+	// Ensure user owns this casting
+	if err := h.repo.VerifyCastingOwner(r.Context(), castingID, userID); err != nil {
 		if err == ErrNotPromotionOwner {
 			response.Forbidden(w, "you can only promote your own castings")
 			return
