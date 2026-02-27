@@ -116,9 +116,12 @@ func TestSendMessageBroadcastsRealtimeWithAttachments(t *testing.T) {
 	}}
 	svc := NewService(repo, users, hub, &noopAccessChecker{}, nil, &staticUploadResolver{})
 
-	_, err := svc.SendMessage(context.Background(), sender, roomID, &SendMessageRequest{AttachmentUploadIDs: []uuid.UUID{uuid.New()}})
+	msg, err := svc.SendMessage(context.Background(), sender, roomID, &SendMessageRequest{AttachmentUploadIDs: []uuid.UUID{uuid.New()}})
 	if err != nil {
 		t.Fatalf("send message: %v", err)
+	}
+	if msg == nil {
+		t.Fatal("expected message response")
 	}
 
 	event := waitEvent(t, conns[recipient].Send)
@@ -128,6 +131,9 @@ func TestSendMessageBroadcastsRealtimeWithAttachments(t *testing.T) {
 	if event.Message == nil || len(event.Message.Attachments) != 1 {
 		t.Fatalf("expected attachment in event payload")
 	}
+	if event.MessageID != msg.ID {
+		t.Fatalf("expected message_id %s, got %s", msg.ID, event.MessageID)
+	}
 
 	eventCreated := waitEvent(t, conns[recipient].Send)
 	if eventCreated.Type != EventMessageCreate {
@@ -136,6 +142,9 @@ func TestSendMessageBroadcastsRealtimeWithAttachments(t *testing.T) {
 	if eventCreated.Message == nil || len(eventCreated.Message.Attachments) != 1 {
 		t.Fatalf("expected attachment in message_created payload")
 	}
+	if eventCreated.MessageID != msg.ID {
+		t.Fatalf("expected message_id %s, got %s", msg.ID, eventCreated.MessageID)
+	}
 
 	eventRoom := waitEvent(t, conns[recipient].Send)
 	if eventRoom.Type != EventRoomUpdated {
@@ -143,6 +152,9 @@ func TestSendMessageBroadcastsRealtimeWithAttachments(t *testing.T) {
 	}
 	if eventRoom.RoomID != roomID {
 		t.Fatalf("expected room_id %s, got %s", roomID, eventRoom.RoomID)
+	}
+	if eventRoom.MessageID != msg.ID {
+		t.Fatalf("expected message_id %s, got %s", msg.ID, eventRoom.MessageID)
 	}
 	data, ok := eventRoom.Data.(map[string]any)
 	if !ok {
