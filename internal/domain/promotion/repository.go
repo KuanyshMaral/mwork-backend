@@ -21,16 +21,14 @@ func NewRepository(db *sqlx.DB) *Repository {
 	return &Repository{db: db}
 }
 
-// GetProfileIDByUserID returns profile ID for authenticated user
+// GetProfileIDByUserID returns model profile ID for authenticated user.
+// Profile promotions are model-only and reference model_profiles(id).
 func (r *Repository) GetProfileIDByUserID(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
 	var profileID uuid.UUID
 	err := r.db.GetContext(ctx, &profileID, `
-		SELECT id FROM (
-			SELECT id, created_at FROM model_profiles WHERE user_id = $1
-			UNION ALL
-			SELECT id, created_at FROM employer_profiles WHERE user_id = $1
-		) p
-		ORDER BY created_at DESC
+		SELECT id
+		FROM model_profiles
+		WHERE user_id = $1
 		LIMIT 1
 	`, userID)
 	if err == sql.ErrNoRows {
