@@ -313,6 +313,7 @@ func Routes(h *Handler, authMiddleware func(http.Handler) http.Handler) chi.Rout
 	// Authenticated promotion management endpoints
 	r.Group(func(r chi.Router) {
 		r.Use(authMiddleware)
+		r.Use(middleware.RequireModel())
 		r.Get("/", h.List)
 		r.Post("/", h.Create)
 		r.Post("/{id}/activate", h.Activate)
