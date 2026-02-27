@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
@@ -177,6 +178,23 @@ func (r *Repository) UpdateStatus(ctx context.Context, id uuid.UUID, status Stat
 	if rows == 0 {
 		return ErrPromotionNotFound
 	}
+
+	// Sync the is_promoted flag on the target profile
+	if status == StatusActive {
+		// Active promotions make the profile promoted
+		r.db.ExecContext(ctx, `UPDATE model_profiles SET is_promoted = true WHERE id = (SELECT profile_id FROM profile_promotions WHERE id = $1)`, id)
+	} else if status == StatusPaused || status == StatusCompleted || status == StatusCancelled {
+		// Pausing, completing or cancelling turns off the promoted flag unless there are other active promotions
+		r.db.ExecContext(ctx, `
+			UPDATE model_profiles 
+			SET is_promoted = EXISTS(
+				SELECT 1 FROM profile_promotions 
+				WHERE profile_id = (SELECT profile_id FROM profile_promotions WHERE id = $1)
+				  AND status = 'active' AND id != $1
+			) 
+			WHERE id = (SELECT profile_id FROM profile_promotions WHERE id = $1)`, id)
+	}
+
 	return nil
 }
 
@@ -196,6 +214,10 @@ func (r *Repository) Activate(ctx context.Context, id uuid.UUID, startsAt, endsA
 	if rows == 0 {
 		return ErrPromotionNotFound
 	}
+
+	// Sync the is_promoted flag on the target profile
+	r.db.ExecContext(ctx, `UPDATE model_profiles SET is_promoted = true WHERE id = (SELECT profile_id FROM profile_promotions WHERE id = $1)`, id)
+
 	return nil
 }
 
@@ -278,4 +300,32 @@ func (r *Repository) GetActivePromotions(ctx context.Context) ([]Promotion, erro
 	}
 
 	return promotions, nil
+}
+
+// ExpireCompleted moves all profile promotions past their end date to 'completed'
+func (r *Repository) ExpireCompleted(ctx context.Context) (int64, error) {
+	result, err := r.db.ExecContext(ctx, `
+		UPDATE profile_promotions 
+		SET status = 'completed', updated_at = NOW()
+		WHERE status = 'active' AND ends_at < $1
+	`, time.Now())
+	if err != nil {
+		return 0, err
+	}
+	count, _ := result.RowsAffected()
+
+	if count > 0 {
+		// Sync is_promoted for any profiles whose only active promotion just expired
+		r.db.ExecContext(ctx, `
+			UPDATE model_profiles m
+			SET is_promoted = false
+			WHERE m.is_promoted = true
+			  AND NOT EXISTS (
+				  SELECT 1 FROM profile_promotions pp
+				  WHERE pp.profile_id = m.id AND pp.status = 'active'
+			  )
+		`)
+	}
+
+	return count, nil
 }

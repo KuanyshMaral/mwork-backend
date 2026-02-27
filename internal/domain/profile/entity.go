@@ -60,6 +60,7 @@ type ModelProfile struct {
 	Rating       float64        `db:"rating_score"`
 	TotalReviews int            `db:"reviews_count"`
 	IsPublic     bool           `db:"is_public"`
+	IsPromoted   bool           `db:"is_promoted"`
 	Visibility   sql.NullString `db:"visibility"`
 
 	// Avatar (Phase 4: direct FK to uploads, replaces photos.is_avatar pattern)

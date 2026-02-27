@@ -317,6 +317,13 @@ func main() {
 
 	dashboardHandler := dashboard.NewHandler(dashboardRepo, dashboardSvc)
 	promotionHandler := promotion.NewHandler(promotionRepo)
+	castingPromotionRepo := promotion.NewCastingRepository(db)
+	castingPromotionHandler := promotion.NewCastingPromotionHandler(castingPromotionRepo, creditService)
+
+	// Start promotion background expiration worker (runs every hour)
+	promoWorker := promotion.NewWorker(promotionRepo, castingPromotionRepo, 1*time.Hour)
+	promoWorker.Start()
+
 	favoriteHandler := favorite.NewHandler(favoriteRepo)
 	walletHandler := wallet.NewHandler(walletService)
 
@@ -458,6 +465,7 @@ func main() {
 
 		r.Mount("/dashboard", dashboard.Routes(dashboardHandler, authWithVerifiedEmailMiddleware))
 		r.Mount("/promotions", promotion.Routes(promotionHandler, authWithVerifiedEmailMiddleware))
+		r.Mount("/casting-promotions", promotion.CastingPromotionRoutes(castingPromotionHandler, authWithVerifiedEmailMiddleware))
 		r.Mount("/favorites", favorite.Routes(favoriteHandler, authWithVerifiedEmailMiddleware))
 		r.Mount("/demo/wallet", walletHandler.Routes(authWithVerifiedEmailMiddleware))
 		r.Mount("/reviews", review.Routes(reviewHandler, authWithVerifiedEmailMiddleware))
@@ -503,6 +511,7 @@ func main() {
 	<-quit
 
 	log.Info().Msg("Shutting down server...")
+	promoWorker.Stop()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()

@@ -8,8 +8,8 @@ import (
 
 // CreateRoomRequest for POST /chat/rooms
 type CreateRoomRequest struct {
-	RoomType    string      `json:"room_type" validate:"required,oneof=direct casting group"`
-	RecipientID *uuid.UUID  `json:"recipient_id,omitempty"` // For direct and casting rooms
+	RoomType    string      `json:"room_type" validate:"required,oneof=direct group"`
+	RecipientID *uuid.UUID  `json:"recipient_id,omitempty"` // For direct rooms
 	MemberIDs   []uuid.UUID `json:"member_ids,omitempty"`   // For group rooms
 	Name        string      `json:"name,omitempty"`         // For group rooms
 	CastingID   *uuid.UUID  `json:"casting_id,omitempty"`   // For casting rooms

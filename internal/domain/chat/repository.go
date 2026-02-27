@@ -83,7 +83,8 @@ func (r *repository) GetRoomByID(ctx context.Context, id uuid.UUID) (*Room, erro
 func (r *repository) GetDirectRoomByUsers(ctx context.Context, user1, user2 uuid.UUID) (*Room, error) {
 	query := `
 		SELECT r.* FROM chat_rooms r
-		WHERE r.room_type = 'direct'
+		WHERE r.room_type IN ('direct', 'casting')
+		AND (SELECT COUNT(*) FROM chat_room_members WHERE room_id = r.id) = 2
 		AND EXISTS (SELECT 1 FROM chat_room_members WHERE room_id = r.id AND user_id = $1)
 		AND EXISTS (SELECT 1 FROM chat_room_members WHERE room_id = r.id AND user_id = $2)
 	`
