@@ -255,10 +255,30 @@ func (s *Service) SendMessage(ctx context.Context, userID, roomID uuid.UUID, req
 
 	// Broadcast to WebSocket clients
 	if s.hub != nil {
+		// Backward-compatible event for existing clients
 		s.hub.BroadcastToRoom(roomID, &WSEvent{
 			Type:    EventNewMessage,
 			RoomID:  roomID,
 			Message: msg,
+		})
+		// Canonical event names expected by newer clients
+		s.hub.BroadcastToRoom(roomID, &WSEvent{
+			Type:    EventMessageCreate,
+			RoomID:  roomID,
+			Message: msg,
+		})
+
+		roomData := map[string]any{
+			"last_message_preview": req.Content,
+			"last_message_at":      msg.CreatedAt,
+		}
+		if unreadCount, err := s.repo.CountUnreadByRoom(ctx, roomID, userID); err == nil {
+			roomData["unread_count"] = unreadCount
+		}
+		s.hub.BroadcastToRoom(roomID, &WSEvent{
+			Type:   EventRoomUpdated,
+			RoomID: roomID,
+			Data:   roomData,
 		})
 	}
 

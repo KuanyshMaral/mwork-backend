@@ -128,6 +128,32 @@ func TestSendMessageBroadcastsRealtimeWithAttachments(t *testing.T) {
 	if event.Message == nil || len(event.Message.Attachments) != 1 {
 		t.Fatalf("expected attachment in event payload")
 	}
+
+	eventCreated := waitEvent(t, conns[recipient].Send)
+	if eventCreated.Type != EventMessageCreate {
+		t.Fatalf("expected %s, got %s", EventMessageCreate, eventCreated.Type)
+	}
+	if eventCreated.Message == nil || len(eventCreated.Message.Attachments) != 1 {
+		t.Fatalf("expected attachment in message_created payload")
+	}
+
+	eventRoom := waitEvent(t, conns[recipient].Send)
+	if eventRoom.Type != EventRoomUpdated {
+		t.Fatalf("expected %s, got %s", EventRoomUpdated, eventRoom.Type)
+	}
+	if eventRoom.RoomID != roomID {
+		t.Fatalf("expected room_id %s, got %s", roomID, eventRoom.RoomID)
+	}
+	data, ok := eventRoom.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("expected room_updated data map, got %T", eventRoom.Data)
+	}
+	if _, ok := data["last_message_preview"]; !ok {
+		t.Fatalf("expected last_message_preview in room_updated data")
+	}
+	if _, ok := data["last_message_at"]; !ok {
+		t.Fatalf("expected last_message_at in room_updated data")
+	}
 }
 
 func TestMarkAsReadBroadcastsRealtime(t *testing.T) {
