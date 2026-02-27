@@ -35,12 +35,12 @@ func (r *CastingRepository) GetEmployerIDByUserID(ctx context.Context, userID uu
 	return profileID, nil
 }
 
-// VerifyCastingOwner checks if the employer owns the given casting
-func (r *CastingRepository) VerifyCastingOwner(ctx context.Context, castingID, employerID uuid.UUID) error {
+// VerifyCastingOwner checks if the user owns the given casting
+func (r *CastingRepository) VerifyCastingOwner(ctx context.Context, castingID, userID uuid.UUID) error {
 	var count int
 	err := r.db.GetContext(ctx, &count, `
 		SELECT COUNT(*) FROM castings WHERE id = $1 AND creator_id = $2
-	`, castingID, employerID)
+	`, castingID, userID)
 	if err != nil {
 		return err
 	}
