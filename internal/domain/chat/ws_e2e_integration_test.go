@@ -251,12 +251,20 @@ func TestWebSocketRealtimeE2E_MessageAttachmentReadAndMetrics(t *testing.T) {
 	if respMsg.StatusCode != http.StatusCreated {
 		t.Fatalf("send message status=%d", respMsg.StatusCode)
 	}
-	event1 := readEvent(t, connB)
+	event1 := readEventByType(t, connB, EventNewMessage)
 	if event1.Type != EventNewMessage {
 		t.Fatalf("expected new_message, got %s", event1.Type)
 	}
 	if event1.Message == nil || event1.Message.Content != "hello realtime" || event1.Message.RoomID != roomID || event1.Message.SenderID != userA {
 		t.Fatalf("unexpected message payload: %#v", event1.Message)
+	}
+	event1Created := readEventByType(t, connB, EventMessageCreate)
+	if event1Created.Message == nil || event1Created.Message.Content != "hello realtime" {
+		t.Fatalf("unexpected message_created payload: %#v", event1Created.Message)
+	}
+	event1Room := readEventByType(t, connB, EventRoomUpdated)
+	if event1Room.RoomID != roomID {
+		t.Fatalf("unexpected room_updated payload: %#v", event1Room)
 	}
 
 	// 2) attachment message -> realtime includes attachments[]
@@ -273,13 +281,18 @@ func TestWebSocketRealtimeE2E_MessageAttachmentReadAndMetrics(t *testing.T) {
 	if respAtt.StatusCode != http.StatusCreated {
 		t.Fatalf("send attachment status=%d", respAtt.StatusCode)
 	}
-	event2 := readEvent(t, connB)
+	event2 := readEventByType(t, connB, EventNewMessage)
 	if event2.Type != EventNewMessage {
 		t.Fatalf("expected attachment new_message, got %s", event2.Type)
 	}
 	if event2.Message == nil || len(event2.Message.Attachments) == 0 {
 		t.Fatalf("expected attachments in WS payload, got %#v", event2.Message)
 	}
+	event2Created := readEventByType(t, connB, EventMessageCreate)
+	if event2Created.Message == nil || len(event2Created.Message.Attachments) == 0 {
+		t.Fatalf("expected attachments in message_created payload, got %#v", event2Created.Message)
+	}
+	_ = readEventByType(t, connB, EventRoomUpdated)
 
 	// 3) read by B -> realtime read to A
 	reqRead, _ := http.NewRequest(http.MethodPost, ts.URL+"/api/v1/chat/rooms/"+roomID.String()+"/read", nil)

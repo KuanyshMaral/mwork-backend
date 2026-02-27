@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -118,7 +119,7 @@ func NewHandler(service *Service, hub *Hub, redisClient *redis.Client, allowedOr
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
 			CheckOrigin: func(r *http.Request) bool {
-				origin := r.Header.Get("Origin")
+				origin := strings.TrimSuffix(r.Header.Get("Origin"), "/")
 
 				// Allow all in development
 				if len(allowedOrigins) == 0 {
@@ -126,12 +127,12 @@ func NewHandler(service *Service, hub *Hub, redisClient *redis.Client, allowedOr
 				}
 
 				for _, allowed := range allowedOrigins {
-					if origin == allowed {
+					if origin == strings.TrimSuffix(allowed, "/") {
 						return true
 					}
 				}
 
-				log.Warn().Str("origin", origin).Msg("WebSocket origin rejected")
+				log.Warn().Str("origin", origin).Strs("allowed_origins", allowedOrigins).Msg("WebSocket origin rejected")
 				return false
 			},
 		},
@@ -412,6 +413,12 @@ func (h *Handler) WebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !websocket.IsWebSocketUpgrade(r) {
+		logger.Warn().Msg("WebSocket upgrade rejected: invalid upgrade request")
+		errorhandler.HandleError(r.Context(), w, http.StatusBadRequest, "BAD_WS_REQUEST", "WebSocket upgrade required", nil)
+		return
+	}
+
 	conn, err := h.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		logger.Error().Err(err).Msg("WebSocket upgrade failed")
@@ -510,7 +517,9 @@ func (h *Handler) wsReader(client *Connection) {
 			if event.RoomID == uuid.Nil {
 				continue
 			}
-			_, _ = h.service.SendMessage(context.Background(), client.UserID, event.RoomID, &SendMessageRequest{Content: event.Content, MessageType: event.MessageType, AttachmentUploadIDs: event.AttachmentUploadIDs})
+			if _, err := h.service.SendMessage(context.Background(), client.UserID, event.RoomID, &SendMessageRequest{Content: event.Content, MessageType: event.MessageType, AttachmentUploadIDs: event.AttachmentUploadIDs}); err != nil {
+				log.Warn().Err(err).Str("user_id", client.UserID.String()).Str("room_id", event.RoomID.String()).Msg("WS message send failed")
+			}
 		case "notification:sync":
 			h.processNotificationSyncCommand(client, event.Data)
 		case "notification:read":
@@ -736,11 +745,14 @@ func (h *Handler) wsWriter(client *Connection) {
 			client.Conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if !ok {
 				// Hub closed the channel
-				client.Conn.WriteMessage(websocket.CloseMessage, []byte{})
+				if err := client.Conn.WriteMessage(websocket.CloseMessage, []byte{}); err != nil {
+					log.Debug().Err(err).Str("user_id", client.UserID.String()).Msg("WebSocket close frame write failed")
+				}
 				return
 			}
 
 			if err := client.Conn.WriteMessage(websocket.TextMessage, message); err != nil {
+				log.Warn().Err(err).Str("user_id", client.UserID.String()).Msg("WebSocket write failed")
 				return
 			}
 
@@ -748,6 +760,7 @@ func (h *Handler) wsWriter(client *Connection) {
 			// Send ping for heartbeat
 			client.Conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if err := client.Conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				log.Debug().Err(err).Str("user_id", client.UserID.String()).Msg("WebSocket ping failed")
 				return
 			}
 		}

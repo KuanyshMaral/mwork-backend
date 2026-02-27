@@ -381,7 +381,10 @@ func main() {
 	// WebSocket endpoint
 	r.Get("/ws", func(w http.ResponseWriter, r *http.Request) {
 		token := r.URL.Query().Get("token")
-		if token != "" {
+		if token == "" {
+			token = r.URL.Query().Get("access_token")
+		}
+		if token != "" && r.Header.Get("Authorization") == "" {
 			r.Header.Set("Authorization", "Bearer "+token)
 		}
 		authMiddleware(http.HandlerFunc(chatHandler.WebSocket)).ServeHTTP(w, r)

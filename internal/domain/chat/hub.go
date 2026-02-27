@@ -19,6 +19,8 @@ type EventType string
 
 const (
 	EventNewMessage    EventType = "new_message"
+	EventMessageCreate EventType = "message_created"
+	EventRoomUpdated   EventType = "room_updated"
 	EventTyping        EventType = "typing"
 	EventRead          EventType = "read"
 	EventOnline        EventType = "online"
