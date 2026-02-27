@@ -877,12 +877,11 @@ definitions:
         description: For group rooms
         type: string
       recipient_id:
-        description: For direct and casting rooms
+        description: For direct rooms
         type: string
       room_type:
         enum:
         - direct
-        - casting
         - group
         type: string
     required:

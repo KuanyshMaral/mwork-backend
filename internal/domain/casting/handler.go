@@ -99,6 +99,8 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 			response.Error(w, http.StatusConflict, "CONFLICT", "duplicate title")
 		case errors.Is(err, ErrCastingConstraint):
 			response.ValidationError(w, map[string]string{"request": "request violates database check constraint"})
+		case errors.Is(err, ErrActiveCastingQuotaExceeded):
+			response.Forbidden(w, "You have reached the maximum number of active castings allowed by your plan")
 		default:
 			response.InternalError(w)
 		}
@@ -275,6 +277,8 @@ func (h *Handler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 			response.ValidationError(w, map[string]string{"status": "invalid status transition"})
 		case errors.Is(err, ErrCastingConstraint):
 			response.ValidationError(w, map[string]string{"status": "invalid status value"})
+		case errors.Is(err, ErrActiveCastingQuotaExceeded):
+			response.Forbidden(w, "You have reached the maximum number of active castings allowed by your plan")
 		default:
 			response.InternalError(w)
 		}

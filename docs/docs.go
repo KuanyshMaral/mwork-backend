@@ -9854,14 +9854,13 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "recipient_id": {
-                    "description": "For direct and casting rooms",
+                    "description": "For direct rooms",
                     "type": "string"
                 },
                 "room_type": {
                     "type": "string",
                     "enum": [
                         "direct",
-                        "casting",
                         "group"
                     ]
                 }
