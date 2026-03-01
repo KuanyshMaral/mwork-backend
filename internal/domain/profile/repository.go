@@ -287,9 +287,9 @@ type employerRepository struct{ db *sqlx.DB }
 func NewEmployerRepository(db *sqlx.DB) EmployerRepository { return &employerRepository{db: db} }
 
 func (r *employerRepository) Create(ctx context.Context, p *EmployerProfile) error {
-	q := `INSERT INTO employer_profiles (id,user_id,company_name,company_type,description,website,contact_person,contact_phone,city,country,rating_score,reviews_count,castings_posted,is_verified,verified_at,created_at,updated_at)
-	VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`
-	_, err := r.db.ExecContext(ctx, q, p.ID, p.UserID, p.CompanyName, p.CompanyType, p.Description, p.Website, p.ContactPerson, p.ContactPhone, p.City, p.Country, p.Rating, p.TotalReviews, p.CastingsPosted, p.IsVerified, p.VerifiedAt, p.CreatedAt, p.UpdatedAt)
+	q := `INSERT INTO employer_profiles (id,user_id,company_name,company_type,description,website,contact_person,contact_phone,city,country,rating_score,reviews_count,castings_posted,is_verified,verified_at,avatar_upload_id,created_at,updated_at)
+	VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`
+	_, err := r.db.ExecContext(ctx, q, p.ID, p.UserID, p.CompanyName, p.CompanyType, p.Description, p.Website, p.ContactPerson, p.ContactPhone, p.City, p.Country, p.Rating, p.TotalReviews, p.CastingsPosted, p.IsVerified, p.VerifiedAt, p.AvatarUploadID, p.CreatedAt, p.UpdatedAt)
 	return err
 }
 func (r *employerRepository) GetByID(ctx context.Context, id uuid.UUID) (*EmployerProfile, error) {
@@ -318,8 +318,8 @@ func (r *employerRepository) GetByUserID(ctx context.Context, userID uuid.UUID) 
 }
 
 func (r *employerRepository) Update(ctx context.Context, p *EmployerProfile) error {
-	q := `UPDATE employer_profiles SET company_name=$2,company_type=$3,description=$4,website=$5,contact_person=$6,contact_phone=$7,city=$8,country=$9,rating_score=$10,reviews_count=$11,social_links=$12,updated_at=NOW() WHERE id=$1`
-	_, err := r.db.ExecContext(ctx, q, p.ID, p.CompanyName, p.CompanyType, p.Description, p.Website, p.ContactPerson, p.ContactPhone, p.City, p.Country, p.Rating, p.TotalReviews, p.SocialLinks)
+	q := `UPDATE employer_profiles SET company_name=$2,company_type=$3,description=$4,website=$5,contact_person=$6,contact_phone=$7,city=$8,country=$9,rating_score=$10,reviews_count=$11,social_links=$12,avatar_upload_id=$13,updated_at=NOW() WHERE id=$1`
+	_, err := r.db.ExecContext(ctx, q, p.ID, p.CompanyName, p.CompanyType, p.Description, p.Website, p.ContactPerson, p.ContactPhone, p.City, p.Country, p.Rating, p.TotalReviews, p.SocialLinks, p.AvatarUploadID)
 	return err
 }
 
