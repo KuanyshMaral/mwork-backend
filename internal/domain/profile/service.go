@@ -448,6 +448,10 @@ func (s *Service) UpdateEmployerProfile(ctx context.Context, userID uuid.UUID, r
 		profile.SetSocialLinks(req.SocialLinks)
 	}
 
+	if req.AvatarUploadID != nil {
+		profile.AvatarUploadID = uuid.NullUUID{UUID: *req.AvatarUploadID, Valid: true}
+	}
+
 	profile.UpdatedAt = time.Now()
 
 	if err := s.employerRepo.Update(ctx, profile); err != nil {

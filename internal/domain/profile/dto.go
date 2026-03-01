@@ -80,14 +80,15 @@ type CreateEmployerProfileRequest struct {
 
 // UpdateEmployerProfileRequest for PUT /profiles/employers/{id}
 type UpdateEmployerProfileRequest struct {
-	CompanyName   string            `json:"company_name" validate:"omitempty,min=2,max=200"`
-	CompanyType   string            `json:"company_type" validate:"omitempty,max=100"`
-	Description   string            `json:"description" validate:"max=2000"`
-	Website       string            `json:"website" validate:"omitempty,url,max=500"`
-	City          string            `json:"city" validate:"omitempty,min=2,max=100"`
-	ContactPerson string            `json:"contact_person" validate:"omitempty,max=200"`
-	ContactPhone  string            `json:"contact_phone" validate:"omitempty,max=20"`
-	SocialLinks   []SocialLinkEntry `json:"social_links"`
+	CompanyName    string            `json:"company_name" validate:"omitempty,min=2,max=200"`
+	CompanyType    string            `json:"company_type" validate:"omitempty,max=100"`
+	Description    string            `json:"description" validate:"max=2000"`
+	Website        string            `json:"website" validate:"omitempty,url,max=500"`
+	City           string            `json:"city" validate:"omitempty,min=2,max=100"`
+	ContactPerson  string            `json:"contact_person" validate:"omitempty,max=200"`
+	ContactPhone   string            `json:"contact_phone" validate:"omitempty,max=20"`
+	SocialLinks    []SocialLinkEntry `json:"social_links"`
+	AvatarUploadID *uuid.UUID        `json:"avatar_upload_id"`
 }
 
 type UpdateAdminProfileRequest struct {
@@ -159,6 +160,7 @@ type EmployerProfileResponse struct {
 	ProfileViews   int               `json:"profile_views"`
 	SocialLinks    []SocialLinkEntry `json:"social_links"`
 	AvatarURL      string            `json:"avatar_url,omitempty"`
+	AvatarUploadID *uuid.UUID        `json:"avatar_upload_id,omitempty"`
 	CreatedAt      string            `json:"created_at"`
 	UpdatedAt      string            `json:"updated_at"`
 	CreditBalance  int               `json:"credit_balance"`
@@ -271,6 +273,10 @@ func EmployerProfileResponseFromEntity(p *EmployerProfile) *EmployerProfileRespo
 		AvatarURL:      p.AvatarURL,
 		CreatedAt:      p.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:      p.UpdatedAt.Format(time.RFC3339),
+	}
+
+	if p.AvatarUploadID.Valid {
+		resp.AvatarUploadID = &p.AvatarUploadID.UUID
 	}
 
 	if p.CompanyType.Valid {
