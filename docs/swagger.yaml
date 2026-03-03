@@ -517,6 +517,8 @@ definitions:
         type: string
       id:
         type: string
+      is_exclusive:
+        type: boolean
       is_promoted:
         type: boolean
       is_urgent:
@@ -601,6 +603,8 @@ definitions:
       height_min:
         minimum: 0
         type: integer
+      is_exclusive:
+        type: boolean
       is_urgent:
         type: boolean
       pay_max:
@@ -761,6 +765,8 @@ definitions:
       height_min:
         minimum: 0
         type: integer
+      is_exclusive:
+        type: boolean
       is_urgent:
         type: boolean
       pay_max:
@@ -951,6 +957,8 @@ definitions:
     type: object
   internal_domain_chat.SendMessageRequest:
     properties:
+      attachment_upload_id:
+        type: string
       attachment_upload_ids:
         items:
           type: string
@@ -1523,6 +1531,8 @@ definitions:
     type: object
   internal_domain_profile.EmployerProfileResponse:
     properties:
+      avatar_upload_id:
+        type: string
       avatar_url:
         type: string
       castings_posted:
@@ -1682,6 +1692,8 @@ definitions:
     type: object
   internal_domain_profile.UpdateEmployerProfileRequest:
     properties:
+      avatar_upload_id:
+        type: string
       city:
         maxLength: 100
         minLength: 2
@@ -4919,8 +4931,8 @@ paths:
     post:
       consumes:
       - application/json
-      description: Отправка сообщения в комнату. Для файлов используйте attachment_upload_id
-        (должен быть committed с purpose=chat_file).
+      description: Отправка сообщения в комнату. Для файлов используйте attachment_upload_ids
+        (или legacy attachment_upload_id), upload должен быть committed с purpose=chat_file.
       parameters:
       - description: ID комнаты
         in: path
@@ -6669,6 +6681,36 @@ paths:
       security:
       - BearerAuth: []
       summary: Обновление профиля администратора
+      tags:
+      - Profile
+  /profiles/analytics:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response'
+      security:
+      - BearerAuth: []
+      summary: Аналитика просмотров профиля модели
       tags:
       - Profile
   /profiles/employers/{userId}:
