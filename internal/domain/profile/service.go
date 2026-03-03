@@ -485,8 +485,20 @@ func (s *Service) ListPromotedModels(ctx context.Context, city *string, limit in
 }
 
 // IncrementModelViewCount increments mo view count
-func (s *Service) IncrementModelViewCount(ctx context.Context, id uuid.UUID) error {
-	return s.modelRepo.IncrementViewCount(ctx, id)
+func (s *Service) IncrementModelViewCount(ctx context.Context, id uuid.UUID, viewerUserID *uuid.UUID) error {
+	return s.modelRepo.IncrementViewCount(ctx, id, viewerUserID)
+}
+
+func (s *Service) GetModelProfileAnalytics(ctx context.Context, userID uuid.UUID) (*ProfileViewAnalytics, error) {
+	profile, err := s.modelRepo.GetByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if profile == nil {
+		return nil, ErrProfileNotFound
+	}
+
+	return s.modelRepo.GetViewAnalytics(ctx, profile.ID, time.Now().AddDate(0, 0, -30))
 }
 
 func (s *Service) GetAdminProfileByUserID(ctx context.Context, userID uuid.UUID) (*AdminProfile, error) {

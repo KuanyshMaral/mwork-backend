@@ -19,15 +19,20 @@ import (
 	attachmentDomain "github.com/mwork/mwork-api/internal/domain/attachment"
 )
 
+type ViewerAccessChecker interface {
+	CanSeeProfileViewers(ctx context.Context, userID uuid.UUID) (bool, error)
+}
+
 // Handler handles profile HTTP requests
 type Handler struct {
 	service           *Service
 	attachmentService *attachmentDomain.Service
+	viewerChecker     ViewerAccessChecker
 }
 
 // NewHandler creates profile handler
-func NewHandler(service *Service, attachmentService *attachmentDomain.Service) *Handler {
-	return &Handler{service: service, attachmentService: attachmentService}
+func NewHandler(service *Service, attachmentService *attachmentDomain.Service, viewerChecker ViewerAccessChecker) *Handler {
+	return &Handler{service: service, attachmentService: attachmentService, viewerChecker: viewerChecker}
 }
 
 // GetMe handles GET /profiles/me
@@ -130,7 +135,17 @@ func (h *Handler) GetModelByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	go h.service.IncrementModelViewCount(context.Background(), id)
+	viewerID := middleware.GetUserID(r.Context())
+	if viewerID == uuid.Nil || viewerID == profile.UserID {
+		viewerID = uuid.Nil
+	}
+
+	var viewerUserID *uuid.UUID
+	if viewerID != uuid.Nil {
+		viewerUserID = &viewerID
+	}
+
+	go h.service.IncrementModelViewCount(context.Background(), id, viewerUserID)
 
 	resp := ModelProfileResponseFromEntity(profile)
 	if h.attachmentService != nil {
@@ -144,6 +159,46 @@ func (h *Handler) GetModelByID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.OK(w, resp)
+}
+
+// GetAnalytics handles GET /profiles/analytics
+// @Summary Аналитика просмотров профиля модели
+// @Tags Profile
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} response.Response
+// @Failure 401,403,404,500 {object} response.Response
+// @Router /profiles/analytics [get]
+func (h *Handler) GetAnalytics(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+	if userID == uuid.Nil {
+		response.Unauthorized(w, "unauthorized")
+		return
+	}
+
+	if h.viewerChecker != nil {
+		allowed, err := h.viewerChecker.CanSeeProfileViewers(r.Context(), userID)
+		if err != nil {
+			response.InternalError(w)
+			return
+		}
+		if !allowed {
+			response.Forbidden(w, "analytics is available only on plans with viewers access")
+			return
+		}
+	}
+
+	analytics, err := h.service.GetModelProfileAnalytics(r.Context(), userID)
+	if err != nil {
+		if err == ErrProfileNotFound {
+			response.NotFound(w, "profile not found")
+			return
+		}
+		response.InternalError(w)
+		return
+	}
+
+	response.OK(w, analytics)
 }
 
 // UpdateModel handles PUT /profiles/models/{userId}
