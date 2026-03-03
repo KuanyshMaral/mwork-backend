@@ -6761,6 +6761,54 @@ const docTemplate = `{
                 }
             }
         },
+        "/profiles/analytics": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Profile"
+                ],
+                "summary": "Аналитика просмотров профиля модели",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_mwork_mwork-api_internal_pkg_response.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/profiles/employers/{userId}": {
             "put": {
                 "security": [
@@ -9709,6 +9757,9 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
+                "is_exclusive": {
+                    "type": "boolean"
+                },
                 "is_promoted": {
                     "type": "boolean"
                 },
@@ -9835,6 +9886,9 @@ const docTemplate = `{
                 "height_min": {
                     "type": "integer",
                     "minimum": 0
+                },
+                "is_exclusive": {
+                    "type": "boolean"
                 },
                 "is_urgent": {
                     "type": "boolean"
@@ -10054,6 +10108,9 @@ const docTemplate = `{
                 "height_min": {
                     "type": "integer",
                     "minimum": 0
+                },
+                "is_exclusive": {
+                    "type": "boolean"
                 },
                 "is_urgent": {
                     "type": "boolean"
@@ -10330,6 +10387,9 @@ const docTemplate = `{
         "internal_domain_chat.SendMessageRequest": {
             "type": "object",
             "properties": {
+                "attachment_upload_id": {
+                    "type": "string"
+                },
                 "attachment_upload_ids": {
                     "type": "array",
                     "items": {
@@ -11160,6 +11220,9 @@ const docTemplate = `{
         "internal_domain_profile.EmployerProfileResponse": {
             "type": "object",
             "properties": {
+                "avatar_upload_id": {
+                    "type": "string"
+                },
                 "avatar_url": {
                     "type": "string"
                 },
@@ -11398,6 +11461,9 @@ const docTemplate = `{
         "internal_domain_profile.UpdateEmployerProfileRequest": {
             "type": "object",
             "properties": {
+                "avatar_upload_id": {
+                    "type": "string"
+                },
                 "city": {
                     "type": "string",
                     "maxLength": 100,
