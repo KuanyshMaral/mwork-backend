@@ -20,6 +20,7 @@ func (h *Handler) Routes(authMiddleware func(http.Handler) http.Handler) chi.Rou
 		r.Use(authMiddleware)
 		// Current User Profile
 		r.Get("/me", h.GetMe)
+		r.Get("/analytics", h.GetAnalytics)
 
 		// Update
 		r.Put("/models/{userId}", h.UpdateModel)

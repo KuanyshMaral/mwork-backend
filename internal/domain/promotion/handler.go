@@ -18,6 +18,7 @@ import (
 // Handler handles promotion HTTP requests
 type PlanAccessChecker interface {
 	CanUseMaxPromotionTier(ctx context.Context, userID uuid.UUID) (bool, error)
+	CanCreateProfilePromotion(ctx context.Context, userID uuid.UUID) (bool, error)
 }
 
 // Handler handles promotion HTTP requests
@@ -142,6 +143,18 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	if err := h.validator.Struct(req); err != nil {
 		response.BadRequest(w, err.Error())
 		return
+	}
+
+	if h.planChecker != nil {
+		allowed, err := h.planChecker.CanCreateProfilePromotion(r.Context(), userID)
+		if err != nil {
+			response.InternalError(w)
+			return
+		}
+		if !allowed {
+			response.Forbidden(w, ErrPlanRequired.Error())
+			return
+		}
 	}
 
 	isMaxTier := false

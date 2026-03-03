@@ -82,6 +82,24 @@ func (s *Service) CanUseMaxPromotionTier(ctx context.Context, userID uuid.UUID) 
 	return plan.Features.PromotionTier == "max", nil
 }
 
+func (s *Service) CanCreateProfilePromotion(ctx context.Context, userID uuid.UUID) (bool, error) {
+	_, plan, err := s.GetCurrentSubscription(ctx, userID)
+	if err != nil {
+		return false, fmt.Errorf("failed to get active subscription: %w", err)
+	}
+
+	return plan.Features.PromotionTier != "none", nil
+}
+
+func (s *Service) CanSeeProfileViewers(ctx context.Context, userID uuid.UUID) (bool, error) {
+	_, plan, err := s.GetCurrentSubscription(ctx, userID)
+	if err != nil {
+		return false, fmt.Errorf("failed to get active subscription: %w", err)
+	}
+
+	return plan.Features.CanSeeViewers, nil
+}
+
 // SetCreditService sets the credit service for the service.
 func (s *Service) SetCreditService(creditService CreditService) {
 	s.creditService = creditService
