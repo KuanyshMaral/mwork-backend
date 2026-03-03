@@ -52,6 +52,7 @@ type Promotion struct {
 
 	// Payment
 	PaymentID *uuid.UUID `db:"payment_id"`
+	IsMaxTier bool       `db:"is_max_tier"`
 
 	CreatedAt time.Time `db:"created_at"`
 	UpdatedAt time.Time `db:"updated_at"`

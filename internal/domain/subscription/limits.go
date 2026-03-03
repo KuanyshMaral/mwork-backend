@@ -96,7 +96,9 @@ func (c *LimitChecker) GetLimitsStatus(ctx context.Context, userID uuid.UUID) (*
 
 func (c *LimitChecker) getUpgradePlan(currentPlan PlanID) string {
 	switch currentPlan {
-	case PlanFree:
+	case PlanFree, PlanFreeModel:
+		return string(PlanStart)
+	case PlanStart:
 		return string(PlanPro)
 	case PlanPro:
 		return string(PlanAgency)

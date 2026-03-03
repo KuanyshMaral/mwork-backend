@@ -20,6 +20,7 @@ import (
 type Handler struct {
 	service        *Service
 	profileService ProfileService
+	planChecker    PlanChecker
 }
 
 // ProfileService defines profile operations needed by casting
@@ -34,10 +35,11 @@ type EmployerProfile struct {
 }
 
 // NewHandler creates casting handler
-func NewHandler(service *Service, profileService ProfileService) *Handler {
+func NewHandler(service *Service, profileService ProfileService, planChecker PlanChecker) *Handler {
 	return &Handler{
 		service:        service,
 		profileService: profileService,
+		planChecker:    planChecker,
 	}
 }
 
@@ -166,6 +168,20 @@ func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if casting.IsExclusive {
+		userID := middleware.GetUserID(ctx)
+		if userID == uuid.Nil {
+			response.Forbidden(w, "exclusive casting is available only for eligible plans")
+			return
+		}
+		if h.planChecker != nil {
+			allowed, err := h.planChecker.CanViewExclusiveCastings(ctx, userID)
+			if err != nil || !allowed {
+				response.Forbidden(w, "exclusive casting is available only for eligible plans")
+				return
+			}
+		}
+	}
 	// Increment view count (async)
 	go h.service.IncrementViewCount(context.Background(), id)
 
@@ -375,6 +391,11 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	}
 	if tags, ok := q["tags"]; ok && len(tags) > 0 {
 		filter.Tags = tags
+	}
+	if ex := q.Get("is_exclusive"); ex != "" {
+		if v, err := strconv.ParseBool(ex); err == nil {
+			filter.IsExclusive = &v
+		}
 	}
 
 	sortBy := SortBy(q.Get("sort_by"))

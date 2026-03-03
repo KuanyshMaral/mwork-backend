@@ -40,6 +40,7 @@ type CreateCastingRequest struct {
 	EventLocation string  `json:"event_location" validate:"omitempty,max=500"`
 	DeadlineAt    *string `json:"deadline_at" validate:"omitempty"`
 	IsUrgent      bool    `json:"is_urgent"`
+	IsExclusive   bool    `json:"is_exclusive"`
 
 	Status string   `json:"status" validate:"omitempty,oneof=draft active"`
 	Tags   []string `json:"tags" validate:"omitempty,max=10,dive,max=50"`
@@ -79,6 +80,7 @@ type UpdateCastingRequest struct {
 	EventLocation string   `json:"event_location" validate:"omitempty,max=500"`
 	DeadlineAt    *string  `json:"deadline_at"`
 	IsUrgent      *bool    `json:"is_urgent"`
+	IsExclusive   *bool    `json:"is_exclusive"`
 	Tags          []string `json:"tags" validate:"omitempty,max=10,dive,max=50"`
 }
 
@@ -138,6 +140,7 @@ type CastingResponse struct {
 
 	Status           string   `json:"status"`
 	IsPromoted       bool     `json:"is_promoted"`
+	IsExclusive      bool     `json:"is_exclusive"`
 	ModerationStatus string   `json:"moderation_status"`
 	Tags             []string `json:"tags"`
 	ViewCount        int      `json:"view_count"`
@@ -161,6 +164,7 @@ func CastingResponseFromEntity(c *Casting) *CastingResponse {
 		PayRange:         c.GetPayRange(),
 		Status:           string(c.Status),
 		IsPromoted:       c.IsPromoted,
+		IsExclusive:      c.IsExclusive,
 		ModerationStatus: string(c.ModerationStatus),
 		Tags:             []string(c.Tags),
 		ViewCount:        c.ViewCount,

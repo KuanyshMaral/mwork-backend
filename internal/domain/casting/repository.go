@@ -17,15 +17,16 @@ import (
 
 // Filter represents search filters
 type Filter struct {
-	Query     *string
-	City      *string
-	PayMin    *float64
-	PayMax    *float64
-	Status    *Status
-	CreatorID *uuid.UUID
-	IsUrgent  *bool
-	WorkType  *string
-	Tags      []string
+	Query       *string
+	City        *string
+	PayMin      *float64
+	PayMax      *float64
+	Status      *Status
+	CreatorID   *uuid.UUID
+	IsUrgent    *bool
+	WorkType    *string
+	IsExclusive *bool
+	Tags        []string
 }
 
 // SortBy represents sort options
@@ -72,7 +73,7 @@ const castingSelectColumns = `
 	min_weight, max_weight, required_experience, required_languages,
 	clothing_sizes, shoe_sizes,
 	work_type, event_datetime, event_location, deadline_at, is_urgent,
-	status, is_promoted, view_count, response_count,
+	status, is_promoted, is_exclusive, view_count, response_count,
 	created_at, updated_at, moderation_status, required_models_count,
 	accepted_models_count, tags, rating_score, reviews_count
 `
@@ -92,7 +93,7 @@ func (r *repository) Create(ctx context.Context, casting *Casting) error {
 			min_weight, max_weight, required_experience, required_languages,
 			clothing_sizes, shoe_sizes,
 			work_type, event_datetime, event_location, deadline_at, is_urgent,
-			status, is_promoted, view_count, response_count,
+			status, is_promoted, is_exclusive, view_count, response_count,
 			tags
 		) VALUES (
 			$1, $2, $3, $4, $5, $6,
@@ -102,8 +103,8 @@ func (r *repository) Create(ctx context.Context, casting *Casting) error {
 			$18, $19, $20, $21,
 			$22, $23,
 			$24, $25, $26, $27, $28,
-			$29, $30, $31, $32,
-			$33
+			$29, $30, $31, $32, $33,
+			$34
 		)
 	`
 
@@ -115,7 +116,7 @@ func (r *repository) Create(ctx context.Context, casting *Casting) error {
 		casting.WeightMin, casting.WeightMax, casting.RequiredExperience, casting.RequiredLanguages,
 		casting.ClothingSizes, casting.ShoeSizes,
 		casting.WorkType, casting.EventDatetime, casting.EventLocation, casting.DeadlineAt, casting.IsUrgent,
-		casting.Status, casting.IsPromoted, casting.ViewCount, casting.ResponseCount,
+		casting.Status, casting.IsPromoted, casting.IsExclusive, casting.ViewCount, casting.ResponseCount,
 		casting.Tags,
 	)
 	if err != nil {
@@ -202,8 +203,9 @@ func (r *repository) Update(ctx context.Context, casting *Casting) error {
 			clothing_sizes = $21, shoe_sizes = $22,
 			work_type = $23, event_datetime = $24, event_location = $25,
 			deadline_at = $26, is_urgent = $27,
-			status = $28,
-			tags = $29,
+			is_exclusive = $28,
+			status = $29,
+			tags = $30,
 			updated_at = NOW()
 		WHERE id = $1
 	`
@@ -221,6 +223,7 @@ func (r *repository) Update(ctx context.Context, casting *Casting) error {
 		casting.ClothingSizes, casting.ShoeSizes,
 		casting.WorkType, casting.EventDatetime, casting.EventLocation,
 		casting.DeadlineAt, casting.IsUrgent,
+		casting.IsExclusive,
 		casting.Status,
 		casting.Tags,
 	)
@@ -293,6 +296,12 @@ func (r *repository) List(ctx context.Context, filter *Filter, sortBy SortBy, pa
 	if filter.WorkType != nil && *filter.WorkType != "" {
 		conditions = append(conditions, fmt.Sprintf("c.work_type = $%d", argIndex))
 		args = append(args, *filter.WorkType)
+		argIndex++
+	}
+
+	if filter.IsExclusive != nil {
+		conditions = append(conditions, fmt.Sprintf("c.is_exclusive = $%d", argIndex))
+		args = append(args, *filter.IsExclusive)
 		argIndex++
 	}
 

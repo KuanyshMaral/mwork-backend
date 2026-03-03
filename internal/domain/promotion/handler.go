@@ -1,6 +1,7 @@
 package promotion
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"net/http"
@@ -15,16 +16,23 @@ import (
 )
 
 // Handler handles promotion HTTP requests
+type PlanAccessChecker interface {
+	CanUseMaxPromotionTier(ctx context.Context, userID uuid.UUID) (bool, error)
+}
+
+// Handler handles promotion HTTP requests
 type Handler struct {
-	repo      *Repository
-	validator *validator.Validate
+	repo        *Repository
+	validator   *validator.Validate
+	planChecker PlanAccessChecker
 }
 
 // NewHandler creates new promotion handler
-func NewHandler(repo *Repository) *Handler {
+func NewHandler(repo *Repository, planChecker PlanAccessChecker) *Handler {
 	return &Handler{
-		repo:      repo,
-		validator: validator.New(),
+		repo:        repo,
+		validator:   validator.New(),
+		planChecker: planChecker,
 	}
 }
 
@@ -136,6 +144,16 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	isMaxTier := false
+	if h.planChecker != nil {
+		allowed, err := h.planChecker.CanUseMaxPromotionTier(r.Context(), userID)
+		if err != nil {
+			response.InternalError(w)
+			return
+		}
+		isMaxTier = allowed
+	}
+
 	// Set defaults
 	if req.TargetAudience == "" {
 		req.TargetAudience = "employers"
@@ -154,6 +172,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		BudgetAmount:   req.BudgetAmount,
 		DurationDays:   req.DurationDays,
 		Status:         StatusDraft,
+		IsMaxTier:      isMaxTier,
 		CreatedAt:      now,
 		UpdatedAt:      now,
 	}
