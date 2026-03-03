@@ -47,9 +47,9 @@ func (r *Repository) Create(ctx context.Context, p *Promotion) error {
 		INSERT INTO profile_promotions (
 			id, profile_id, title, description, photo_url, specialization,
 			target_audience, target_cities, budget_amount, daily_budget,
-			duration_days, status, created_at, updated_at
+			duration_days, status, is_max_tier, created_at, updated_at
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
 		)
 	`
 
@@ -66,6 +66,7 @@ func (r *Repository) Create(ctx context.Context, p *Promotion) error {
 		p.DailyBudget,
 		p.DurationDays,
 		p.Status,
+		p.IsMaxTier,
 		p.CreatedAt,
 		p.UpdatedAt,
 	)
@@ -78,7 +79,7 @@ func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (*Promotion, err
 		SELECT id, profile_id, title, description, photo_url, specialization,
 			target_audience, target_cities, budget_amount, daily_budget,
 			duration_days, status, starts_at, ends_at, impressions, clicks,
-			responses, spent_amount, payment_id, created_at, updated_at
+			responses, spent_amount, payment_id, is_max_tier, created_at, updated_at
 		FROM profile_promotions
 		WHERE id = $1
 	`
@@ -92,7 +93,7 @@ func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (*Promotion, err
 		&p.ID, &p.ProfileID, &p.Title, &p.Description, &p.PhotoURL, &p.Specialization,
 		&p.TargetAudience, &targetCities, &p.BudgetAmount, &p.DailyBudget,
 		&p.DurationDays, &p.Status, &p.StartsAt, &p.EndsAt, &p.Impressions, &p.Clicks,
-		&p.Responses, &p.SpentAmount, &paymentID, &p.CreatedAt, &p.UpdatedAt,
+		&p.Responses, &p.SpentAmount, &paymentID, &p.IsMaxTier, &p.CreatedAt, &p.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, ErrPromotionNotFound
@@ -118,10 +119,10 @@ func (r *Repository) GetByProfileID(ctx context.Context, profileID uuid.UUID) ([
 		SELECT id, profile_id, title, description, photo_url, specialization,
 			target_audience, target_cities, budget_amount, daily_budget,
 			duration_days, status, starts_at, ends_at, impressions, clicks,
-			responses, spent_amount, payment_id, created_at, updated_at
+			responses, spent_amount, payment_id, is_max_tier, created_at, updated_at
 		FROM profile_promotions
 		WHERE profile_id = $1
-		ORDER BY created_at DESC
+		ORDER BY is_max_tier DESC, budget_amount DESC, created_at DESC
 	`
 
 	rows, err := r.db.QueryContext(ctx, query, profileID)
@@ -140,7 +141,7 @@ func (r *Repository) GetByProfileID(ctx context.Context, profileID uuid.UUID) ([
 			&p.ID, &p.ProfileID, &p.Title, &p.Description, &p.PhotoURL, &p.Specialization,
 			&p.TargetAudience, &targetCities, &p.BudgetAmount, &p.DailyBudget,
 			&p.DurationDays, &p.Status, &p.StartsAt, &p.EndsAt, &p.Impressions, &p.Clicks,
-			&p.Responses, &p.SpentAmount, &paymentID, &p.CreatedAt, &p.UpdatedAt,
+			&p.Responses, &p.SpentAmount, &paymentID, &p.IsMaxTier, &p.CreatedAt, &p.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err
@@ -254,10 +255,10 @@ func (r *Repository) GetActivePromotions(ctx context.Context) ([]Promotion, erro
 		SELECT id, profile_id, title, description, photo_url, specialization,
 			target_audience, target_cities, budget_amount, daily_budget,
 			duration_days, status, starts_at, ends_at, impressions, clicks,
-			responses, spent_amount, payment_id, created_at, updated_at
+			responses, spent_amount, payment_id, is_max_tier, created_at, updated_at
 		FROM profile_promotions
 		WHERE status = 'active' AND NOW() BETWEEN starts_at AND ends_at
-		ORDER BY budget_amount DESC
+		ORDER BY is_max_tier DESC, budget_amount DESC
 	`
 
 	rows, err := r.db.QueryContext(ctx, query)
@@ -276,7 +277,7 @@ func (r *Repository) GetActivePromotions(ctx context.Context) ([]Promotion, erro
 			&p.ID, &p.ProfileID, &p.Title, &p.Description, &p.PhotoURL, &p.Specialization,
 			&p.TargetAudience, &targetCities, &p.BudgetAmount, &p.DailyBudget,
 			&p.DurationDays, &p.Status, &p.StartsAt, &p.EndsAt, &p.Impressions, &p.Clicks,
-			&p.Responses, &p.SpentAmount, &paymentID, &p.CreatedAt, &p.UpdatedAt,
+			&p.Responses, &p.SpentAmount, &paymentID, &p.IsMaxTier, &p.CreatedAt, &p.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err

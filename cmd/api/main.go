@@ -286,7 +286,7 @@ func main() {
 	// ---------- Handlers ----------
 	authHandler := auth.NewHandler(authService)
 	profileHandler := profile.NewHandler(profileService, attachmentService)
-	castingHandler := casting.NewHandler(castingService, castingProfileService)
+	castingHandler := casting.NewHandler(castingService, castingProfileService, subscriptionService)
 	experienceHandler := experience.NewHandler(experienceRepo, modelRepo)
 	responseHandler := response.NewHandler(responseService, limitChecker)
 	attachmentHandler := attachmentDomain.NewHandler(attachmentService)
@@ -316,7 +316,7 @@ func main() {
 	paymentHandler := payment.NewHandler(paymentService, cfg)
 
 	dashboardHandler := dashboard.NewHandler(dashboardRepo, dashboardSvc)
-	promotionHandler := promotion.NewHandler(promotionRepo)
+	promotionHandler := promotion.NewHandler(promotionRepo, subscriptionService)
 	castingPromotionRepo := promotion.NewCastingRepository(db)
 	castingPromotionHandler := promotion.NewCastingPromotionHandler(castingPromotionRepo, creditService)
 

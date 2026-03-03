@@ -13,7 +13,8 @@ type PlanID string
 
 const (
 	PlanFree         PlanID = "free"
-	PlanFreeModel    PlanID = "free_model"
+	PlanFreeModel    PlanID = "free_model" // legacy
+	PlanStart        PlanID = "start"
 	PlanFreeEmployer PlanID = "free_employer"
 	PlanPro          PlanID = "pro"
 	PlanAgency       PlanID = "agency"
@@ -52,12 +53,14 @@ type ConsumablesConfig struct {
 
 // FeaturesConfig defines Camp 2 limits (Квоты и Фичи) — enforced by count checks, not deductions.
 type FeaturesConfig struct {
-	MaxPhotos         int  `json:"max_photos"`
-	CanChat           bool `json:"can_chat"`
-	CanSeeViewers     bool `json:"can_see_viewers"`
-	PrioritySearch    bool `json:"priority_search"`
-	MaxTeamMembers    int  `json:"max_team_members"`
-	MaxActiveCastings int  `json:"max_active_castings"` // Employer: max concurrent active castings
+	MaxPhotos         int    `json:"max_photos"`
+	CanChat           bool   `json:"can_chat"`
+	CanSeeViewers     bool   `json:"can_see_viewers"`
+	CanViewExclusive  bool   `json:"can_view_exclusive_castings"`
+	PrioritySearch    bool   `json:"priority_search"`
+	PromotionTier     string `json:"promotion_tier"`
+	MaxTeamMembers    int    `json:"max_team_members"`
+	MaxActiveCastings int    `json:"max_active_castings"` // Employer: max concurrent active castings
 }
 
 // Plan represents a subscription plan

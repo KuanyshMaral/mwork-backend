@@ -64,6 +64,24 @@ func (s *Service) MaxActiveCastings(ctx context.Context, userID uuid.UUID) (int,
 	return plan.Features.MaxActiveCastings, nil
 }
 
+func (s *Service) CanViewExclusiveCastings(ctx context.Context, userID uuid.UUID) (bool, error) {
+	_, plan, err := s.GetCurrentSubscription(ctx, userID)
+	if err != nil {
+		return false, fmt.Errorf("failed to get active subscription: %w", err)
+	}
+
+	return plan.Features.CanViewExclusive, nil
+}
+
+func (s *Service) CanUseMaxPromotionTier(ctx context.Context, userID uuid.UUID) (bool, error) {
+	_, plan, err := s.GetCurrentSubscription(ctx, userID)
+	if err != nil {
+		return false, fmt.Errorf("failed to get active subscription: %w", err)
+	}
+
+	return plan.Features.PromotionTier == "max", nil
+}
+
 // SetCreditService sets the credit service for the service.
 func (s *Service) SetCreditService(creditService CreditService) {
 	s.creditService = creditService
@@ -112,9 +130,9 @@ func defaultFreePlan(audience Audience) *Plan {
 		p.Features = FeaturesConfig{MaxPhotos: 10, CanChat: true, MaxActiveCastings: 3, MaxTeamMembers: 1}
 		return p
 	}
-	p := &Plan{ID: PlanFreeModel, Name: "Free Model", Description: "Базовый бесплатный план", PriceMonthly: 0, Audience: AudienceModel, IsActive: true}
+	p := &Plan{ID: PlanFree, Name: "Free", Description: "Базовый бесплатный план", PriceMonthly: 0, Audience: AudienceModel, IsActive: true}
 	p.Consumables = ConsumablesConfig{ResponseConnects: 20}
-	p.Features = FeaturesConfig{MaxPhotos: 3, CanChat: true}
+	p.Features = FeaturesConfig{MaxPhotos: 3, CanChat: true, CanViewExclusive: false, PromotionTier: "none"}
 	return p
 }
 
@@ -122,7 +140,7 @@ func (s *Service) freePlanIDForAudience(a Audience) PlanID {
 	if a == AudienceEmployer {
 		return PlanFreeEmployer
 	}
-	return PlanFreeModel
+	return PlanFree
 }
 
 func (s *Service) getUserAudience(ctx context.Context, userID uuid.UUID) (Audience, error) {

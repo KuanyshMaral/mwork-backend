@@ -104,8 +104,9 @@ type Casting struct {
 	IsUrgent      bool           `db:"is_urgent"`
 
 	// Status and promotion
-	Status     Status `db:"status"`
-	IsPromoted bool   `db:"is_promoted"`
+	Status      Status `db:"status"`
+	IsPromoted  bool   `db:"is_promoted"`
+	IsExclusive bool   `db:"is_exclusive"`
 
 	// Tags (user-defined, migration 000064)
 	Tags pq.StringArray `db:"tags"`

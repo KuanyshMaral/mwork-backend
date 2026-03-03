@@ -168,7 +168,7 @@ func TestServiceCreate_DateValidation(t *testing.T) {
 
 func TestCreateRoute_InvalidDateReturns422(t *testing.T) {
 	svc := NewService(&fakeCastingRepo{}, &fakeUserRepo{user: &user.User{Role: user.RoleEmployer, UserVerificationStatus: user.VerificationVerified}})
-	h := NewHandler(svc, nil)
+	h := NewHandler(svc, nil, nil)
 
 	r := chi.NewRouter()
 	r.With(func(next http.Handler) http.Handler {
@@ -216,7 +216,7 @@ func TestServiceCreate_EmployerNotVerifiedReturns403Error(t *testing.T) {
 func TestCreateRoute_EmployerNotVerifiedReturns403(t *testing.T) {
 	repo := &trackingCastingRepo{}
 	svc := NewService(repo, &fakeUserRepo{user: &user.User{Role: user.RoleEmployer, UserVerificationStatus: user.VerificationPending}})
-	h := NewHandler(svc, nil)
+	h := NewHandler(svc, nil, nil)
 
 	r := chi.NewRouter()
 	r.With(func(next http.Handler) http.Handler {
@@ -284,7 +284,7 @@ func TestServiceUpdateStatus_InvalidTransition(t *testing.T) {
 
 func TestList_InvalidStatusQueryReturns422(t *testing.T) {
 	svc := NewService(&fakeCastingRepo{}, &fakeUserRepo{user: &user.User{Role: user.RoleEmployer, UserVerificationStatus: user.VerificationVerified}})
-	h := NewHandler(svc, nil)
+	h := NewHandler(svc, nil, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/castings?status=deleted", nil)
 	rr := httptest.NewRecorder()

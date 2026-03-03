@@ -21,6 +21,7 @@ type PlanChecker interface {
 	// MaxActiveCastings returns the maximum number of active castings the user's plan allows.
 	// Returns 0 for unlimited.
 	MaxActiveCastings(ctx context.Context, userID uuid.UUID) (int, error)
+	CanViewExclusiveCastings(ctx context.Context, userID uuid.UUID) (bool, error)
 }
 
 // Service handles casting business logic
@@ -150,6 +151,7 @@ func applyRequirementsToCreate(casting *Casting, req *CreateCastingRequest) {
 		casting.EventLocation = sql.NullString{String: req.EventLocation, Valid: true}
 	}
 	casting.IsUrgent = req.IsUrgent
+	casting.IsExclusive = req.IsExclusive
 }
 
 // applyRequirementsToUpdate maps flat update request fields to the Casting entity
@@ -198,6 +200,9 @@ func applyRequirementsToUpdate(casting *Casting, req *UpdateCastingRequest) {
 	}
 	if req.IsUrgent != nil {
 		casting.IsUrgent = *req.IsUrgent
+	}
+	if req.IsExclusive != nil {
+		casting.IsExclusive = *req.IsExclusive
 	}
 }
 
