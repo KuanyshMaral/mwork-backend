@@ -121,6 +121,27 @@ type AdminProfile struct {
 	UpdatedAt time.Time      `db:"updated_at"`
 }
 
+type ProfileViewAnalytics struct {
+	TotalViews      int                 `json:"total_views"`
+	UniqueViewers   int                 `json:"unique_viewers"`
+	ViewsLast30Days int                 `json:"views_last_30_days"`
+	TopViewers      []ProfileViewerStat `json:"top_viewers"`
+	DailyViews      []ProfileDailyView  `json:"daily_views"`
+}
+
+type ProfileViewerStat struct {
+	ViewerUserID uuid.NullUUID  `db:"viewer_user_id" json:"viewer_user_id"`
+	ViewerEmail  sql.NullString `db:"viewer_email" json:"viewer_email"`
+	ViewerRole   sql.NullString `db:"viewer_role" json:"viewer_role"`
+	ViewsCount   int            `db:"views_count" json:"views_count"`
+	LastViewedAt time.Time      `db:"last_viewed_at" json:"last_viewed_at"`
+}
+
+type ProfileDailyView struct {
+	Day        time.Time `db:"day" json:"day"`
+	ViewsCount int       `db:"views_count" json:"views_count"`
+}
+
 // GetLanguages parses languages JSON for ModelProfile
 func (p *ModelProfile) GetLanguages() []string {
 	if p.Languages == nil {

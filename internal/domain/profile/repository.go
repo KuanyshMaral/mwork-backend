@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
@@ -47,7 +48,8 @@ type ModelRepository interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 	List(ctx context.Context, filter *Filter, pagination *Pagination) ([]*ModelProfile, int, error)
 	ListPromoted(ctx context.Context, city *string, limit int) ([]*ModelProfile, error)
-	IncrementViewCount(ctx context.Context, id uuid.UUID) error
+	IncrementViewCount(ctx context.Context, id uuid.UUID, viewerUserID *uuid.UUID) error
+	GetViewAnalytics(ctx context.Context, profileID uuid.UUID, since time.Time) (*ProfileViewAnalytics, error)
 }
 
 // EmployerRepository defines employer profile data access interface
@@ -238,9 +240,82 @@ func (r *modelRepository) List(ctx context.Context, filter *Filter, pagination *
 	}
 	return profiles, total, nil
 }
-func (r *modelRepository) IncrementViewCount(ctx context.Context, id uuid.UUID) error {
-	_, err := r.db.ExecContext(ctx, `UPDATE model_profiles SET profile_views = profile_views + 1 WHERE id=$1`, id)
+func (r *modelRepository) IncrementViewCount(ctx context.Context, id uuid.UUID, viewerUserID *uuid.UUID) error {
+	if _, err := r.db.ExecContext(ctx, `UPDATE model_profiles SET profile_views = profile_views + 1 WHERE id=$1`, id); err != nil {
+		return err
+	}
+
+	var viewer any
+	if viewerUserID != nil && *viewerUserID != uuid.Nil {
+		viewer = *viewerUserID
+	}
+
+	_, err := r.db.ExecContext(ctx, `
+		INSERT INTO profile_view_events (profile_id, viewer_user_id, viewed_at)
+		VALUES ($1, $2, NOW())
+	`, id, viewer)
+	if err != nil && isUndefinedTableError(err) {
+		return nil
+	}
 	return err
+}
+
+func (r *modelRepository) GetViewAnalytics(ctx context.Context, profileID uuid.UUID, since time.Time) (*ProfileViewAnalytics, error) {
+	analytics := &ProfileViewAnalytics{}
+
+	if err := r.db.GetContext(ctx, &analytics.TotalViews, `
+		SELECT COUNT(*) FROM profile_view_events WHERE profile_id = $1
+	`, profileID); err != nil {
+		if isUndefinedTableError(err) {
+			return analytics, nil
+		}
+		return nil, err
+	}
+
+	if err := r.db.GetContext(ctx, &analytics.UniqueViewers, `
+		SELECT COUNT(DISTINCT viewer_user_id)
+		FROM profile_view_events
+		WHERE profile_id = $1 AND viewer_user_id IS NOT NULL
+	`, profileID); err != nil {
+		return nil, err
+	}
+
+	if err := r.db.GetContext(ctx, &analytics.ViewsLast30Days, `
+		SELECT COUNT(*) FROM profile_view_events WHERE profile_id = $1 AND viewed_at >= $2
+	`, profileID, since); err != nil {
+		return nil, err
+	}
+
+	if err := r.db.SelectContext(ctx, &analytics.TopViewers, `
+		SELECT
+			pve.viewer_user_id,
+			u.email AS viewer_email,
+			u.role AS viewer_role,
+			COUNT(*) AS views_count,
+			MAX(pve.viewed_at) AS last_viewed_at
+		FROM profile_view_events pve
+		LEFT JOIN users u ON u.id = pve.viewer_user_id
+		WHERE pve.profile_id = $1 AND pve.viewer_user_id IS NOT NULL
+		GROUP BY pve.viewer_user_id, u.email, u.role
+		ORDER BY views_count DESC, last_viewed_at DESC
+		LIMIT 20
+	`, profileID); err != nil {
+		return nil, err
+	}
+
+	if err := r.db.SelectContext(ctx, &analytics.DailyViews, `
+		SELECT
+			DATE(viewed_at) AS day,
+			COUNT(*) AS views_count
+		FROM profile_view_events
+		WHERE profile_id = $1 AND viewed_at >= $2
+		GROUP BY DATE(viewed_at)
+		ORDER BY day DESC
+	`, profileID, since); err != nil {
+		return nil, err
+	}
+
+	return analytics, nil
 }
 func (r *modelRepository) ListPromoted(ctx context.Context, city *string, limit int) ([]*ModelProfile, error) {
 	q := `SELECT DISTINCT ON (p.id)
